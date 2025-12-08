@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <title>인증 성공</title>
+    <script>
+        window.onload = function() {
+            // 현재 GAS URL에 '?page=admin' 파라미터를 붙여서 리다이렉트
+            const adminUrl = '<?= ScriptApp.getService().getUrl() ?>?page=admin'; 
+            window.location.replace(adminUrl);
+        };
+    </script>
+</head>
+<body>
+    <h1>✅ 인증 성공!</h1>
+    <p>관리자 페이지로 이동합니다...</p>
+</body>
+</html>
