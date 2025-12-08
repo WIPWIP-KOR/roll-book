@@ -53,7 +53,7 @@ function doGet(e) {
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    const action = data.action;
+    const action = e.parameter.action;
 
     switch(action) {
       case 'attend':
@@ -516,20 +516,23 @@ function getClientIP(e) {
   }
 }
 
+// ==================== 유틸리티 ====================
+
 /**
- * JSON 응답 생성
+ * JSON 응답 생성 (JSONP 방식으로 CORS 문제 해결)
  */
 function createResponse(success, message, data) {
-  const response = {
-    success: success,
-    message: message || (success ? 'Success' : 'Error')
-  };
+    const response = {
+        success: success,
+        message: message || (success ? 'Success' : 'Error')
+    };
 
-  if (data) {
-    Object.assign(response, data);
-  }
+    if (data) {
+        Object.assign(response, data);
+    }
 
-  return ContentService
-    .createTextOutput(JSON.stringify(response))
-    .setMimeType(ContentService.MimeType.JSON);
+    // 💡 수정된 부분: JSONP를 사용하여 CORS 문제를 우회합니다.
+    return ContentService
+        .createTextOutput(JSON.stringify(response))
+        .setMimeType(ContentService.MimeType.JSONP); // JSON -> JSONP로 변경
 }
