@@ -1,13 +1,5 @@
 /**
  * 풋살 동호회 출석 시스템 - Google Apps Script
- *
- * 사용 방법:
- * 1. Google Sheets 새 스프레드시트 생성
- * 2. 확장 프로그램 > Apps Script 메뉴 선택
- * 3. 이 코드를 붙여넣기
- * 4. 배포 > 새 배포 > 유형: 웹 앱 선택
- * 5. 실행 권한: 나 / 액세스 권한: 모든 사용자
- * 6. 배포 후 웹 앱 URL 복사하여 프론트엔드 CONFIG.GAS_URL에 설정
  */
 
 // ==================== 설정 ====================
@@ -24,47 +16,57 @@ const REQUIRED_RADIUS = 50; // 50미터
 // ==================== 메인 함수 ====================
 
 /**
- * GET 요청 처리
+ * GET 요청 처리 (수정됨: JSONP 콜백을 모든 경우에 처리)
  */
 function doGet(e) {
   const action = e.parameter.action;
+  // 💡 수정: JSONP 콜백 이름 추출
+  const callback = e.parameter.callback; 
 
   try {
     switch(action) {
       case 'getMembers':
-        return getMembers();
+        // 💡 수정: 콜백 전달
+        return getMembers(callback);
       case 'getLocation':
-        return getLocation();
+        // 💡 수정: 콜백 전달
+        return getLocation(callback);
       case 'getTodayAttendance':
-        return getTodayAttendance();
+        // 💡 수정: 콜백 전달
+        return getTodayAttendance(callback);
       case 'getStats':
-        return getStats();
+        // 💡 수정: 콜백 전달
+        return getStats(callback);
       default:
-        return createResponse(false, 'Invalid action');
+        // 💡 수정: 콜백 전달
+        return createResponse(false, 'Invalid action', null, callback); 
     }
   } catch (error) {
-    return createResponse(false, error.toString());
+    // 💡 수정: 콜백 전달
+    return createResponse(false, error.toString(), null, callback);
   }
 }
 
 /**
- * POST 요청 처리
+ * POST 요청 처리 (saveLocation) 및 출석 처리 (attend)
  */
 function doPost(e) {
+  let callback = e.parameter.callback;
+
   try {
     const data = JSON.parse(e.postData.contents);
-    const action = e.parameter.action;
+    const action = data.action || e.parameter.action; 
 
     switch(action) {
       case 'attend':
-        return processAttendance(data, e);
+        return processAttendance(data, e, callback);
       case 'saveLocation':
-        return saveLocation(data);
+        return saveLocation(data, callback);
       default:
-        return createResponse(false, 'Invalid action');
+        return createResponse(false, 'Invalid action', null, callback);
     }
   } catch (error) {
-    return createResponse(false, error.toString());
+    return createResponse(false, error.toString(), null, callback);
   }
 }
 
@@ -73,29 +75,29 @@ function doPost(e) {
 /**
  * 출석 처리
  */
-function processAttendance(data, e) {
+function processAttendance(data, e, callback) {
   const { name, team, latitude, longitude, userAgent } = data;
 
   // 입력 검증
   if (!name || !team || !latitude || !longitude) {
-    return createResponse(false, '필수 정보가 누락되었습니다.');
+    return createResponse(false, '필수 정보가 누락되었습니다.', null, callback);
   }
 
   // 팀 검증
   if (!['A', 'B', 'C'].includes(team)) {
-    return createResponse(false, '올바른 팀을 선택해주세요.');
+    return createResponse(false, '올바른 팀을 선택해주세요.', null, callback);
   }
 
   // 토요일 확인
   const now = new Date();
   if (now.getDay() !== 6) {
-    return createResponse(false, '출석은 토요일만 가능합니다.');
+    return createResponse(false, '출석은 토요일만 가능합니다.', null, callback);
   }
 
   // 위치 확인
   const targetLocation = getTargetLocation();
   if (!targetLocation) {
-    return createResponse(false, '출석 위치가 설정되지 않았습니다. 관리자에게 문의하세요.');
+    return createResponse(false, '출석 위치가 설정되지 않았습니다. 관리자에게 문의하세요.', null, callback);
   }
 
   const distance = calculateDistance(
@@ -104,7 +106,7 @@ function processAttendance(data, e) {
   );
 
   if (distance > REQUIRED_RADIUS) {
-    return createResponse(false, `출석 불가 지역입니다. (${Math.round(distance)}m 떨어짐)`);
+    return createResponse(false, `출석 불가 지역입니다. (${Math.round(distance)}m 떨어짐)`, null, callback);
   }
 
   // IP 주소 추출
@@ -112,7 +114,7 @@ function processAttendance(data, e) {
 
   // 중복 출석 체크
   if (isDuplicateAttendance(name, ipAddress)) {
-    return createResponse(false, '이미 오늘 출석하셨습니다.');
+    return createResponse(false, '이미 오늘 출석하셨습니다.', null, callback);
   }
 
   // 출석 기록 저장
@@ -121,7 +123,7 @@ function processAttendance(data, e) {
   // 회원 정보 업데이트
   updateMember(name, team);
 
-  return createResponse(true, '출석이 완료되었습니다!');
+  return createResponse(true, '출석이 완료되었습니다!', null, callback);
 }
 
 /**
@@ -219,11 +221,11 @@ function updateMember(name, team) {
 /**
  * 위치 저장
  */
-function saveLocation(data) {
+function saveLocation(data, callback) {
   const { latitude, longitude, name } = data;
 
   if (!latitude || !longitude || !name) {
-    return createResponse(false, '필수 정보가 누락되었습니다.');
+    return createResponse(false, '필수 정보가 누락되었습니다.', null, callback);
   }
 
   const sheet = getOrCreateSheet(SHEET_NAMES.LOCATION);
@@ -235,24 +237,26 @@ function saveLocation(data) {
   sheet.appendRow(['경도', longitude]);
   sheet.appendRow(['장소명', name]);
 
-  return createResponse(true, '위치가 저장되었습니다.');
+  return createResponse(true, '위치가 저장되었습니다.', null, callback);
 }
 
 /**
- * 위치 조회
+ * 위치 조회 (수정됨: callback 인자 추가)
  */
-function getLocation() {
+function getLocation(callback) {
   const targetLocation = getTargetLocation();
 
   if (!targetLocation) {
-    return createResponse(false, '저장된 위치가 없습니다.');
+    // 💡 수정: 콜백 전달
+    return createResponse(false, '저장된 위치가 없습니다.', null, callback); 
   }
 
-  return createResponse(true, null, { location: targetLocation });
+  // 💡 수정: 콜백 전달
+  return createResponse(true, null, { location: targetLocation }, callback);
 }
 
 /**
- * 목표 위치 가져오기
+ * 목표 위치 가져오기 (내부 사용 함수, 수정 불필요)
  */
 function getTargetLocation() {
   const sheet = getOrCreateSheet(SHEET_NAMES.LOCATION);
@@ -273,13 +277,14 @@ function getTargetLocation() {
 // ==================== 회원 관리 ====================
 
 /**
- * 회원 목록 조회
+ * 회원 목록 조회 (수정됨: callback 인자 추가)
  */
-function getMembers() {
+function getMembers(callback) {
   const sheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
 
   if (sheet.getLastRow() <= 1) {
-    return createResponse(true, null, { members: [] });
+    // 💡 수정: 콜백 전달
+    return createResponse(true, null, { members: [] }, callback);
   }
 
   const data = sheet.getDataRange().getValues();
@@ -296,19 +301,21 @@ function getMembers() {
     }
   }
 
-  return createResponse(true, null, { members: members });
+  // 💡 수정: 콜백 전달
+  return createResponse(true, null, { members: members }, callback);
 }
 
 // ==================== 통계 ====================
 
 /**
- * 오늘 출석 현황
+ * 오늘 출석 현황 (수정됨: callback 인자 추가)
  */
-function getTodayAttendance() {
+function getTodayAttendance(callback) {
   const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE);
 
   if (sheet.getLastRow() <= 1) {
-    return createResponse(true, null, { attendance: [] });
+    // 💡 수정: 콜백 전달
+    return createResponse(true, null, { attendance: [] }, callback);
   }
 
   const today = new Date();
@@ -333,13 +340,14 @@ function getTodayAttendance() {
     }
   }
 
-  return createResponse(true, null, { attendance: attendance });
+  // 💡 수정: 콜백 전달
+  return createResponse(true, null, { attendance: attendance }, callback);
 }
 
 /**
- * 전체 통계
+ * 전체 통계 (수정됨: callback 인자 추가)
  */
-function getStats() {
+function getStats(callback) {
   // 토요일 목록 생성 (2025-01 ~ 2026-12)
   const saturdays = generateSaturdays();
   const totalSaturdays = saturdays.length;
@@ -431,17 +439,18 @@ function getStats() {
     });
   });
 
+  // 💡 수정: 콜백 전달
   return createResponse(true, null, {
     stats: {
       personalStats: personalStats,
       teamStats: teamStats,
       weeklyStats: weeklyStats
     }
-  });
+  }, callback);
 }
 
 /**
- * 2025-01 ~ 2026-12 사이의 모든 토요일 생성
+ * 2025-01 ~ 2026-12 사이의 모든 토요일 생성 (수정 불필요)
  */
 function generateSaturdays() {
   const saturdays = [];
@@ -467,7 +476,7 @@ function generateSaturdays() {
 // ==================== 유틸리티 ====================
 
 /**
- * 시트 가져오기 또는 생성
+ * 시트 가져오기 또는 생성 (수정 불필요)
  */
 function getOrCreateSheet(sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -481,7 +490,7 @@ function getOrCreateSheet(sheetName) {
 }
 
 /**
- * 두 좌표 간 거리 계산 (Haversine 공식)
+ * 두 좌표 간 거리 계산 (Haversine 공식) (수정 불필요)
  */
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371e3; // 지구 반지름 (미터)
@@ -499,12 +508,10 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * 클라이언트 IP 주소 추출
+ * 클라이언트 IP 주소 추출 (수정 불필요)
  */
 function getClientIP(e) {
   try {
-    // Apps Script에서는 직접 IP를 가져올 수 없으므로
-    // 헤더 정보 조합으로 대체
     const headers = JSON.stringify(e);
     return Utilities.computeDigest(
       Utilities.DigestAlgorithm.MD5,
@@ -516,23 +523,30 @@ function getClientIP(e) {
   }
 }
 
-// ==================== 유틸리티 ====================
-
 /**
- * JSON 응답 생성 (JSONP 방식으로 CORS 문제 해결)
+ * JSON 응답 생성 (JSONP 방식으로 CORS 문제 해결) (수정 불필요)
  */
-function createResponse(success, message, data) {
-    const response = {
-        success: success,
-        message: message || (success ? 'Success' : 'Error')
-    };
+function createResponse(success, message, data, callback) {
+  const response = {
+    success: success,
+    message: message || (success ? 'Success' : 'Error')
+  };
 
-    if (data) {
-        Object.assign(response, data);
-    }
+  if (data) {
+    Object.assign(response, data);
+  }
 
-    // 💡 수정된 부분: JSONP를 사용하여 CORS 문제를 우회합니다.
+  const json = JSON.stringify(response);
+
+  // JSONP 콜백이 제공되면 JSONP 형식으로 반환하여 CORS를 우회합니다.
+  if (callback) {
     return ContentService
-        .createTextOutput(JSON.stringify(response))
-        .setMimeType(ContentService.MimeType.JSONP); // JSON -> JSONP로 변경
+      .createTextOutput(`${callback}(${json})`)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  
+  // 콜백이 없으면 일반 JSON으로 반환
+  return ContentService
+    .createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
 }
