@@ -1,6 +1,6 @@
 // 설정
 const CONFIG = {
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbx5ey3OUT1cR8t-vU6IkAEpCJfppqoc4B8UD27SVBqtiVMkHiJFb1XddV7rR9eINqh_/exec' // 나중에 변경 필요
+    GAS_URL: 'https://script.google.com/macros/s/AKfycbz0qh_mWTEP3uvTeMzq4ZK7L56tu1eFcJWKP7mNZsOhRwAcu_qoDQqzWgHBD3YhZymr/exec' // 나중에 변경 필요
 };
 
 // 전역 변수
