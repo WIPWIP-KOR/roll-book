@@ -3,23 +3,61 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent; /* 모바일 터치 하이라이트 제거 */
+}
+
+html {
+    /* iOS 확대 방지 */
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+}
+
+/* iOS Safe Area 대응 */
+@supports (padding: max(0px)) {
+    body {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+    }
+
+    .attendance-form #attendBtn {
+        padding-bottom: max(18px, env(safe-area-inset-bottom));
+    }
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
-    padding: 20px;
+    padding: 0; /* 모바일에서 여백 제거 */
     color: #333;
+    font-size: 16px; /* iOS 자동 확대 방지 */
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+/* 모바일 친화적 컨테이너 */
+@media (min-width: 601px) {
+    body {
+        padding: 20px;
+    }
 }
 
 .container {
     max-width: 600px;
     margin: 0 auto;
     background: white;
-    border-radius: 20px;
+    border-radius: 0; /* 모바일에서 풀스크린 */
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     overflow: hidden;
+    min-height: 100vh; /* 전체 높이 */
+}
+
+/* 데스크톱에서만 둥근 모서리 */
+@media (min-width: 601px) {
+    .container {
+        border-radius: 20px;
+        min-height: auto;
+    }
 }
 
 /* 헤더 */
@@ -49,6 +87,29 @@ body {
 /* 출석 폼 */
 .attendance-form {
     padding: 30px 20px;
+    padding-bottom: 100px; /* 하단 고정 버튼 공간 확보 */
+}
+
+/* 모바일에서 하단 고정 버튼 영역 */
+.attendance-form #attendBtn {
+    position: relative;
+}
+
+@media (max-width: 600px) {
+    .attendance-form {
+        padding-bottom: 120px;
+    }
+
+    .attendance-form #attendBtn {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin: 0;
+        border-radius: 0;
+        z-index: 1000;
+        box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.1);
+    }
 }
 
 .form-group {
@@ -65,17 +126,28 @@ body {
 .form-group input,
 .form-group select {
     width: 100%;
-    padding: 12px 15px;
+    padding: 16px 18px; /* 더 큰 터치 영역 */
     border: 2px solid #e0e0e0;
-    border-radius: 10px;
-    font-size: 16px;
-    transition: border-color 0.3s;
+    border-radius: 12px;
+    font-size: 16px; /* iOS 확대 방지 */
+    transition: border-color 0.3s, box-shadow 0.3s;
+    -webkit-appearance: none; /* iOS 기본 스타일 제거 */
+    appearance: none;
+    background-color: white;
+}
+
+.form-group select {
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%23667eea" d="M6 9L1 4h10z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    padding-right: 40px;
 }
 
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
     border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1); /* 포커스 강조 */
 }
 
 /* 위치 상태 */
@@ -106,40 +178,60 @@ body {
 .btn-primary,
 .btn-secondary {
     width: 100%;
-    padding: 15px;
+    padding: 18px 24px; /* 더 큰 터치 영역 (최소 44px 높이) */
     border: none;
-    border-radius: 10px;
-    font-size: 16px;
+    border-radius: 12px;
+    font-size: 17px; /* 더 큰 폰트 */
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
+    min-height: 54px; /* Apple 가이드라인 (44px+여백) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
 }
 
 .btn-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
 }
 
-.btn-primary:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+.btn-primary:active:not(:disabled) {
+    transform: scale(0.98); /* 터치 피드백 */
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
 }
 
 .btn-primary:disabled {
     background: #ccc;
     cursor: not-allowed;
+    box-shadow: none;
 }
 
 .btn-secondary {
     background: white;
     color: #667eea;
     border: 2px solid #667eea;
-    margin-top: 10px;
+    margin-top: 12px;
 }
 
-.btn-secondary:hover {
-    background: #667eea;
-    color: white;
+.btn-secondary:active {
+    background: #f5f7ff;
+    transform: scale(0.98);
+}
+
+/* 데스크톱 호버 효과 */
+@media (hover: hover) {
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-secondary:hover {
+        background: #667eea;
+        color: white;
+    }
 }
 
 /* 메시지 */
