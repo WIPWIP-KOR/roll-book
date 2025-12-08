@@ -1,6 +1,6 @@
 // 설정
 const CONFIG = {
-    GAS_URL: 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE', // 나중에 변경 필요
+    GAS_URL: 'https://script.google.com/macros/s/AKfycbx5ey3OUT1cR8t-vU6IkAEpCJfppqoc4B8UD27SVBqtiVMkHiJFb1XddV7rR9eINqh_/exec', // 나중에 변경 필요
     ATTENDANCE_URL: window.location.origin + '/index.html'
 };
 
