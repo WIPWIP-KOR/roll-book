@@ -53,7 +53,7 @@ function doGet(e) {
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    const action = data.action;
+    const action = e.parameter.action;
 
     switch(action) {
       case 'attend':
