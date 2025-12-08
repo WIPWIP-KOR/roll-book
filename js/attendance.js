@@ -1,6 +1,6 @@
 // 설정 (배포 후 Google Apps Script Web App URL로 변경)
 const CONFIG = {
-    GAS_URL: 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE', // 나중에 변경 필요
+    GAS_URL: 'https://script.google.com/macros/s/AKfycbyVginS_8wCgFWERspXeaIVGFfvTW_20KzCjEZFkAUEe7jrt-KWQh1FUFD2n61rWHeS/exec', // 나중에 변경 필요
     REQUIRED_RADIUS: 50 // 50미터
 };
 
