@@ -1,7 +1,8 @@
 // 설정
 const CONFIG = {
+    // ⚠️⚠️⚠️ 여기를 실제 Google Apps Script 배포 URL로 변경하세요 ⚠️⚠️⚠️
     GAS_URL: 'https://script.google.com/macros/s/AKfycbyVginS_8wCgFWERspXeaIVGFfvTW_20KzCjEZFkAUEe7jrt-KWQh1FUFD2n61rWHeS/exec', // 나중에 변경 필요
-    ATTENDANCE_URL: window.location.origin + '/index.html'
+    ATTENDANCE_URL: window.location.origin
 };
 
 // DOM 요소
@@ -26,6 +27,12 @@ const membersList = document.getElementById('membersList');
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
+    // 💡 jQuery 로드 여부 확인 (admin.html에 <script src=".../jquery.min.js"></script> 필요)
+    if (typeof jQuery === 'undefined') {
+        alert("jQuery 라이브러리가 로드되지 않았습니다. admin.html 파일을 확인하세요.");
+        return;
+    }
+
     // 출석 URL 설정
     attendanceUrlInput.value = CONFIG.ATTENDANCE_URL;
 
@@ -50,46 +57,40 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshMembersBtn.addEventListener('click', loadMembers);
 });
 
-// 현재 설정된 위치 불러오기
-async function loadCurrentLocation() {
-    try {
-        const response = await fetch(`${CONFIG.GAS_URL}?action=getLocation`);
-        const data = await response.json();
+// 현재 설정된 위치 불러오기 (GET 요청, $.ajax 사용)
+function loadCurrentLocation() {
+    currentLocation.textContent = '위치 정보를 불러오는 중...';
 
-        if (data.success && data.location) {
-            currentLocation.innerHTML = `
-                <strong>${data.location.name || '이름 없음'}</strong><br>
-                위도: ${data.location.latitude}<br>
-                경도: ${data.location.longitude}
-            `;
-        } else {
-            currentLocation.textContent = '아직 위치가 설정되지 않았습니다.';
+    $.ajax({
+        url: `${CONFIG.GAS_URL}?action=getLocation`,
+        dataType: 'jsonp', // CORS 우회
+        success: function(data) {
+            if (data.success && data.location) {
+                currentLocation.innerHTML = `
+                    <strong>${data.location.name || '이름 없음'}</strong><br>
+                    위도: ${data.location.latitude}<br>
+                    경도: ${data.location.longitude}
+                `;
+            } else {
+                currentLocation.textContent = '아직 위치가 설정되지 않았습니다.';
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('위치 정보 로딩 실패:', textStatus, errorThrown);
+            currentLocation.textContent = '위치 정보를 불러오는데 실패했습니다.';
         }
-    } catch (error) {
-        console.error('위치 정보 로딩 실패:', error);
-        currentLocation.textContent = '위치 정보를 불러오는데 실패했습니다.';
-    }
+    });
 }
 
-// 위치 저장
-async function saveLocation() {
+// 위치 저장 (POST 요청, $.ajax 사용)
+function saveLocation() {
     const lat = parseFloat(latitudeInput.value);
     const lng = parseFloat(longitudeInput.value);
     const name = locationNameInput.value.trim();
 
     // 입력 검증
-    if (!lat || !lng) {
-        showLocationMessage('위도와 경도를 입력해주세요.', 'error');
-        return;
-    }
-
-    if (lat < -90 || lat > 90) {
-        showLocationMessage('위도는 -90 ~ 90 사이의 값이어야 합니다.', 'error');
-        return;
-    }
-
-    if (lng < -180 || lng > 180) {
-        showLocationMessage('경도는 -180 ~ 180 사이의 값이어야 합니다.', 'error');
+    if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        showLocationMessage('유효한 위도와 경도를 입력해주세요.', 'error');
         return;
     }
 
@@ -101,43 +102,43 @@ async function saveLocation() {
     saveLocationBtn.disabled = true;
     saveLocationBtn.textContent = '저장 중...';
 
-    try {
-        const response = await fetch(CONFIG.GAS_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                action: 'saveLocation',
-                latitude: lat,
-                longitude: lng,
-                name: name
-            })
-        });
+    // 💡 POST 요청을 JSONP로 처리
+    $.ajax({
+        url: CONFIG.GAS_URL,
+        type: 'POST',
+        data: JSON.stringify({
+            action: 'saveLocation',
+            latitude: lat,
+            longitude: lng,
+            name: name
+        }),
+        contentType: 'application/json',
+        dataType: 'jsonp', // CORS 우회
+        success: function(data) {
+            if (data.success) {
+                showLocationMessage('위치가 저장되었습니다!', 'success');
+                loadCurrentLocation();
 
-        const data = await response.json();
-
-        if (data.success) {
-            showLocationMessage('위치가 저장되었습니다!', 'success');
-            loadCurrentLocation();
-
-            // 입력 필드 초기화
-            latitudeInput.value = '';
-            longitudeInput.value = '';
-            locationNameInput.value = '';
-        } else {
-            showLocationMessage(data.message || '위치 저장에 실패했습니다.', 'error');
+                // 입력 필드 초기화
+                latitudeInput.value = '';
+                longitudeInput.value = '';
+                locationNameInput.value = '';
+            } else {
+                showLocationMessage(data.message || '위치 저장에 실패했습니다.', 'error');
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('위치 저장 에러:', textStatus, errorThrown);
+            showLocationMessage('위치 저장 중 오류가 발생했습니다.', 'error');
+        },
+        complete: function() {
+            saveLocationBtn.disabled = false;
+            saveLocationBtn.textContent = '위치 저장';
         }
-    } catch (error) {
-        console.error('위치 저장 에러:', error);
-        showLocationMessage('위치 저장 중 오류가 발생했습니다.', 'error');
-    } finally {
-        saveLocationBtn.disabled = false;
-        saveLocationBtn.textContent = '위치 저장';
-    }
+    });
 }
 
-// 내 현재 위치 가져오기
+// 내 현재 위치 가져오기 (기존 코드 유지)
 function getMyLocation() {
     if (!navigator.geolocation) {
         showLocationMessage('위치 서비스를 지원하지 않는 브라우저입니다.', 'error');
@@ -180,7 +181,7 @@ function getMyLocation() {
     );
 }
 
-// QR 코드 생성
+// QR 코드 생성 (기존 코드 유지)
 function generateQRCode() {
     const url = attendanceUrlInput.value;
 
@@ -205,7 +206,7 @@ function generateQRCode() {
     downloadQRBtn.style.display = 'block';
 }
 
-// QR 코드 다운로드
+// QR 코드 다운로드 (기존 코드 유지)
 function downloadQRCode() {
     const canvas = qrcodeDiv.querySelector('canvas');
 
@@ -221,119 +222,131 @@ function downloadQRCode() {
     link.click();
 }
 
-// 오늘 출석 현황 불러오기
-async function loadTodayAttendance() {
+// 오늘 출석 현황 불러오기 (GET 요청, $.ajax 사용)
+function loadTodayAttendance() {
+    refreshTodayBtn.disabled = true;
     todayAttendance.innerHTML = '<p class="loading">데이터를 불러오는 중</p>';
 
-    try {
-        const response = await fetch(`${CONFIG.GAS_URL}?action=getTodayAttendance`);
-        const data = await response.json();
+    $.ajax({
+        url: `${CONFIG.GAS_URL}?action=getTodayAttendance`,
+        dataType: 'jsonp', // CORS 우회
+        success: function(data) {
+            if (data.success && data.attendance && data.attendance.length > 0) {
+                todayAttendance.innerHTML = '';
 
-        if (data.success && data.attendance && data.attendance.length > 0) {
-            todayAttendance.innerHTML = '';
-
-            data.attendance.forEach(record => {
-                const item = document.createElement('div');
-                item.className = 'attendance-item';
-                item.innerHTML = `
-                    <div>
-                        <strong>${record.name}</strong> (${record.team}팀)
-                        <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
-                            ${record.time}
+                data.attendance.forEach(record => {
+                    const item = document.createElement('div');
+                    item.className = 'attendance-item';
+                    item.innerHTML = `
+                        <div>
+                            <strong>${record.name}</strong> (${record.team}팀)
+                            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                                ${record.time}
+                            </div>
                         </div>
-                    </div>
+                    `;
+                    todayAttendance.appendChild(item);
+                });
+
+                // 통계 추가
+                const teamCounts = { A: 0, B: 0, C: 0 };
+                data.attendance.forEach(record => {
+                    if (teamCounts[record.team] !== undefined) {
+                        teamCounts[record.team]++;
+                    }
+                });
+
+                const statsDiv = document.createElement('div');
+                statsDiv.className = 'info-box';
+                statsDiv.style.marginTop = '15px';
+                statsDiv.innerHTML = `
+                    <strong>📊 출석 통계</strong><br>
+                    총 ${data.attendance.length}명 출석<br>
+                    A팀: ${teamCounts.A}명 | B팀: ${teamCounts.B}명 | C팀: ${teamCounts.C}명
                 `;
-                todayAttendance.appendChild(item);
-            });
+                todayAttendance.appendChild(statsDiv);
 
-            // 통계 추가
-            const teamCounts = { A: 0, B: 0, C: 0 };
-            data.attendance.forEach(record => {
-                if (teamCounts[record.team] !== undefined) {
-                    teamCounts[record.team]++;
-                }
-            });
-
-            const statsDiv = document.createElement('div');
-            statsDiv.className = 'info-box';
-            statsDiv.style.marginTop = '15px';
-            statsDiv.innerHTML = `
-                <strong>📊 출석 통계</strong><br>
-                총 ${data.attendance.length}명 출석<br>
-                A팀: ${teamCounts.A}명 | B팀: ${teamCounts.B}명 | C팀: ${teamCounts.C}명
-            `;
-            todayAttendance.appendChild(statsDiv);
-
-        } else {
-            todayAttendance.innerHTML = '<p>오늘 출석 기록이 없습니다.</p>';
+            } else {
+                todayAttendance.innerHTML = '<p>오늘 출석 기록이 없습니다.</p>';
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('출석 현황 로딩 실패:', textStatus, errorThrown);
+            todayAttendance.innerHTML = '<p style="color: red;">데이터를 불러오는데 실패했습니다.</p>';
+        },
+        complete: function() {
+            refreshTodayBtn.disabled = false;
         }
-    } catch (error) {
-        console.error('출석 현황 로딩 실패:', error);
-        todayAttendance.innerHTML = '<p style="color: red;">데이터를 불러오는데 실패했습니다.</p>';
-    }
+    });
 }
 
-// 회원 목록 불러오기
-async function loadMembers() {
+// 회원 목록 불러오기 (GET 요청, $.ajax 사용)
+function loadMembers() {
+    refreshMembersBtn.disabled = true;
     membersList.innerHTML = '<p class="loading">데이터를 불러오는 중</p>';
 
-    try {
-        const response = await fetch(`${CONFIG.GAS_URL}?action=getMembers`);
-        const data = await response.json();
+    $.ajax({
+        url: `${CONFIG.GAS_URL}?action=getMembers`,
+        dataType: 'jsonp', // CORS 우회
+        success: function(data) {
+            if (data.success && data.members && data.members.length > 0) {
+                membersList.innerHTML = '';
 
-        if (data.success && data.members && data.members.length > 0) {
-            membersList.innerHTML = '';
+                // 팀별로 정렬
+                const sortedMembers = data.members.sort((a, b) => {
+                    if (a.team !== b.team) {
+                        return a.team.localeCompare(b.team);
+                    }
+                    return a.name.localeCompare(b.name);
+                });
 
-            // 팀별로 정렬
-            const sortedMembers = data.members.sort((a, b) => {
-                if (a.team !== b.team) {
-                    return a.team.localeCompare(b.team);
-                }
-                return a.name.localeCompare(b.name);
-            });
+                sortedMembers.forEach(member => {
+                    const item = document.createElement('div');
+                    item.className = 'member-item';
+                    item.innerHTML = `
+                        <div>
+                            <strong>${member.name}</strong> (${member.team}팀)
+                        </div>
+                        <div style="font-size: 0.9em; color: #666;">
+                            출석 ${member.attendanceCount || 0}회
+                        </div>
+                    `;
+                    membersList.appendChild(item);
+                });
 
-            sortedMembers.forEach(member => {
-                const item = document.createElement('div');
-                item.className = 'member-item';
-                item.innerHTML = `
-                    <div>
-                        <strong>${member.name}</strong> (${member.team}팀)
-                    </div>
-                    <div style="font-size: 0.9em; color: #666;">
-                        출석 ${member.attendanceCount || 0}회
-                    </div>
+                // 통계 추가
+                const teamCounts = { A: 0, B: 0, C: 0 };
+                data.members.forEach(member => {
+                    if (teamCounts[member.team] !== undefined) {
+                        teamCounts[member.team]++;
+                    }
+                });
+
+                const statsDiv = document.createElement('div');
+                statsDiv.className = 'info-box';
+                statsDiv.style.marginTop = '15px';
+                statsDiv.innerHTML = `
+                    <strong>📊 회원 통계</strong><br>
+                    총 ${data.members.length}명<br>
+                    A팀: ${teamCounts.A}명 | B팀: ${teamCounts.B}명 | C팀: ${teamCounts.C}명
                 `;
-                membersList.appendChild(item);
-            });
+                membersList.appendChild(statsDiv);
 
-            // 통계 추가
-            const teamCounts = { A: 0, B: 0, C: 0 };
-            data.members.forEach(member => {
-                if (teamCounts[member.team] !== undefined) {
-                    teamCounts[member.team]++;
-                }
-            });
-
-            const statsDiv = document.createElement('div');
-            statsDiv.className = 'info-box';
-            statsDiv.style.marginTop = '15px';
-            statsDiv.innerHTML = `
-                <strong>📊 회원 통계</strong><br>
-                총 ${data.members.length}명<br>
-                A팀: ${teamCounts.A}명 | B팀: ${teamCounts.B}명 | C팀: ${teamCounts.C}명
-            `;
-            membersList.appendChild(statsDiv);
-
-        } else {
-            membersList.innerHTML = '<p>등록된 회원이 없습니다.</p>';
+            } else {
+                membersList.innerHTML = '<p>등록된 회원이 없습니다.</p>';
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('회원 목록 로딩 실패:', textStatus, errorThrown);
+            membersList.innerHTML = '<p style="color: red;">데이터를 불러오는데 실패했습니다.</p>';
+        },
+        complete: function() {
+            refreshMembersBtn.disabled = false;
         }
-    } catch (error) {
-        console.error('회원 목록 로딩 실패:', error);
-        membersList.innerHTML = '<p style="color: red;">데이터를 불러오는데 실패했습니다.</p>';
-    }
+    });
 }
 
-// 위치 메시지 표시
+// 위치 메시지 표시 (기존 코드 유지)
 function showLocationMessage(text, type) {
     locationMessage.textContent = text;
     locationMessage.className = `message ${type} show`;
@@ -343,7 +356,7 @@ function showLocationMessage(text, type) {
     }, 5000);
 }
 
-// ==================== 카카오맵 관련 ====================
+// ==================== 카카오맵 관련 (기존 코드 유지) ====================
 
 let map; // 카카오맵 객체
 let marker; // 마커 객체
@@ -356,7 +369,10 @@ function initKakaoMap() {
     // kakao 객체가 로드되지 않았으면 경고
     if (typeof kakao === 'undefined') {
         console.warn('카카오맵 API가 로드되지 않았습니다. admin.html의 YOUR_KAKAO_APP_KEY를 발급받은 키로 변경하세요.');
-        document.getElementById('map').innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">카카오맵 API 키를 설정해주세요.<br><a href="https://developers.kakao.com" target="_blank">https://developers.kakao.com</a></p>';
+        const mapEl = document.getElementById('map');
+        if (mapEl) {
+            mapEl.innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">카카오맵 API 키를 설정해주세요. 자세한 내용은 https://developers.kakao.com 를 확인하세요.</p>';
+        }
         return;
     }
 
@@ -486,4 +502,4 @@ function setLocation(lat, lng, name) {
 }
 
 // 전역 함수로 노출 (HTML에서 호출)
-window.searchPlaces = searchPlaces;
+window.searchPlaces = searchPlaces

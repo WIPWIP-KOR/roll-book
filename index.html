@@ -17,14 +17,12 @@
         </div>
 
         <div class="attendance-form" id="attendanceForm">
-            <!-- 이름 입력/선택 -->
             <div class="form-group">
                 <label for="nameInput">이름</label>
                 <input type="text" id="nameInput" list="nameList" placeholder="이름을 입력하거나 선택하세요" autocomplete="off">
                 <datalist id="nameList"></datalist>
             </div>
 
-            <!-- 팀 선택 -->
             <div class="form-group">
                 <label for="teamSelect">팀</label>
                 <select id="teamSelect">
@@ -35,16 +33,13 @@
                 </select>
             </div>
 
-            <!-- 위치 정보 상태 -->
             <div class="location-status" id="locationStatus">
                 <span class="status-icon">📍</span>
                 <span id="locationText">위치 정보 확인 중...</span>
             </div>
 
-            <!-- 출석 버튼 -->
             <button id="attendBtn" class="btn-primary" disabled>출석하기</button>
 
-            <!-- 메시지 표시 -->
             <div id="message" class="message"></div>
         </div>
 
@@ -54,6 +49,7 @@
         </div>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="js/attendance.js"></script>
 </body>
 </html>
