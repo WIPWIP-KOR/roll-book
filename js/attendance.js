@@ -135,19 +135,21 @@ function processAttendance() {
     attendBtn.disabled = true;
     attendBtn.textContent = '출석 처리 중...';
 
-    // 💡 POST 요청을 JSONP로 처리
+    // 💡 핵심 수정: POST 관련 설정을 제거하고 JSONP(GET) 방식으로 데이터 전달
+    const dataToSend = {
+        action: 'attend', // 이 파라미터가 서버(Code.gs)로 정상 전달되어야 합니다.
+        name: name,
+        team: team,
+        latitude: userPosition.latitude,
+        longitude: userPosition.longitude,
+        userAgent: navigator.userAgent // IP 대체를 위한 정보
+    };
+
     $.ajax({
         url: CONFIG.GAS_URL,
-        type: 'POST',
-        data: JSON.stringify({
-            action: 'attend',
-            name: name,
-            team: team,
-            latitude: userPosition.latitude,
-            longitude: userPosition.longitude,
-            userAgent: navigator.userAgent // IP 대체를 위한 정보
-        }),
-        contentType: 'application/json',
+        // type: 'POST',             // ❌ 제거 (JSONP는 GET으로 작동)
+        data: dataToSend,           // ✅ 일반 객체로 전달 (쿼리 파라미터로 자동 변환)
+        // contentType: 'application/json', // ❌ 제거
         dataType: 'jsonp', // CORS 우회
         success: function(data) {
             if (data.success) {
