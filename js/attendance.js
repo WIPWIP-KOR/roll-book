@@ -1,6 +1,6 @@
 // 설정 (배포 후 Google Apps Script Web App URL로 변경)
 const CONFIG = {
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbxdCQsDUJgH0cmzso9v8SygAoT9UCOMCG0xpbs83dCqhhgVa8NJdf4L4SUSkcjG4F8x/exec', // 나중에 변경 필요
+    GAS_URL: 'https://script.google.com/macros/s/AKfycbz6DPFduTlNlAVXzW5g_uEueGLWiDoRyQkdgUWdK9cDqMUhj5Bu1pq-hovlo5vqw3US/exec', // 나중에 변경 필요
     REQUIRED_RADIUS: 50 // 50미터
 };
 
