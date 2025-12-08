@@ -89,6 +89,60 @@ const CONFIG = {
 
 ---
 
+## 2-1️⃣ 카카오맵 API 설정 (선택사항)
+
+관리자 페이지에서 지도 검색 기능을 사용하려면 카카오맵 API 키가 필요합니다.
+
+### 단계 1: 카카오 개발자 계정 생성
+
+1. https://developers.kakao.com 접속
+2. 우측 상단 **로그인** 클릭
+3. 카카오 계정으로 로그인 (없으면 회원가입)
+
+### 단계 2: 애플리케이션 추가
+
+1. 상단 메뉴 **내 애플리케이션** 클릭
+2. **애플리케이션 추가하기** 클릭
+3. 설정:
+   - **앱 이름**: "풋살 출석 시스템"
+   - **사업자명**: 개인 이름
+4. **저장** 클릭
+
+### 단계 3: JavaScript 키 발급
+
+1. 생성된 애플리케이션 클릭
+2. **앱 키** 탭에서 **JavaScript 키** 복사
+   - 형식: `1234567890abcdef1234567890abcdef`
+
+### 단계 4: 플랫폼 설정
+
+1. 좌측 메뉴 **플랫폼** 클릭
+2. **Web 플랫폼 등록** 클릭
+3. **사이트 도메인** 입력:
+   - GitHub Pages 사용 시: `https://username.github.io`
+   - 로컬 테스트 시 추가: `http://localhost`
+4. **저장** 클릭
+
+### 단계 5: HTML에 키 적용
+
+`admin.html` 파일 10번째 줄 수정:
+
+```html
+<!-- 변경 전 -->
+<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_APP_KEY&libraries=services"></script>
+
+<!-- 변경 후 -->
+<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=1234567890abcdef1234567890abcdef&libraries=services"></script>
+```
+
+### 참고사항
+
+- 카카오맵 API는 **완전 무료**입니다 (일 300,000건까지)
+- 키 설정을 안 하면 지도 검색 기능만 사용 불가
+- 수동 입력이나 GPS 위치 가져오기는 정상 작동
+
+---
+
 ## 3️⃣ GitHub Pages 배포 (프론트엔드)
 
 ### 방법 A: GitHub 웹 인터페이스 (쉬움)

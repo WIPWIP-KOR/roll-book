@@ -29,6 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 출석 URL 설정
     attendanceUrlInput.value = CONFIG.ATTENDANCE_URL;
 
+    // 카카오맵 초기화
+    initKakaoMap();
+
     // 현재 설정된 위치 불러오기
     loadCurrentLocation();
 
@@ -339,3 +342,148 @@ function showLocationMessage(text, type) {
         locationMessage.classList.remove('show');
     }, 5000);
 }
+
+// ==================== 카카오맵 관련 ====================
+
+let map; // 카카오맵 객체
+let marker; // 마커 객체
+let ps; // 장소 검색 객체
+
+/**
+ * 카카오맵 초기화
+ */
+function initKakaoMap() {
+    // kakao 객체가 로드되지 않았으면 경고
+    if (typeof kakao === 'undefined') {
+        console.warn('카카오맵 API가 로드되지 않았습니다. admin.html의 YOUR_KAKAO_APP_KEY를 발급받은 키로 변경하세요.');
+        document.getElementById('map').innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">카카오맵 API 키를 설정해주세요.<br><a href="https://developers.kakao.com" target="_blank">https://developers.kakao.com</a></p>';
+        return;
+    }
+
+    // 기본 위치 (서울시청)
+    const defaultPosition = new kakao.maps.LatLng(37.5665, 126.9780);
+
+    // 지도 생성
+    const mapContainer = document.getElementById('map');
+    const mapOption = {
+        center: defaultPosition,
+        level: 3
+    };
+
+    map = new kakao.maps.Map(mapContainer, mapOption);
+
+    // 장소 검색 객체 생성
+    ps = new kakao.maps.services.Places();
+
+    // 지도 클릭 이벤트
+    kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
+        const latlng = mouseEvent.latLng;
+        setLocation(latlng.getLat(), latlng.getLng(), '지도에서 선택한 위치');
+    });
+
+    console.log('카카오맵 초기화 완료');
+}
+
+/**
+ * 장소 검색
+ */
+function searchPlaces() {
+    if (!ps) {
+        alert('카카오맵 API가 로드되지 않았습니다.');
+        return;
+    }
+
+    const keyword = document.getElementById('mapSearch').value.trim();
+
+    if (!keyword) {
+        alert('검색어를 입력해주세요.');
+        return;
+    }
+
+    // 장소 검색
+    ps.keywordSearch(keyword, placesSearchCB);
+}
+
+/**
+ * 장소 검색 결과 콜백
+ */
+function placesSearchCB(data, status, pagination) {
+    const searchResults = document.getElementById('searchResults');
+
+    if (status === kakao.maps.services.Status.OK) {
+        searchResults.innerHTML = '<h4>검색 결과</h4>';
+
+        data.forEach((place, index) => {
+            const resultItem = document.createElement('div');
+            resultItem.className = 'search-result-item';
+            resultItem.innerHTML = `
+                <div class="result-number">${index + 1}</div>
+                <div class="result-content">
+                    <strong>${place.place_name}</strong>
+                    <div class="result-address">${place.address_name}</div>
+                    ${place.phone ? `<div class="result-phone">📞 ${place.phone}</div>` : ''}
+                </div>
+            `;
+
+            resultItem.onclick = () => {
+                selectPlace(place);
+            };
+
+            searchResults.appendChild(resultItem);
+        });
+
+    } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
+        searchResults.innerHTML = '<p style="padding: 20px; text-align: center;">검색 결과가 없습니다.</p>';
+    } else if (status === kakao.maps.services.Status.ERROR) {
+        searchResults.innerHTML = '<p style="padding: 20px; text-align: center; color: red;">검색 중 오류가 발생했습니다.</p>';
+    }
+}
+
+/**
+ * 검색 결과에서 장소 선택
+ */
+function selectPlace(place) {
+    const lat = parseFloat(place.y);
+    const lng = parseFloat(place.x);
+    const name = place.place_name;
+
+    setLocation(lat, lng, name);
+
+    // 지도 중심 이동
+    const position = new kakao.maps.LatLng(lat, lng);
+    map.setCenter(position);
+
+    // 검색 결과 닫기
+    document.getElementById('searchResults').innerHTML = '';
+}
+
+/**
+ * 위치 설정 (마커 표시 및 입력란 자동 입력)
+ */
+function setLocation(lat, lng, name) {
+    // 입력란에 값 설정
+    document.getElementById('latitude').value = lat;
+    document.getElementById('longitude').value = lng;
+    document.getElementById('locationName').value = name;
+
+    // 기존 마커 제거
+    if (marker) {
+        marker.setMap(null);
+    }
+
+    // 새 마커 생성
+    const position = new kakao.maps.LatLng(lat, lng);
+    marker = new kakao.maps.Marker({
+        position: position,
+        map: map
+    });
+
+    // 지도 중심 이동
+    map.setCenter(position);
+
+    // 성공 메시지
+    showLocationMessage(`위치가 선택되었습니다: ${name}`, 'success');
+}
+
+// 전역 함수로 노출 (HTML에서 호출)
+window.searchPlaces = searchPlaces;
