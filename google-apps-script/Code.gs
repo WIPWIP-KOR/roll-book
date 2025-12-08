@@ -16,39 +16,43 @@ const REQUIRED_RADIUS = 50; // 50미터
 // ==================== 메인 함수 ====================
 
 /**
- * GET 요청 처리 (수정됨: JSONP 콜백을 모든 경우에 처리)
+ * GET 요청 처리 (수정됨: saveLocation 액션 추가)
  */
 function doGet(e) {
   const action = e.parameter.action;
-  // 💡 수정: JSONP 콜백 이름 추출
   const callback = e.parameter.callback; 
 
   try {
     switch(action) {
       case 'getMembers':
-        // 💡 수정: 콜백 전달
         return getMembers(callback);
       case 'getLocation':
-        // 💡 수정: 콜백 전달
         return getLocation(callback);
       case 'getTodayAttendance':
-        // 💡 수정: 콜백 전달
         return getTodayAttendance(callback);
       case 'getStats':
-        // 💡 수정: 콜백 전달
         return getStats(callback);
+      case 'saveLocation': // 💡 추가: JSONP(GET) 요청 처리
+        // JSONP 요청은 POST 데이터를 쿼리 파라미터로 보냅니다.
+        // saveLocation 함수가 기대하는 data 객체를 e.parameter를 사용해 구성합니다.
+        const dataFromParams = {
+          action: 'saveLocation',
+          latitude: e.parameter.latitude,
+          longitude: e.parameter.longitude,
+          name: e.parameter.name
+        };
+        // 💡 기존 saveLocation 함수를 재사용하여 호출
+        return saveLocation(dataFromParams, callback); 
       default:
-        // 💡 수정: 콜백 전달
         return createResponse(false, 'Invalid action', null, callback); 
     }
   } catch (error) {
-    // 💡 수정: 콜백 전달
     return createResponse(false, error.toString(), null, callback);
   }
 }
 
 /**
- * POST 요청 처리 (saveLocation) 및 출석 처리 (attend)
+ * POST 요청 처리
  */
 function doPost(e) {
   let callback = e.parameter.callback;
@@ -219,7 +223,7 @@ function updateMember(name, team) {
 // ==================== 위치 관리 ====================
 
 /**
- * 위치 저장
+ * 위치 저장 (doGet/doPost 모두에서 호출 가능)
  */
 function saveLocation(data, callback) {
   const { latitude, longitude, name } = data;
@@ -241,22 +245,20 @@ function saveLocation(data, callback) {
 }
 
 /**
- * 위치 조회 (수정됨: callback 인자 추가)
+ * 위치 조회
  */
 function getLocation(callback) {
   const targetLocation = getTargetLocation();
 
   if (!targetLocation) {
-    // 💡 수정: 콜백 전달
     return createResponse(false, '저장된 위치가 없습니다.', null, callback); 
   }
 
-  // 💡 수정: 콜백 전달
   return createResponse(true, null, { location: targetLocation }, callback);
 }
 
 /**
- * 목표 위치 가져오기 (내부 사용 함수, 수정 불필요)
+ * 목표 위치 가져오기
  */
 function getTargetLocation() {
   const sheet = getOrCreateSheet(SHEET_NAMES.LOCATION);
@@ -277,13 +279,12 @@ function getTargetLocation() {
 // ==================== 회원 관리 ====================
 
 /**
- * 회원 목록 조회 (수정됨: callback 인자 추가)
+ * 회원 목록 조회
  */
 function getMembers(callback) {
   const sheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
 
   if (sheet.getLastRow() <= 1) {
-    // 💡 수정: 콜백 전달
     return createResponse(true, null, { members: [] }, callback);
   }
 
@@ -301,20 +302,18 @@ function getMembers(callback) {
     }
   }
 
-  // 💡 수정: 콜백 전달
   return createResponse(true, null, { members: members }, callback);
 }
 
 // ==================== 통계 ====================
 
 /**
- * 오늘 출석 현황 (수정됨: callback 인자 추가)
+ * 오늘 출석 현황
  */
 function getTodayAttendance(callback) {
   const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE);
 
   if (sheet.getLastRow() <= 1) {
-    // 💡 수정: 콜백 전달
     return createResponse(true, null, { attendance: [] }, callback);
   }
 
@@ -340,12 +339,11 @@ function getTodayAttendance(callback) {
     }
   }
 
-  // 💡 수정: 콜백 전달
   return createResponse(true, null, { attendance: attendance }, callback);
 }
 
 /**
- * 전체 통계 (수정됨: callback 인자 추가)
+ * 전체 통계
  */
 function getStats(callback) {
   // 토요일 목록 생성 (2025-01 ~ 2026-12)
@@ -439,7 +437,6 @@ function getStats(callback) {
     });
   });
 
-  // 💡 수정: 콜백 전달
   return createResponse(true, null, {
     stats: {
       personalStats: personalStats,
@@ -450,7 +447,7 @@ function getStats(callback) {
 }
 
 /**
- * 2025-01 ~ 2026-12 사이의 모든 토요일 생성 (수정 불필요)
+ * 2025-01 ~ 2026-12 사이의 모든 토요일 생성
  */
 function generateSaturdays() {
   const saturdays = [];
@@ -476,7 +473,7 @@ function generateSaturdays() {
 // ==================== 유틸리티 ====================
 
 /**
- * 시트 가져오기 또는 생성 (수정 불필요)
+ * 시트 가져오기 또는 생성
  */
 function getOrCreateSheet(sheetName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -490,7 +487,7 @@ function getOrCreateSheet(sheetName) {
 }
 
 /**
- * 두 좌표 간 거리 계산 (Haversine 공식) (수정 불필요)
+ * 두 좌표 간 거리 계산 (Haversine 공식)
  */
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371e3; // 지구 반지름 (미터)
@@ -508,7 +505,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * 클라이언트 IP 주소 추출 (수정 불필요)
+ * 클라이언트 IP 주소 추출
  */
 function getClientIP(e) {
   try {
@@ -524,7 +521,7 @@ function getClientIP(e) {
 }
 
 /**
- * JSON 응답 생성 (JSONP 방식으로 CORS 문제 해결) (수정 불필요)
+ * JSON 응답 생성 (JSONP 방식으로 CORS 문제 해결)
  */
 function createResponse(success, message, data, callback) {
   const response = {
