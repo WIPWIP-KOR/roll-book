@@ -1,0 +1,680 @@
+/* 기본 스타일 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent; /* 모바일 터치 하이라이트 제거 */
+}
+
+html {
+    /* iOS 확대 방지 */
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+}
+
+/* iOS Safe Area 대응 */
+@supports (padding: max(0px)) {
+    body {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+    }
+
+    .attendance-form #attendBtn {
+        padding-bottom: max(18px, env(safe-area-inset-bottom));
+    }
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 0; /* 모바일에서 여백 제거 */
+    color: #333;
+    font-size: 16px; /* iOS 자동 확대 방지 */
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+/* 모바일 친화적 컨테이너 */
+@media (min-width: 601px) {
+    body {
+        padding: 20px;
+    }
+}
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 0; /* 모바일에서 풀스크린 */
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    min-height: 100vh; /* 전체 높이 */
+}
+
+/* 데스크톱에서만 둥근 모서리 */
+@media (min-width: 601px) {
+    .container {
+        border-radius: 20px;
+        min-height: auto;
+    }
+}
+
+/* 헤더 */
+.header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px 20px;
+    text-align: center;
+}
+
+.header h1 {
+    font-size: 2em;
+    margin-bottom: 10px;
+}
+
+.header h2 {
+    font-size: 1.3em;
+    font-weight: 300;
+}
+
+.header .period {
+    font-size: 0.9em;
+    opacity: 0.9;
+    margin-top: 5px;
+}
+
+/* 출석 폼 */
+.attendance-form {
+    padding: 30px 20px;
+    padding-bottom: 100px; /* 하단 고정 버튼 공간 확보 */
+}
+
+/* 모바일에서 하단 고정 버튼 영역 */
+.attendance-form #attendBtn {
+    position: relative;
+}
+
+@media (max-width: 600px) {
+    .attendance-form {
+        padding-bottom: 120px;
+    }
+
+    .attendance-form #attendBtn {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin: 0;
+        border-radius: 0;
+        z-index: 1000;
+        box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.1);
+    }
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 16px 18px; /* 더 큰 터치 영역 */
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    font-size: 16px; /* iOS 확대 방지 */
+    transition: border-color 0.3s, box-shadow 0.3s;
+    -webkit-appearance: none; /* iOS 기본 스타일 제거 */
+    appearance: none;
+    background-color: white;
+}
+
+.form-group select {
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%23667eea" d="M6 9L1 4h10z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    padding-right: 40px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1); /* 포커스 강조 */
+}
+
+/* 위치 상태 */
+.location-status {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.status-icon {
+    font-size: 1.5em;
+    margin-right: 8px;
+}
+
+.location-status.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.location-status.error {
+    background: #ffebee;
+    color: #c62828;
+}
+
+/* 버튼 */
+.btn-primary,
+.btn-secondary {
+    width: 100%;
+    padding: 18px 24px; /* 더 큰 터치 영역 (최소 44px 높이) */
+    border: none;
+    border-radius: 12px;
+    font-size: 17px; /* 더 큰 폰트 */
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-height: 54px; /* Apple 가이드라인 (44px+여백) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+}
+
+.btn-primary:active:not(:disabled) {
+    transform: scale(0.98); /* 터치 피드백 */
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.btn-primary:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.btn-secondary {
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+    margin-top: 12px;
+}
+
+.btn-secondary:active {
+    background: #f5f7ff;
+    transform: scale(0.98);
+}
+
+/* 데스크톱 호버 효과 */
+@media (hover: hover) {
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-secondary:hover {
+        background: #667eea;
+        color: white;
+    }
+}
+
+/* 메시지 */
+.message {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    display: none;
+}
+
+.message.show {
+    display: block;
+}
+
+.message.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #81c784;
+}
+
+.message.error {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #e57373;
+}
+
+.message.info {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #64b5f6;
+}
+
+/* 푸터 */
+.footer {
+    padding: 20px;
+    text-align: center;
+    background: #f5f5f5;
+    color: #666;
+}
+
+.link {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.link:hover {
+    text-decoration: underline;
+}
+
+/* 관리자 페이지 */
+.admin-section {
+    padding: 20px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.admin-section h2 {
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.info-box {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 10px;
+    margin: 15px 0;
+}
+
+.info-box p {
+    margin: 5px 0;
+}
+
+.qr-container {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.qr-container img {
+    max-width: 100%;
+}
+
+.attendance-list,
+.members-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.attendance-item,
+.member-item {
+    background: #f5f5f5;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.attendance-item strong,
+.member-item strong {
+    color: #667eea;
+}
+
+/* 통계 페이지 */
+.stats-section {
+    padding: 20px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.stats-section h2 {
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.team-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.team-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.team-card h3 {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+}
+
+.team-card .rate {
+    font-size: 2em;
+    font-weight: bold;
+}
+
+.team-card .count {
+    font-size: 0.9em;
+    opacity: 0.9;
+    margin-top: 5px;
+}
+
+/* 필터 */
+.filter-group {
+    margin: 15px 0;
+}
+
+.filter-group label {
+    display: inline-block;
+    margin-right: 10px;
+    font-weight: 600;
+}
+
+.filter-btn {
+    padding: 8px 15px;
+    margin-right: 5px;
+    border: 2px solid #667eea;
+    background: white;
+    color: #667eea;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.filter-btn.active,
+.filter-btn:hover {
+    background: #667eea;
+    color: white;
+}
+
+#sortOption {
+    padding: 8px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+/* 개인 통계 테이블 */
+.personal-stats {
+    margin-top: 20px;
+}
+
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.stats-table th,
+.stats-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.stats-table th {
+    background: #f5f5f5;
+    font-weight: 600;
+    color: #555;
+}
+
+.stats-table tr:hover {
+    background: #f9f9f9;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #e0e0e0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transition: width 0.3s;
+}
+
+/* 주차별 통계 */
+.weekly-stats {
+    margin-top: 20px;
+}
+
+.week-item {
+    background: #f5f5f5;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+}
+
+.week-item .date {
+    font-weight: 600;
+    color: #667eea;
+}
+
+.week-item .attendance-count {
+    margin-top: 5px;
+    color: #666;
+}
+
+/* 반응형 */
+@media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+
+    .header h1 {
+        font-size: 1.5em;
+    }
+
+    .header h2 {
+        font-size: 1.1em;
+    }
+
+    .team-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-table {
+        font-size: 14px;
+    }
+
+    .stats-table th,
+    .stats-table td {
+        padding: 8px;
+    }
+}
+
+/* 로딩 애니메이션 */
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+}
+
+.loading::after {
+    content: '...';
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60%, 100% { content: '...'; }
+}
+
+/* ==================== 카카오맵 관련 스타일 ==================== */
+
+/* 지도 섹션 */
+.map-search-section {
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 25px;
+}
+
+.map-search-section h3 {
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 1.1em;
+}
+
+.manual-input-section h3 {
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 1.1em;
+}
+
+/* 검색 입력란 */
+.search-container {
+    display: flex;
+    gap: 10px;
+}
+
+.search-container input {
+    flex: 1;
+}
+
+.btn-search {
+    padding: 12px 20px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+}
+
+.btn-search:hover {
+    background: #5568d3;
+}
+
+/* 카카오맵 */
+.kakao-map {
+    width: 100%;
+    height: 400px;
+    border-radius: 10px;
+    margin: 15px 0;
+    border: 2px solid #e0e0e0;
+}
+
+/* 지도 도움말 */
+.map-help {
+    background: #e3f2fd;
+    padding: 12px;
+    border-radius: 8px;
+    color: #1565c0;
+    font-size: 0.9em;
+    text-align: center;
+    margin-top: 10px;
+}
+
+/* 검색 결과 */
+.search-results {
+    margin-top: 15px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.search-results h4 {
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.search-result-item {
+    background: white;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    gap: 12px;
+}
+
+.search-result-item:hover {
+    border-color: #667eea;
+    background: #f5f7ff;
+    transform: translateX(5px);
+}
+
+.result-number {
+    background: #667eea;
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.result-content {
+    flex: 1;
+}
+
+.result-content strong {
+    color: #333;
+    font-size: 1.05em;
+}
+
+.result-address {
+    color: #666;
+    font-size: 0.9em;
+    margin-top: 4px;
+}
+
+.result-phone {
+    color: #667eea;
+    font-size: 0.85em;
+    margin-top: 4px;
+}
+
+/* 수동 입력 섹션 */
+.manual-input-section {
+    margin-top: 25px;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 600px) {
+    .kakao-map {
+        height: 300px;
+    }
+
+    .search-container {
+        flex-direction: column;
+    }
+
+    .btn-search {
+        width: 100%;
+    }
+
+    .search-result-item:hover {
+        transform: translateX(0);
+    }
+}
