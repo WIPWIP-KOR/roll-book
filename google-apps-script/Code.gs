@@ -16,10 +16,10 @@ const REQUIRED_RADIUS = 50; // 50미터
 // ==================== 메인 함수 ====================
 
 /**
- * GET 요청 처리 (수정됨: saveLocation, attend 액션 추가)
+ * GET 요청 처리
  */
 function doGet(e) {
-  // 💡💡💡 디버깅용 로그 추가: 요청 파라미터를 확인하여 문제 진단 💡💡💡
+  // 💡💡💡 디버깅용 로그 추가 💡💡💡
   Logger.log('요청 파라미터(e.parameter): ' + JSON.stringify(e.parameter));
   // 💡💡💡 로그 추가 끝 💡💡💡
 
@@ -37,7 +37,6 @@ function doGet(e) {
       case 'getStats':
         return getStats(callback);
       case 'saveLocation':
-        // JSONP(GET) 요청은 POST 데이터를 쿼리 파라미터로 보냅니다.
         const dataFromParams = {
           action: 'saveLocation',
           latitude: e.parameter.latitude,
@@ -45,9 +44,8 @@ function doGet(e) {
           name: e.parameter.name
         };
         return saveLocation(dataFromParams, callback);
-      case 'attend': // ✅ 핵심 수정: attend 액션을 doGet에서 처리합니다.
-        // 클라이언트가 JSONP(GET)으로 보낸 모든 데이터는 e.parameter에 담겨 옵니다.
-        // processAttendance 함수가 기대하는 data 객체로 e.parameter를 그대로 전달합니다.
+      case 'attend':
+        // JSONP(GET) 요청으로 온 출석 데이터를 처리합니다.
         return processAttendance(e.parameter, e, callback);
       default:
         return createResponse(false, 'Invalid action', null, callback);
@@ -64,8 +62,6 @@ function doPost(e) {
   let callback = e.parameter.callback;
 
   try {
-    // JSONP를 쓰지 않고 순수 POST 요청을 보낸 경우에만 이 코드가 실행됩니다.
-    // 현재 프론트엔드는 JSONP(GET)을 사용하므로, 이 부분은 거의 사용되지 않습니다.
     const data = JSON.parse(e.postData.contents);
     const action = data.action || e.parameter.action;
 
@@ -100,11 +96,7 @@ function processAttendance(data, e, callback) {
     return createResponse(false, '올바른 팀을 선택해주세요.', null, callback);
   }
 
-  // 토요일 확인
-  const now = new Date();
-  if (now.getDay() !== 6) {
-    return createResponse(false, '출석은 토요일만 가능합니다.', null, callback);
-  }
+  // ❌ 토요일 확인 로직 제거: 이제 모든 요일 출석 가능
 
   // 위치 확인
   const targetLocation = getTargetLocation();
@@ -150,8 +142,8 @@ function isDuplicateAttendance(name, ipAddress) {
 
   for (let i = 1; i < data.length; i++) {
     const rowDate = data[i][0];
-    const rowName = data[i][1];
-    const rowIP = data[i][6];
+    const rowName = data[i][2]; // 💡 수정: '요일' 컬럼 추가로 인덱스 1 -> 2
+    const rowIP = data[i][7];   // 💡 수정: '요일' 컬럼 추가로 인덱스 6 -> 7
 
     if (!rowDate) continue;
 
@@ -174,17 +166,19 @@ function isDuplicateAttendance(name, ipAddress) {
 function saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distance) {
   const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE);
 
-  // 헤더가 없으면 추가
+  // 헤더 수정: '요일' 컬럼 추가
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['날짜', '이름', '팀', '출석시간', '위도', '경도', 'IP주소', '거리(m)']);
+    sheet.appendRow(['날짜', '요일', '이름', '팀', '출석시간', '위도', '경도', 'IP주소', '거리(m)']);
   }
 
   const now = new Date();
   const date = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   const time = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss');
+  const dayOfWeek = getDayOfWeek(now); // 💡 요일 계산
 
   sheet.appendRow([
     date,
+    dayOfWeek, // 💡 요일 데이터 저장
     name,
     team,
     time,
@@ -340,9 +334,9 @@ function getTodayAttendance(callback) {
 
     if (rowDateStr === todayStr) {
       attendance.push({
-        name: data[i][1],
-        team: data[i][2],
-        time: data[i][3]
+        name: data[i][2], // 💡 수정: '요일' 컬럼 추가로 인덱스 1 -> 2
+        team: data[i][3], // 💡 수정: '요일' 컬럼 추가로 인덱스 2 -> 3
+        time: data[i][4]  // 💡 수정: '요일' 컬럼 추가로 인덱스 3 -> 4
       });
     }
   }
@@ -354,7 +348,7 @@ function getTodayAttendance(callback) {
  * 전체 통계
  */
 function getStats(callback) {
-  // 토요일 목록 생성 (2025-01 ~ 2026-12)
+  // ⚠️ 주의: 토요일만 계산하던 기존 방식 유지
   const saturdays = generateSaturdays();
   const totalSaturdays = saturdays.length;
 
@@ -418,7 +412,7 @@ function getStats(callback) {
     if (!date) return;
 
     const dateStr = Utilities.formatDate(new Date(date), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    const team = row[2];
+    const team = row[3]; // 💡 수정: '요일' 컬럼 추가로 인덱스 2 -> 3
 
     if (!attendanceByDate[dateStr]) {
       attendanceByDate[dateStr] = {
@@ -455,7 +449,7 @@ function getStats(callback) {
 }
 
 /**
- * 2025-01 ~ 2026-12 사이의 모든 토요일 생성
+ * 2025-01 ~ 2026-12 사이의 모든 토요일 생성 (통계용)
  */
 function generateSaturdays() {
   const saturdays = [];
@@ -481,9 +475,18 @@ function generateSaturdays() {
 // ==================== 유틸리티 ====================
 
 /**
+ * 요일 계산 함수 (일월화수목금토 반환)
+ */
+function getDayOfWeek(date) {
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    return days[date.getDay()];
+}
+
+/**
  * 시트 가져오기 또는 생성
  */
 function getOrCreateSheet(sheetName) {
+// ... (기존 코드와 동일)
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(sheetName);
 
@@ -498,6 +501,7 @@ function getOrCreateSheet(sheetName) {
  * 두 좌표 간 거리 계산 (Haversine 공식)
  */
 function calculateDistance(lat1, lon1, lat2, lon2) {
+// ... (기존 코드와 동일)
   const R = 6371e3; // 지구 반지름 (미터)
   const φ1 = lat1 * Math.PI / 180;
   const φ2 = lat2 * Math.PI / 180;
@@ -516,6 +520,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
  * 클라이언트 IP 주소 추출
  */
 function getClientIP(e) {
+// ... (기존 코드와 동일)
   try {
     const headers = JSON.stringify(e);
     return Utilities.computeDigest(
@@ -532,6 +537,7 @@ function getClientIP(e) {
  * JSON 응답 생성 (JSONP 방식으로 CORS 문제 해결)
  */
 function createResponse(success, message, data, callback) {
+// ... (기존 코드와 동일)
   const response = {
     success: success,
     message: message || (success ? 'Success' : 'Error')
