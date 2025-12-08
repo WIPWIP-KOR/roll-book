@@ -1,18 +1,75 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <base target="_top">
-    <title>인증 성공</title>
-    <script>
-        window.onload = function() {
-            // 현재 GAS URL에 '?page=admin' 파라미터를 붙여서 리다이렉트
-            const adminUrl = '<?= ScriptApp.getService().getUrl() ?>?page=admin'; 
-            window.location.replace(adminUrl);
-        };
-    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 인증 게이트</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80vh;
+            margin: 0;
+            background-color: #f4f7f6;
+        }
+        #auth-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+            font-size: 1.8em;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #666;
+            margin-bottom: 25px;
+        }
+        #authBtn {
+            padding: 12px 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        #authBtn:hover {
+            background-color: #0056b3;
+        }
+        #authBtn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #message {
+            margin-top: 20px;
+            font-weight: bold;
+            min-height: 20px; /* 메시지 영역 확보 */
+        }
+    </style>
 </head>
 <body>
-    <h1>✅ 인증 성공!</h1>
-    <p>관리자 페이지로 이동합니다...</p>
+    <div id="auth-container">
+        <h1>관리자 계정 확인이 필요합니다.</h1>
+        <p>Google 계정으로 권한을 확인하려면 아래 버튼을 눌러주세요.</p>
+        
+        <button id="authBtn">🔒 관리자 인증 시작</button>
+        
+        <p id="message"></p>
+        
+        <p style="font-size: 0.8em; color: #aaa; margin-top: 30px;">
+            (이 과정에서 Google 계정 로그인이 필요할 수 있습니다.)
+        </p>
+    </div>
+
+    <script src="js/auth.js"></script> 
 </body>
 </html>
