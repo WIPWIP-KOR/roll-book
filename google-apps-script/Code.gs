@@ -529,27 +529,7 @@ function createResponse(success, message, data) {
     Object.assign(response, data);
   }
 
-   const output = ContentService
+   return ContentService
     .createTextOutput(JSON.stringify(response))
     .setMimeType(ContentService.MimeType.JSON);
-
-  // **[수정]** GitHub Pages 도메인에서 온 요청을 허용하도록 설정
-  output.addHeader('Access-Control-Allow-Origin', 'https://wipwip-kor.github.io');
-  // **[추가]** 클라이언트가 사용하는 Content-Type 헤더를 허용
-  output.addHeader('Access-Control-Allow-Headers', 'Content-Type'); 
-
-  return output;
 }
-/**
- * OPTIONS 요청 처리 (CORS Preflight 대응)
- */
-function doOptions(e) {
-  const output = ContentService.createTextOutput('');
-  
-  output.addHeader('Access-Control-Allow-Origin', 'https://wipwip-kor.github.io');
-  output.addHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  output.addHeader('Access-Control-Allow-Headers', 'Content-Type'); 
-  
-  return output;
-}
-
