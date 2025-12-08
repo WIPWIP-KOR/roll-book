@@ -1,7 +1,7 @@
 // 설정
 const CONFIG = {
     // ⚠️⚠️⚠️ 여기를 실제 Google Apps Script 배포 URL로 변경하세요 ⚠️⚠️⚠️
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbyVginS_8wCgFWERspXeaIVGFfvTW_20KzCjEZFkAUEe7jrt-KWQh1FUFD2n61rWHeS/exec', // 나중에 변경 필요
+    GAS_URL: 'https://script.google.com/macros/s/AKfycbyb96h-C6dDUFbeSrIlO43YzkfYMz0cpa9N30fqjE8pESWeIFKMTa4P2W1V0tYhi6xw/exec', // 나중에 변경 필요
     ATTENDANCE_URL: window.location.origin
 };
 
