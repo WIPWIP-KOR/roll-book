@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>출석률 통계 - 풋살 동호회</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 출석률 통계</h1>
+            <p class="period">2025.01 ~ 2026.12</p>
+        </div>
+
+        <!-- 팀별 출석률 -->
+        <div class="stats-section">
+            <h2>🏆 팀별 출석률</h2>
+            <div id="teamStats" class="team-stats">
+                <p>데이터를 불러오는 중...</p>
+            </div>
+        </div>
+
+        <!-- 개인별 출석률 -->
+        <div class="stats-section">
+            <h2>👤 개인별 출석률</h2>
+
+            <!-- 팀 필터 -->
+            <div class="filter-group">
+                <label>팀 필터:</label>
+                <button class="filter-btn active" data-team="all">전체</button>
+                <button class="filter-btn" data-team="A">A팀</button>
+                <button class="filter-btn" data-team="B">B팀</button>
+                <button class="filter-btn" data-team="C">C팀</button>
+            </div>
+
+            <!-- 정렬 옵션 -->
+            <div class="filter-group">
+                <label>정렬:</label>
+                <select id="sortOption">
+                    <option value="rate-desc">출석률 높은순</option>
+                    <option value="rate-asc">출석률 낮은순</option>
+                    <option value="name">이름순</option>
+                    <option value="count-desc">출석 횟수순</option>
+                </select>
+            </div>
+
+            <div id="personalStats" class="personal-stats">
+                <p>데이터를 불러오는 중...</p>
+            </div>
+        </div>
+
+        <!-- 주차별 출석 현황 -->
+        <div class="stats-section">
+            <h2>📅 주차별 출석 현황</h2>
+            <div id="weeklyStats" class="weekly-stats">
+                <p>데이터를 불러오는 중...</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <button id="refreshStatsBtn" class="btn-primary">새로고침</button>
+            <br><br>
+            <a href="index.html" class="link">출석 페이지로</a> |
+            <a href="admin.html" class="link">관리자 페이지</a>
+        </div>
+    </div>
+
+    <script src="js/stats.js"></script>
+</body>
+</html>
