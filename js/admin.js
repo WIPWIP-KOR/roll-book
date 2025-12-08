@@ -1,6 +1,6 @@
 // 설정
 const CONFIG = {
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbz0qh_mWTEP3uvTeMzq4ZK7L56tu1eFcJWKP7mNZsOhRwAcu_qoDQqzWgHBD3YhZymr/exec', // 나중에 변경 필요
+    GAS_URL: 'https://script.google.com/macros/s/AKfycbxdCQsDUJgH0cmzso9v8SygAoT9UCOMCG0xpbs83dCqhhgVa8NJdf4L4SUSkcjG4F8x/exec', // 나중에 변경 필요
     ATTENDANCE_URL: window.location.origin
 };
 
