@@ -39,8 +39,6 @@ function doGet(e) {
         return getTodayAttendance();
       case 'getStats':
         return getStats();
-      case 'saveLocation':
-        return saveLocation(e);
       default:
         return createResponse(false, 'Invalid action');
     }
@@ -60,7 +58,8 @@ function doPost(e) {
     switch(action) {
       case 'attend':
         return processAttendance(data, e);
-      
+      case 'saveLocation':
+        return saveLocation(data);
       default:
         return createResponse(false, 'Invalid action');
     }
@@ -221,30 +220,22 @@ function updateMember(name, team) {
  * 위치 저장
  */
 function saveLocation(data) {
-   var lat = data.parameter.latitude;
-      var lng = data.parameter.longitude;
-      var name = data.parameter.name;
+  const { latitude, longitude, name } = data;
 
-      // 스프레드시트에 저장 (Config 시트에 단일 설정으로 저장)
-      if (SPREADSHEET_ID && SPREADSHEET_ID !== 'YOUR_SPREADSHEET_ID') {
-        var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-        var sheet = ss.getSheetByName(CONFIG_SHEET_NAME);
-        if (!sheet) {
-          sheet = ss.insertSheet(CONFIG_SHEET_NAME);
-          sheet.clear();
-          sheet.appendRow(['key','value']);
-        }
+  if (!latitude || !longitude || !name) {
+    return createResponse(false, '필수 정보가 누락되었습니다.');
+  }
 
-        // name, latitude, longitude를 각각의 키로 저장/업데이트
-        setConfigValue(sheet, 'location_name', name);
-        setConfigValue(sheet, 'location_latitude', lat);
-        setConfigValue(sheet, 'location_longitude', lng);
+  const sheet = getOrCreateSheet(SHEET_NAMES.LOCATION);
 
-        result = { success: true };
-      } else {
-        // SPREADSHEET_ID 미설정 시에는 결과만 반환
-        result = { success: true, warning: 'SPREADSHEET_ID not set. Data not persisted.' };
-      }
+  // 기존 데이터 삭제하고 새로 저장
+  sheet.clear();
+  sheet.appendRow(['항목', '값']);
+  sheet.appendRow(['위도', latitude]);
+  sheet.appendRow(['경도', longitude]);
+  sheet.appendRow(['장소명', name]);
+
+  return createResponse(true, '위치가 저장되었습니다.');
 }
 
 /**
@@ -541,25 +532,4 @@ function createResponse(success, message, data) {
   return ContentService
     .createTextOutput(JSON.stringify(response))
     .setMimeType(ContentService.MimeType.JSON);
-}
-
-function setConfigValue(sheet, key, value) {
-  var data = sheet.getDataRange().getValues();
-  for (var i = 0; i < data.length; i++) {
-    if (data[i][0] === key) {
-      sheet.getRange(i+1, 2).setValue(value);
-      return;
-    }
-  }
-  sheet.appendRow([key, value]);
-}
-
-function getConfigValue(sheet, key) {
-  var data = sheet.getDataRange().getValues();
-  for (var i = 0; i < data.length; i++) {
-    if (data[i][0] === key) {
-      return data[i][1];
-    }
-  }
-  return '';
 }
