@@ -71,14 +71,14 @@ async function loadCurrentLocation() {
     }
 }
 
-// 위치 저장 (JSONP 방식을 사용하여 CORS 문제를 우회)
-function saveLocation() {
+// 위치 저장
+async function saveLocation() {
     const lat = parseFloat(latitudeInput.value);
     const lng = parseFloat(longitudeInput.value);
     const name = locationNameInput.value.trim();
 
-    // 안전한 검증: isNaN 사용
-    if (isNaN(lat) || isNaN(lng)) {
+    // 입력 검증
+    if (!lat || !lng) {
         showLocationMessage('위도와 경도를 입력해주세요.', 'error');
         return;
     }
@@ -101,56 +101,40 @@ function saveLocation() {
     saveLocationBtn.disabled = true;
     saveLocationBtn.textContent = '저장 중...';
 
-    // JSONP 콜백 이름 생성
-    const callbackName = 'saveLocationCallback_' + Date.now();
+    try {
+        const response = await fetch(CONFIG.GAS_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'saveLocation',
+                latitude: lat,
+                longitude: lng,
+                name: name
+            })
+        });
 
-    // 전역 콜백 함수 등록
-    window[callbackName] = function(data) {
-        try {
-            console.log('JSONP response:', data);
+        const data = await response.json();
 
-            if (data && data.success) {
-                showLocationMessage('위치가 저장되었습니다!', 'success');
-                loadCurrentLocation();
+        if (data.success) {
+            showLocationMessage('위치가 저장되었습니다!', 'success');
+            loadCurrentLocation();
 
-                latitudeInput.value = '';
-                longitudeInput.value = '';
-                locationNameInput.value = '';
-            } else {
-                showLocationMessage((data && data.message) || '위치 저장에 실패했습니다.', 'error');
-                console.error('서버 에러 응답:', data);
-            }
-        } finally {
-            // 정리: 콜백 및 스크립트 제거
-            try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
-            if (script && script.parentNode) {
-                script.parentNode.removeChild(script);
-            }
-            saveLocationBtn.disabled = false;
-            saveLocationBtn.textContent = '위치 저장';
+            // 입력 필드 초기화
+            latitudeInput.value = '';
+            longitudeInput.value = '';
+            locationNameInput.value = '';
+        } else {
+            showLocationMessage(data.message || '위치 저장에 실패했습니다.', 'error');
         }
-    };
-
-    // 쿼리 문자열 생성 (GET, JSONP)
-    const params = new URLSearchParams();
-    params.append('action', 'saveLocation');
-    params.append('latitude', lat);
-    params.append('longitude', lng);
-    params.append('name', name);
-    params.append('callback', callbackName);
-
-    // JSONP용 스크립트 추가
-    const script = document.createElement('script');
-    script.src = CONFIG.GAS_URL + '?' + params.toString();
-    script.onerror = function(err) {
-        console.error('JSONP script load error', err);
-        showLocationMessage('서버 연결에 실패했습니다.', 'error');
-        try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
-        if (script.parentNode) script.parentNode.removeChild(script);
+    } catch (error) {
+        console.error('위치 저장 에러:', error);
+        showLocationMessage('위치 저장 중 오류가 발생했습니다.', 'error');
+    } finally {
         saveLocationBtn.disabled = false;
         saveLocationBtn.textContent = '위치 저장';
-    };
-    document.body.appendChild(script);
+    }
 }
 
 // 내 현재 위치 가져오기
