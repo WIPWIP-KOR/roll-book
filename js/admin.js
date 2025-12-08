@@ -82,13 +82,15 @@ function loadCurrentLocation() {
     });
 }
 
-// 위치 저장 (POST 요청, $.ajax 사용)
+// admin.js 파일 (수정된 saveLocation 함수)
+
+// 위치 저장 (JSONP 요청, $.ajax 사용)
 function saveLocation() {
     const lat = parseFloat(latitudeInput.value);
     const lng = parseFloat(longitudeInput.value);
     const name = locationNameInput.value.trim();
 
-    // 입력 검증
+    // 입력 검증 (기존 코드 유지)
     if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
         showLocationMessage('유효한 위도와 경도를 입력해주세요.', 'error');
         return;
@@ -102,18 +104,20 @@ function saveLocation() {
     saveLocationBtn.disabled = true;
     saveLocationBtn.textContent = '저장 중...';
 
-    // 💡 POST 요청을 JSONP로 처리
+    // 💡 수정된 부분: POST 관련 설정을 제거하고 일반 data 객체를 사용합니다.
+    const dataToSend = {
+        action: 'saveLocation', // 이 action 파라미터가 URL에 포함되어 서버(Code.gs)로 전달됩니다.
+        latitude: lat,
+        longitude: lng,
+        name: name
+    };
+
     $.ajax({
         url: CONFIG.GAS_URL,
-        type: 'POST',
-        data: JSON.stringify({
-            action: 'saveLocation',
-            latitude: lat,
-            longitude: lng,
-            name: name
-        }),
-        contentType: 'application/json',
-        dataType: 'jsonp', // CORS 우회
+        // type: 'POST',             // ❌ 제거
+        data: dataToSend,           // ✅ 일반 객체로 데이터 전달
+        // contentType: 'application/json', // ❌ 제거
+        dataType: 'jsonp',          // ✅ JSONP (GET 방식) 사용
         success: function(data) {
             if (data.success) {
                 showLocationMessage('위치가 저장되었습니다!', 'success');
@@ -137,7 +141,6 @@ function saveLocation() {
         }
     });
 }
-
 // 내 현재 위치 가져오기 (기존 코드 유지)
 function getMyLocation() {
     if (!navigator.geolocation) {
