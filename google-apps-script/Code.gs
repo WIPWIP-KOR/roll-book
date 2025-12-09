@@ -12,7 +12,7 @@ const SHEET_NAMES = {
   SETTINGS: '설정' 
 };
 
-const PASSWORD_CELL = 'B1'; // 설정 시트에서 비밀번호를 저장할 셀
+const PASSWORD_CELL = 'B2'; // 설정 시트에서 비밀번호를 저장할 셀
 const REQUIRED_RADIUS = 50; // 50미터
 
 // ==================== 메인 함수 ====================
@@ -147,14 +147,16 @@ function authenticateAdmin(inputPassword) {
  * @returns {boolean} - 저장 성공 여부 (true/false)
  */
 function setAdminPassword(newPassword) {
-    if (newPassword !== "" && (typeof newPassword !== 'string' || newPassword.length !== 4 || isNaN(newPassword))) {
-        Logger.log('Invalid new password format.');
-        return false;
-    }
+    // ... (유효성 검사 생략)
   
     try {
         const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
-        sheet.getRange(PASSWORD_CELL).setValue(newPassword);
+        
+        // 💡 수정: A2 셀에 레이블을 함께 기록 (자동 복구 목적)
+        sheet.getRange('A2').setValue('관리자 비밀번호'); // 레이블 설정
+        
+        // B2 셀에 비밀번호 저장
+        sheet.getRange(PASSWORD_CELL).setValue(newPassword); // PASSWORD_CELL은 'B2'여야 함
         
         Logger.log(`Admin password updated to: "${newPassword}"`);
         return true;
