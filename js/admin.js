@@ -600,43 +600,80 @@ function displaySearchResults(places) {
         return;
     }
 
-    let html = '<div class="search-results-list">';
-    html += '<h4>🔍 검색 결과 (클릭하여 선택)</h4>';
+    // 기존 내용 제거
+    resultsContainer.innerHTML = '';
+
+    const listDiv = document.createElement('div');
+    listDiv.className = 'search-results-list';
+
+    const title = document.createElement('h4');
+    title.textContent = '🔍 검색 결과 (클릭하여 선택)';
+    listDiv.appendChild(title);
 
     places.forEach((place, index) => {
-        html += `
-            <div class="search-result-item" onclick="selectPlace(${place.y}, ${place.x}, '${place.place_name.replace(/'/g, "\\'")}')">
-                <strong>${index + 1}. ${place.place_name}</strong>
-                <p>${place.address_name}</p>
-            </div>
-        `;
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'search-result-item';
+
+        // data 속성으로 안전하게 데이터 저장
+        itemDiv.dataset.lat = place.y;
+        itemDiv.dataset.lng = place.x;
+        itemDiv.dataset.name = place.place_name;
+
+        const nameStrong = document.createElement('strong');
+        nameStrong.textContent = `${index + 1}. ${place.place_name}`;
+
+        const addressP = document.createElement('p');
+        addressP.textContent = place.address_name;
+
+        itemDiv.appendChild(nameStrong);
+        itemDiv.appendChild(addressP);
+
+        // 클릭 이벤트 리스너 추가
+        itemDiv.addEventListener('click', function() {
+            const lat = parseFloat(this.dataset.lat);
+            const lng = parseFloat(this.dataset.lng);
+            const name = this.dataset.name;
+            selectPlace(lat, lng, name);
+        });
+
+        listDiv.appendChild(itemDiv);
     });
 
-    html += '</div>';
-    resultsContainer.innerHTML = html;
+    resultsContainer.appendChild(listDiv);
 }
 
 /**
  * 검색 결과에서 선택한 장소로 지도와 마커를 이동합니다.
  */
 function selectPlace(lat, lng, name) {
-    const position = new kakao.maps.LatLng(lat, lng);
-
-    // 지도 중심 이동
-    window.map.setCenter(position);
-
-    // 마커 위치 이동
-    window.marker.setPosition(position);
+    console.log('📍 장소 선택:', { lat, lng, name });
 
     // 입력 필드 업데이트
     document.getElementById('latitude').value = lat;
     document.getElementById('longitude').value = lng;
     document.getElementById('locationName').value = name;
 
+    console.log('✅ 입력 필드 업데이트 완료');
+
+    // 지도와 마커가 있으면 위치 업데이트
+    if (window.map && window.marker) {
+        const position = new kakao.maps.LatLng(lat, lng);
+
+        // 지도 중심 이동
+        window.map.setCenter(position);
+
+        // 마커 위치 이동
+        window.marker.setPosition(position);
+
+        console.log('✅ 지도 및 마커 위치 업데이트 완료');
+    } else {
+        console.warn('⚠️ 지도 또는 마커가 초기화되지 않았습니다.');
+    }
+
     // 검색 결과 숨기기
     document.getElementById('searchResults').innerHTML = '';
 
-    console.log(`📍 선택한 위치: ${name} (${lat}, ${lng})`);
+    console.log(`✅ 선택 완료: ${name} (위도: ${lat}, 경도: ${lng})`);
 }
 
 /**

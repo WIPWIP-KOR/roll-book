@@ -751,10 +751,17 @@ body {
 /* 카카오맵 */
 .kakao-map {
     width: 100%;
-    height: 400px;
+    height: 600px;
     border-radius: 10px;
     margin: 15px 0;
     border: 2px solid #e0e0e0;
+}
+
+/* 모바일에서는 조금 작게 */
+@media (max-width: 768px) {
+    .kakao-map {
+        height: 500px;
+    }
 }
 
 /* 지도 도움말 */
