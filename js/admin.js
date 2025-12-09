@@ -647,13 +647,25 @@ function displaySearchResults(places) {
  */
 function selectPlace(lat, lng, name) {
     console.log('📍 장소 선택:', { lat, lng, name });
+    alert('장소 선택: ' + name); // 디버깅용
 
     // 입력 필드 업데이트
-    document.getElementById('latitude').value = lat;
-    document.getElementById('longitude').value = lng;
-    document.getElementById('locationName').value = name;
+    const latInput = document.getElementById('latitude');
+    const lngInput = document.getElementById('longitude');
+    const nameInput = document.getElementById('locationName');
 
-    console.log('✅ 입력 필드 업데이트 완료');
+    console.log('입력 필드 찾기:', { latInput, lngInput, nameInput });
+
+    if (latInput && lngInput && nameInput) {
+        latInput.value = lat;
+        lngInput.value = lng;
+        nameInput.value = name;
+        console.log('✅ 입력 필드 업데이트 완료');
+        alert('입력 필드 업데이트 완료!'); // 디버깅용
+    } else {
+        console.error('❌ 입력 필드를 찾을 수 없습니다!');
+        alert('입력 필드를 찾을 수 없습니다!'); // 디버깅용
+    }
 
     // 지도와 마커가 있으면 위치 업데이트
     if (window.map && window.marker) {
