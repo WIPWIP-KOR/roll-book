@@ -377,7 +377,10 @@ async function loadStats(year) {
 
 // ==================== 카테고리 및 필터 관리 ====================
 
-function initCategoryTabs() {
+/**
+ * 카테고리 탭 이벤트 리스너 설정 (한 번만 호출)
+ */
+function setupCategoryTabListeners() {
     // 1. 카테고리 탭 이벤트 리스너 연결
     document.querySelectorAll('.category-tab').forEach(button => {
         button.addEventListener('click', function() {
@@ -395,9 +398,14 @@ function initCategoryTabs() {
     document.getElementById('sortOption').addEventListener('change', function() {
         handlePersonalFilterChange('sort', this.value);
     });
+}
 
-    // 3. 초기 상태 설정: 팀별 통계 활성화
-    handleCategoryChange('team', true); 
+/**
+ * 카테고리 탭 초기 상태 설정
+ */
+function initCategoryTabs() {
+    // 초기 상태 설정: 팀별 통계 활성화
+    handleCategoryChange('team', true);
 }
 
 /**
@@ -742,13 +750,16 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
 // ==================== 초기 실행 ====================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. 통계 페이지 초기화
+    // 1. 카테고리 탭 이벤트 리스너 설정 (한 번만)
+    setupCategoryTabListeners();
+
+    // 2. 통계 페이지 초기화
     initStatsPage();
 
-    // 2. 관리자 링크 클릭 이벤트
+    // 3. 관리자 링크 클릭 이벤트
     document.getElementById('adminLink').addEventListener('click', handleAdminLinkClick);
 
-    // 3. 관리자 인증 모달 이벤트
+    // 4. 관리자 인증 모달 이벤트
     document.getElementById('adminAuthSubmit').addEventListener('click', attemptAdminAuth);
     document.getElementById('adminAuthCancel').addEventListener('click', hideAdminAuthModal);
     document.getElementById('adminPassword').addEventListener('keypress', (e) => {
@@ -757,7 +768,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. 새로고침 버튼
+    // 5. 새로고침 버튼
     document.getElementById('refreshStatsBtn').addEventListener('click', () => {
         // 캐시된 데이터를 지우고 새로 로드
         allStats = {};
