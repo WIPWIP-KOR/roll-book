@@ -1,5 +1,5 @@
 // ====================================================================
-// admin.js (클라이언트 측 JavaScript) - 수정된 전체 코드
+// admin.js (클라이언트 측 JavaScript) - JSONP 통일 버전
 // ====================================================================
 
 // 설정
@@ -33,7 +33,7 @@ const membersList = document.getElementById('membersList');
 const setPasswordBtn = document.getElementById('setPasswordBtn');
 const newPasswordInput = document.getElementById('newPassword');
 const passwordMessage = document.getElementById('passwordMessage');
-const adminContent = document.getElementById('adminContent'); // 관리자 페이지 전체 컨테이너 ID (admin.html에 필요)
+const adminContent = document.getElementById('adminContent');
 
 
 // =================================================================
@@ -48,22 +48,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 1. 관리자 인증 상태 확인 (초기 진입 로직)
-    // adminContent를 숨기고 인증 상태에 따라 표시하도록 처리 (admin.html의 CSS/구조 필요)
     if (adminContent) {
         adminContent.style.display = 'none';
     }
     
-    // ✨✨✨ 핵심 수정 부분: 인증 상태 확인 시작 ✨✨✨
-    google.script.run
-        .withSuccessHandler(handleAdminStatus)
-        .withFailureHandler(showError)
-        .checkAdminStatus(); 
-    // ✨✨✨ 수정 끝 ✨✨✨
+    // ✨✨✨ JSONP를 사용하여 checkAdminStatus 호출 ✨✨✨
+    checkAdminStatus(); 
     
-    // 이벤트 리스너는 인증 성공 후 initializeAdminPage에서 연결하는 것이 더 안전하지만,
-    // DOMContentLoaded에서 연결하고 버튼을 비활성화하는 방식으로 진행합니다.
-    
-    // 이벤트 리스너 연결 (페이지 로드 후, 인증 전)
+    // 이벤트 리스너 연결 (페이지 로드 후)
     saveLocationBtn.addEventListener('click', saveLocation);
     getMyLocationBtn.addEventListener('click', getMyLocation);
     generateQRBtn.addEventListener('click', generateQRCode);
@@ -76,8 +68,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+
 /**
- * 관리자 인증 상태에 따라 페이지 로드 방식을 결정합니다. (Code.gs에서 호출됨)
+ * 💥 JSONP: 관리자 비밀번호 설정 상태를 확인하는 함수 (Code.gs의 checkAdminStatus 호출)
+ */
+function checkAdminStatus() {
+    $.ajax({
+        url: `${CONFIG.GAS_URL}?action=checkAdminStatus`,
+        dataType: 'jsonp',
+        success: function(response) {
+            if (response.success && response.isSet !== undefined) {
+                handleAdminStatus(response);
+            } else {
+                showError({message: "인증 상태를 불러오지 못했습니다."});
+            }
+        },
+        error: function() {
+            showError({message: "Apps Script 통신 오류 (checkAdminStatus)"});
+        }
+    });
+}
+
+/**
+ * 관리자 인증 상태에 따라 페이지 로드 방식을 결정합니다.
  * @param {{isSet: boolean}} result - 비밀번호 설정 여부
  */
 function handleAdminStatus(result) {
@@ -99,60 +112,66 @@ function showPasswordPrompt() {
     const password = prompt("관리자 비밀번호를 입력하세요.");
 
     if (password !== null) {
-        // 사용자 입력 비밀번호를 백엔드(authenticateAdmin)로 전송하여 인증 시도
-        google.script.run
-            .withSuccessHandler(function(authResult) {
-                if (authResult.isAuthenticated) {
-                    initializeAdminPage(); // 인증 성공
-                } else {
-                    alert("비밀번호가 일치하지 않습니다.");
-                    showPasswordPrompt(); // 재시도
-                }
-            })
-            .withFailureHandler(showError)
-            .authenticateAdmin(password); // Code.gs의 authenticateAdmin 호출
+        // ✨✨✨ JSONP: authenticateAdmin 호출 ✨✨✨
+        authenticateAdmin(password); 
     } else {
         alert("관리자 권한이 필요합니다.");
-        // window.location.href = 'index.html'; // 일반 페이지로 리다이렉트 (선택 사항)
     }
 }
 
 /**
- * 비밀번호가 없거나 인증에 성공했을 때 관리자 페이지 초기화 (기존 초기화 코드 통합)
+ * 💥 JSONP: 사용자 입력 비밀번호를 서버로 보내 인증 시도 (Code.gs의 authenticateAdmin 호출)
+ */
+function authenticateAdmin(password) {
+    const encodedPassword = encodeURIComponent(password);
+    const gasUrl = `${CONFIG.GAS_URL}?action=authenticateAdmin&password=${encodedPassword}`;
+    
+    $.ajax({
+        url: gasUrl,
+        dataType: 'jsonp',
+        success: function(response) {
+            if (response.success && response.isAuthenticated) {
+                initializeAdminPage(); // 인증 성공
+            } else {
+                alert("비밀번호가 일치하지 않습니다.");
+                showPasswordPrompt(); // 재시도
+            }
+        },
+        error: function() {
+             showError({message: "Apps Script 통신 오류 (authenticateAdmin)"});
+             showPasswordPrompt(); // 통신 오류 시 재시도
+        }
+    });
+}
+
+
+/**
+ * 비밀번호가 없거나 인증에 성공했을 때 관리자 페이지 초기화
  */
 function initializeAdminPage() {
     console.log("관리자 페이지 로드 시작.");
     if (adminContent) {
-        adminContent.style.display = 'block'; // 숨겨진 콘텐츠 표시
+        adminContent.style.display = 'block'; 
     }
 
-    // 출석 URL 설정
     attendanceUrlInput.value = CONFIG.ATTENDANCE_URL;
-
-    // 카카오맵 초기화
     initKakaoMap();
-
-    // 현재 설정된 위치 불러오기
     loadCurrentLocation();
-
-    // 오늘 출석 현황 불러오기
     loadTodayAttendance();
-
-    // 회원 목록 불러오기
     loadMembers();
 }
 
 /**
- * 일반적인 Google Apps Script 오류 핸들러
+ * 일반적인 오류 핸들러
  */
 function showError(error) {
-    console.error("Scripts Error:", error);
-    alert("오류가 발생했습니다: " + (error.message || error));
+    console.error("Error:", error);
+    alert("오류가 발생했습니다: " + (error.message || "알 수 없는 오류"));
 }
 
 
 // =================================================================
-// 2. 관리자 비밀번호 설정 기능 (AJAX / JSONP) - 기존 코드 유지 및 개선
+// 2. 관리자 비밀번호 설정 기능 (JSONP) - 기존 코드 유지
 // =================================================================
 
 /**
@@ -189,7 +208,6 @@ function handleSetPassword() {
         url: gasUrl,
         dataType: 'jsonp', 
         success: function(data) {
-            // Code.gs의 createResponse 구조에 따라 data.success가 true고, data.success.success가 true인지 확인
             if (data.success && (data.success === true || (data.success.success !== undefined && data.success.success === true))) { 
                 const msg = (newPassword === "") 
                     ? '✅ 관리자 비밀번호가 해제(미등록)되었습니다. 다음 접속부터 바로 이동됩니다.'
@@ -215,11 +233,6 @@ function handleSetPassword() {
 // =================================================================
 // 3. 기존 관리자 기능 함수들 (유지)
 // =================================================================
-
-// 나머지 함수 (loadCurrentLocation, saveLocation, getMyLocation, generateQRCode, 
-// downloadQRCode, loadTodayAttendance, loadMembers, showLocationMessage, 
-// initKakaoMap, searchPlaces, placesSearchCB, selectPlace, setLocation, window.searchPlaces)
-// 는 변경 없이 그대로 유지됩니다.
 
 // 현재 설정된 위치 불러오기 (GET 요청, $.ajax 사용)
 function loadCurrentLocation() {

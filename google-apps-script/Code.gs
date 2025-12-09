@@ -29,19 +29,18 @@ function doGet(e) {
   try {
     switch(action) {
       
-      // ✨ 관리자 인증 상태 확인 (초기 진입 시 팝업 유무 결정)
-      case 'checkAdminStatus': // 함수명 변경: checkAdminPassword -> checkAdminStatus (인증 시도 아님)
-          // 비밀번호 미등록 상태라면 바로 true 반환 (바로 이동)
+      // 관리자 인증 상태 확인 (초기 진입 시 팝업 유무 결정)
+      case 'checkAdminStatus':
           const statusResult = checkAdminStatus(); 
           return createResponse(true, null, statusResult, callback);
 
-      // ✨ 관리자 비밀번호를 입력받아 인증 시도
+      // 관리자 비밀번호를 입력받아 인증 시도
       case 'authenticateAdmin':
           const passwordToCheck = e.parameter.password || "";
           const isAuthenticated = authenticateAdmin(passwordToCheck);
           return createResponse(true, null, { isAuthenticated: isAuthenticated }, callback);
 
-      // ✨ 관리자 비밀번호 설정/변경/해제 기능
+      // 관리자 비밀번호 설정/변경/해제 기능
       case 'setAdminPassword':
           const newPassword = e.parameter.newPassword || "";
           const success = setAdminPassword(newPassword);
@@ -74,7 +73,7 @@ function doGet(e) {
 }
 
 /**
- * POST 요청 처리 (doPost는 GitHub Pages에서 JSONP 사용이 어려워 현재는 대부분 doGet으로 통합됨)
+ * POST 요청 처리 (현재 프로젝트에서는 대부분 doGet으로 통합됨)
  */
 function doPost(e) {
   let callback = e.parameter.callback;
@@ -96,10 +95,9 @@ function doPost(e) {
   }
 }
 
-// ==================== 관리자 비밀번호 관리 (수정됨) ====================
+// ==================== 관리자 비밀번호 관리 ====================
 
 /**
- * 💥💥💥 수정된 핵심 함수 💥💥💥
  * 관리자 비밀번호의 설정 상태만 확인하여 클라이언트에게 알립니다.
  * @returns {{isSet: boolean}} - 비밀번호 설정 여부
  */
@@ -125,13 +123,13 @@ function authenticateAdmin(inputPassword) {
     const storedValue = sheet.getRange(PASSWORD_CELL).getValue();
     const storedPassword = String(storedValue || '').trim(); 
     
-    // 1. 비밀번호가 등록되지 않은 경우 (checkAdminStatus에서 이미 처리되었으나, 안전 장치)
+    // 비밀번호가 미등록 상태라면 인증 시도 실패 처리
     if (storedPassword === "") {
       Logger.log('Authentication attempted, but no password registered. Denied.');
-      return false; // 미등록 상태에서 authenticate를 호출하면 실패 처리 (새 비밀번호 설정을 유도)
+      return false; 
     }
     
-    // 2. 등록된 비밀번호가 있는 경우: 입력된 비밀번호와 비교
+    // 등록된 비밀번호와 비교
     const isAuthenticated = (inputPassword === storedPassword);
     
     Logger.log(`Authentication result: ${isAuthenticated}`);
@@ -149,7 +147,6 @@ function authenticateAdmin(inputPassword) {
  * @returns {boolean} - 저장 성공 여부 (true/false)
  */
 function setAdminPassword(newPassword) {
-    // 빈 문자열("")은 비밀번호 해제를 의미하므로 허용합니다.
     if (newPassword !== "" && (typeof newPassword !== 'string' || newPassword.length !== 4 || isNaN(newPassword))) {
         Logger.log('Invalid new password format.');
         return false;
@@ -169,7 +166,7 @@ function setAdminPassword(newPassword) {
 
 
 // ==================== 출석 처리 ====================
-// (기존 코드 유지)
+// (이하 출석 처리, 위치 관리, 회원 관리, 통계, 유틸리티 함수는 변동 없음)
 
 /**
  * 출석 처리
@@ -298,7 +295,6 @@ function updateMember(name, team) {
 }
 
 // ==================== 위치 관리 ====================
-// (기존 코드 유지)
 
 /**
  * 위치 저장 (doGet/doPost 모두에서 호출 가능)
@@ -354,7 +350,6 @@ function getTargetLocation() {
 }
 
 // ==================== 회원 관리 ====================
-// (기존 코드 유지)
 
 /**
  * 회원 목록 조회
@@ -384,7 +379,6 @@ function getMembers(callback) {
 }
 
 // ==================== 통계 ====================
-// (기존 코드 유지)
 
 /**
  * 오늘 출석 현황
@@ -425,7 +419,6 @@ function getTodayAttendance(callback) {
  * 전체 통계
  */
 function getStats(callback) {
-  // ⚠️ 주의: 토요일만 계산하던 기존 방식 유지
   const saturdays = generateSaturdays();
   const totalSaturdays = saturdays.length;
 
@@ -543,7 +536,6 @@ function generateSaturdays() {
 }
 
 // ==================== 유틸리티 ====================
-// (기존 코드 유지)
 
 /**
  * 요일 계산 함수 (일월화수목금토 반환)
