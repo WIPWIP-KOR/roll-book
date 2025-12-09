@@ -109,17 +109,12 @@ async function checkAdminStatus() {
             document.getElementById('admin-auth-title').textContent = '관리자 비밀번호 설정';
             document.getElementById('password-action').textContent = '비밀번호 설정';
             document.getElementById('current-password-group').style.display = 'none';
-            document.getElementById('new-password-group').style.display = 'block';
-            document.getElementById('adminAuthModal').style.display = 'flex';
+            document.getElementById('adminAuthModal').style.display = 'block';
             document.getElementById('password-action').onclick = setAdminPassword;
         } else {
-            // 비밀번호 설정 상태: 인증 팝업 표시
-            document.getElementById('admin-auth-title').textContent = '관리자 인증';
-            document.getElementById('password-action').textContent = '인증';
-            document.getElementById('current-password-group').style.display = 'block';
-            document.getElementById('new-password-group').style.display = 'none';
-            document.getElementById('adminAuthModal').style.display = 'flex';
-            document.getElementById('password-action').onclick = authenticateAdminAttempt;
+            // 비밀번호 설정 상태: 관리자 페이지 로드
+            document.getElementById('admin-container').style.display = 'block';
+            await loadAdminData();
         }
 
     } catch (error) {
@@ -142,12 +137,12 @@ async function authenticateAdminAttempt() {
         const response = await requestGas('authenticateAdmin', { password: password });
         
         if (response.isAuthenticated) {
+            alert('인증 성공!');
             document.getElementById('adminAuthModal').style.display = 'none';
             document.getElementById('admin-container').style.display = 'block';
             await loadAdminData();
         } else {
             alert('비밀번호가 일치하지 않습니다.');
-            document.getElementById('current-password').value = '';
         }
 
     } catch (error) {
