@@ -389,7 +389,12 @@ async function loadAdminData() {
 
     // 1. 위치 로드 및 지도 초기화
     if (window.map === undefined) {
-        initMap(); // 지도 초기화는 한 번만 수행
+        try {
+            await initMapAsync(); // 지도 초기화는 한 번만 수행
+        } catch (error) {
+            console.error('❌ 지도 초기화 실패:', error);
+            // 지도 초기화 실패해도 다른 기능은 계속 동작하도록 함
+        }
     }
 
     // 2. 출석 페이지 QR 코드 생성 (출석 페이지의 실제 URL로 변경 필요)
@@ -510,51 +515,188 @@ async function loadMembers() {
 }
 
 
+// ==================== 장소 검색 기능 ====================
+
+/**
+ * 카카오맵 Places API를 사용하여 장소를 검색합니다.
+ */
+function searchPlaces() {
+    const keyword = document.getElementById('mapSearch').value.trim();
+
+    if (!keyword) {
+        alert('검색어를 입력해주세요.');
+        return;
+    }
+
+    if (!window.map) {
+        alert('지도가 아직 초기화되지 않았습니다. 잠시 후 다시 시도해주세요.');
+        return;
+    }
+
+    // Places 서비스 객체 생성
+    const ps = new kakao.maps.services.Places();
+
+    // 키워드로 장소 검색
+    ps.keywordSearch(keyword, (data, status) => {
+        if (status === kakao.maps.services.Status.OK) {
+            displaySearchResults(data);
+        } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
+            alert('검색 결과가 없습니다.');
+        } else {
+            alert('검색 중 오류가 발생했습니다.');
+        }
+    });
+}
+
+/**
+ * 검색 결과를 화면에 표시합니다.
+ */
+function displaySearchResults(places) {
+    const resultsContainer = document.getElementById('searchResults');
+
+    if (places.length === 0) {
+        resultsContainer.innerHTML = '<p>검색 결과가 없습니다.</p>';
+        return;
+    }
+
+    let html = '<div class="search-results-list">';
+    html += '<h4>🔍 검색 결과 (클릭하여 선택)</h4>';
+
+    places.forEach((place, index) => {
+        html += `
+            <div class="search-result-item" onclick="selectPlace(${place.y}, ${place.x}, '${place.place_name.replace(/'/g, "\\'")}')">
+                <strong>${index + 1}. ${place.place_name}</strong>
+                <p>${place.address_name}</p>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    resultsContainer.innerHTML = html;
+}
+
+/**
+ * 검색 결과에서 선택한 장소로 지도와 마커를 이동합니다.
+ */
+function selectPlace(lat, lng, name) {
+    const position = new kakao.maps.LatLng(lat, lng);
+
+    // 지도 중심 이동
+    window.map.setCenter(position);
+
+    // 마커 위치 이동
+    window.marker.setPosition(position);
+
+    // 입력 필드 업데이트
+    document.getElementById('latitude').value = lat;
+    document.getElementById('longitude').value = lng;
+    document.getElementById('locationName').value = name;
+
+    // 검색 결과 숨기기
+    document.getElementById('searchResults').innerHTML = '';
+
+    console.log(`📍 선택한 위치: ${name} (${lat}, ${lng})`);
+}
+
+/**
+ * 사용자의 현재 위치를 가져와서 지도에 표시합니다.
+ */
+function getMyLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const currentPosition = new kakao.maps.LatLng(lat, lng);
+
+                // 지도 중심 이동
+                window.map.setCenter(currentPosition);
+
+                // 마커 위치 이동
+                window.marker.setPosition(currentPosition);
+
+                // 입력 필드 업데이트
+                document.getElementById('latitude').value = lat;
+                document.getElementById('longitude').value = lng;
+
+                alert('현재 위치를 가져왔습니다.');
+            },
+            (error) => {
+                alert('현재 위치를 가져올 수 없습니다: ' + error.message);
+            }
+        );
+    } else {
+        alert('이 브라우저는 위치 정보를 지원하지 않습니다.');
+    }
+}
+
 // ==================== 지도 API 초기화 (Kakao Map) ====================
 
 /**
- * 카카오 맵을 초기화하고 마커를 설정합니다.
- * 이 함수는 HTML 파일의 <script> 태그에서 카카오 맵 API 로드 완료 후 호출되어야 합니다.
+ * 카카오 맵을 비동기로 초기화하고 마커를 설정합니다.
+ * kakao.maps.load()를 사용하여 SDK가 완전히 로드된 후 초기화합니다.
  */
-function initMap() {
-    const mapContainer = document.getElementById('map'), // 지도를 표시할 div 
-          mapOption = { 
-            center: new kakao.maps.LatLng(37.566826, 126.9786567), // 서울 시청
-            level: 3 // 지도의 확대 레벨
-        };
-    
-    // 지도를 생성합니다    
-    window.map = new kakao.maps.Map(mapContainer, mapOption); 
-    
-    // 마커가 표시될 위치입니다. (초기 위치는 지도 중심)
-    const initialPosition = mapOption.center;
-    
-    // 마커를 생성합니다
-    window.marker = new kakao.maps.Marker({
-        position: initialPosition,
-        draggable: true // 마커를 드래그 가능하도록 설정합니다
-    });
+function initMapAsync() {
+    return new Promise((resolve, reject) => {
+        // 카카오맵 SDK가 로드되었는지 확인
+        if (!window.kakao || !window.kakao.maps) {
+            console.error('❌ 카카오맵 SDK를 불러올 수 없습니다.');
+            reject('카카오맵 SDK 로드 실패');
+            return;
+        }
 
-    // 마커가 지도 위에 표시되도록 설정합니다
-    window.marker.setMap(window.map);
-    
-    // 마커 드래그가 끝났을 때 이벤트 처리
-    kakao.maps.event.addListener(window.marker, 'dragend', function() {
-        const latlng = window.marker.getPosition();
-        document.getElementById('latitude').value = latlng.getLat();
-        document.getElementById('longitude').value = latlng.getLng();
-    });
+        console.log('🗺️ 카카오맵 초기화 시작...');
 
-    // 지도 클릭 시 해당 위치로 마커 이동 및 좌표 업데이트
-    kakao.maps.event.addListener(window.map, 'click', function(mouseEvent) {
-        const latlng = mouseEvent.latLng;
-        window.marker.setPosition(latlng);
-        document.getElementById('latitude').value = latlng.getLat();
-        document.getElementById('longitude').value = latlng.getLng();
-    });
+        // 카카오맵 SDK가 준비되면 지도 초기화
+        kakao.maps.load(() => {
+            try {
+                const mapContainer = document.getElementById('map'), // 지도를 표시할 div
+                      mapOption = {
+                        center: new kakao.maps.LatLng(37.566826, 126.9786567), // 서울 시청
+                        level: 3 // 지도의 확대 레벨
+                    };
 
-    // 초기 위치 로드
-    loadLocation();
+                // 지도를 생성합니다
+                window.map = new kakao.maps.Map(mapContainer, mapOption);
+
+                // 마커가 표시될 위치입니다. (초기 위치는 지도 중심)
+                const initialPosition = mapOption.center;
+
+                // 마커를 생성합니다
+                window.marker = new kakao.maps.Marker({
+                    position: initialPosition,
+                    draggable: true // 마커를 드래그 가능하도록 설정합니다
+                });
+
+                // 마커가 지도 위에 표시되도록 설정합니다
+                window.marker.setMap(window.map);
+
+                // 마커 드래그가 끝났을 때 이벤트 처리
+                kakao.maps.event.addListener(window.marker, 'dragend', function() {
+                    const latlng = window.marker.getPosition();
+                    document.getElementById('latitude').value = latlng.getLat();
+                    document.getElementById('longitude').value = latlng.getLng();
+                });
+
+                // 지도 클릭 시 해당 위치로 마커 이동 및 좌표 업데이트
+                kakao.maps.event.addListener(window.map, 'click', function(mouseEvent) {
+                    const latlng = mouseEvent.latLng;
+                    window.marker.setPosition(latlng);
+                    document.getElementById('latitude').value = latlng.getLat();
+                    document.getElementById('longitude').value = latlng.getLng();
+                });
+
+                console.log('✅ 카카오맵 초기화 완료');
+
+                // 초기 위치 로드
+                loadLocation();
+                resolve();
+            } catch (error) {
+                console.error('❌ 카카오맵 초기화 오류:', error);
+                reject(error);
+            }
+        });
+    });
 }
 
 // ==================== 이벤트 리스너 및 초기 실행 ====================
@@ -590,6 +732,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshMembersBtn = document.getElementById('refreshMembersBtn');
     if (refreshMembersBtn) {
         refreshMembersBtn.addEventListener('click', loadMembers);
+    }
+
+    const getMyLocationBtn = document.getElementById('getMyLocationBtn');
+    if (getMyLocationBtn) {
+        getMyLocationBtn.addEventListener('click', getMyLocation);
     }
 });
 
