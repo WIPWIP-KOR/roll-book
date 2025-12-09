@@ -685,7 +685,7 @@ function getMyLocation() {
 
 /**
  * 카카오 맵을 비동기로 초기화하고 마커를 설정합니다.
- * kakao.maps.load()를 사용하여 SDK가 완전히 로드된 후 초기화합니다.
+ * SDK가 완전히 로드될 때까지 대기한 후 초기화합니다.
  */
 function initMapAsync() {
     return new Promise((resolve, reject) => {
@@ -700,65 +700,84 @@ function initMapAsync() {
         }
         console.log('✅ 지도 컨테이너 확인됨:', mapContainer);
 
-        // 2. 카카오맵 SDK가 로드되었는지 확인
-        if (!window.kakao || !window.kakao.maps) {
-            console.error('❌ 카카오맵 SDK를 불러올 수 없습니다. window.kakao:', window.kakao);
-            reject('카카오맵 SDK 로드 실패');
-            return;
-        }
-        console.log('✅ 카카오맵 SDK 확인됨');
+        // 2. 카카오맵 SDK가 로드될 때까지 대기 (최대 10초)
+        let attempts = 0;
+        const maxAttempts = 100; // 10초 (100 * 100ms)
 
-        // 3. 카카오맵 SDK가 준비되면 지도 초기화
-        try {
-            const mapOption = {
-                center: new kakao.maps.LatLng(37.566826, 126.9786567), // 서울 시청
-                level: 3 // 지도의 확대 레벨
-            };
-            console.log('🗺️ 지도 옵션 생성:', mapOption);
+        const waitForKakao = () => {
+            attempts++;
 
-            // 지도를 생성합니다
-            window.map = new kakao.maps.Map(mapContainer, mapOption);
-            console.log('✅ 지도 객체 생성 완료:', window.map);
+            if (window.kakao && window.kakao.maps) {
+                console.log('✅ 카카오맵 SDK 확인됨 (시도 횟수:', attempts, ')');
+                initializeMap(mapContainer, resolve, reject);
+            } else if (attempts >= maxAttempts) {
+                console.error('❌ 카카오맵 SDK 로드 타임아웃 (10초 경과)');
+                console.error('   window.kakao:', window.kakao);
+                reject('카카오맵 SDK 로드 타임아웃');
+            } else {
+                console.log('⏳ 카카오맵 SDK 대기 중... (', attempts, '/', maxAttempts, ')');
+                setTimeout(waitForKakao, 100);
+            }
+        };
 
-            // 마커가 표시될 위치입니다. (초기 위치는 지도 중심)
-            const initialPosition = mapOption.center;
+        waitForKakao();
 
-            // 마커를 생성합니다
-            window.marker = new kakao.maps.Marker({
-                position: initialPosition,
-                draggable: true // 마커를 드래그 가능하도록 설정합니다
-            });
-
-            // 마커가 지도 위에 표시되도록 설정합니다
-            window.marker.setMap(window.map);
-            console.log('✅ 마커 생성 및 설정 완료');
-
-            // 마커 드래그가 끝났을 때 이벤트 처리
-            kakao.maps.event.addListener(window.marker, 'dragend', function() {
-                const latlng = window.marker.getPosition();
-                document.getElementById('latitude').value = latlng.getLat();
-                document.getElementById('longitude').value = latlng.getLng();
-            });
-
-            // 지도 클릭 시 해당 위치로 마커 이동 및 좌표 업데이트
-            kakao.maps.event.addListener(window.map, 'click', function(mouseEvent) {
-                const latlng = mouseEvent.latLng;
-                window.marker.setPosition(latlng);
-                document.getElementById('latitude').value = latlng.getLat();
-                document.getElementById('longitude').value = latlng.getLng();
-            });
-
-            console.log('✅ 카카오맵 초기화 완료');
-
-            // 초기 위치 로드
-            loadLocation();
-            resolve();
-        } catch (error) {
-            console.error('❌ 카카오맵 초기화 오류:', error);
-            console.error('❌ 에러 스택:', error.stack);
-            reject(error);
-        }
     });
+}
+
+/**
+ * 실제 지도 초기화를 수행하는 내부 함수
+ */
+function initializeMap(mapContainer, resolve, reject) {
+    try {
+        const mapOption = {
+            center: new kakao.maps.LatLng(37.566826, 126.9786567), // 서울 시청
+            level: 3 // 지도의 확대 레벨
+        };
+        console.log('🗺️ 지도 옵션 생성:', mapOption);
+
+        // 지도를 생성합니다
+        window.map = new kakao.maps.Map(mapContainer, mapOption);
+        console.log('✅ 지도 객체 생성 완료:', window.map);
+
+        // 마커가 표시될 위치입니다. (초기 위치는 지도 중심)
+        const initialPosition = mapOption.center;
+
+        // 마커를 생성합니다
+        window.marker = new kakao.maps.Marker({
+            position: initialPosition,
+            draggable: true // 마커를 드래그 가능하도록 설정합니다
+        });
+
+        // 마커가 지도 위에 표시되도록 설정합니다
+        window.marker.setMap(window.map);
+        console.log('✅ 마커 생성 및 설정 완료');
+
+        // 마커 드래그가 끝났을 때 이벤트 처리
+        kakao.maps.event.addListener(window.marker, 'dragend', function() {
+            const latlng = window.marker.getPosition();
+            document.getElementById('latitude').value = latlng.getLat();
+            document.getElementById('longitude').value = latlng.getLng();
+        });
+
+        // 지도 클릭 시 해당 위치로 마커 이동 및 좌표 업데이트
+        kakao.maps.event.addListener(window.map, 'click', function(mouseEvent) {
+            const latlng = mouseEvent.latLng;
+            window.marker.setPosition(latlng);
+            document.getElementById('latitude').value = latlng.getLat();
+            document.getElementById('longitude').value = latlng.getLng();
+        });
+
+        console.log('✅ 카카오맵 초기화 완료');
+
+        // 초기 위치 로드
+        loadLocation();
+        resolve();
+    } catch (error) {
+        console.error('❌ 카카오맵 초기화 오류:', error);
+        console.error('❌ 에러 스택:', error.stack);
+        reject(error);
+    }
 }
 
 // ==================== 이벤트 리스너 및 초기 실행 ====================
