@@ -9,7 +9,7 @@
 // ==================== 설정 ====================
 
 // Google Apps Script 배포 URL로 변경해야 합니다.
-const GAS_URL = 'YOUR_DEPLOYED_GOOGLE_APPS_SCRIPT_URL_HERE'; 
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec'; 
 
 // 카카오 지도 API의 클라이언트 키 (admin.js 파일의 HTML에 스크립트 태그로 포함되어야 함)
 // let map; // 전역 변수 지도 객체 (HTML에서 초기화될 예정)

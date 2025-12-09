@@ -7,7 +7,7 @@
  */
 
 // Google Apps Script 배포 URL로 변경해야 합니다.
-const GAS_URL = 'YOUR_DEPLOYED_GOOGLE_APPS_SCRIPT_URL_HERE'; 
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec'; 
 
 // ==================== 유틸리티 ====================
 
