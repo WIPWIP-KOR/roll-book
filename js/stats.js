@@ -1,15 +1,19 @@
 /**
  * 풋살 동호회 출석 시스템 - 통계 페이지 (stats.js)
  * * 기능:
- * 1. GAS 서버에서 개인별, 팀별, 주차별 통계 데이터를 로드 및 표시
- * 2. 동적 연도 탭을 생성하고 연도별 데이터를 필터링
- * 3. 월별 탭을 통해 주차별 데이터를 필터링
+ * 1. 연도별 통계 데이터 로드 (성능 최적화 적용)
+ * 2. 동적 연도 탭 및 카테고리 탭 생성 및 전환 (팀별/개인별/월별)
+ * 3. 개인별 통계 필터링 및 정렬 기능 구현
+ * 4. HTML ID 불일치 및 초기화 오류 수정 완료 (personalStats, teamStats, weeklyStats 사용)
  */
 
 // Google Apps Script 배포 URL로 변경해야 합니다.
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec'; 
 
-// ==================== 유틸리티 ====================
+// ==================== 전역 데이터 및 유틸리티 ====================
+
+let currentYear = null; 
+let allStats = {}; // { 2025: {personal: [...], ...}, 2026: {...} }
 
 /**
  * GAS 서버에 JSONP 요청을 보내는 범용 함수
@@ -61,92 +65,83 @@ function requestGas(action, params = {}) {
     });
 }
 
-
 // ==================== 연도 및 데이터 로드 관리 ====================
-
-// 전역 변수로 현재 선택된 연도와 통계 데이터를 저장합니다.
-let currentYear = null; 
-let allStats = {}; // { 2025: {personal: [...], ...}, 2026: {...} }
 
 /**
  * 페이지 로드 시 실행: 사용 가능한 모든 연도를 가져와 탭을 초기화합니다.
  */
 async function initStatsPage() {
     try {
+        // 로딩 메시지 표시
+        document.getElementById('stats-display').innerHTML = 
+            '<div class="alert alert-info">통계 데이터를 로드하는 중입니다...</div>';
+        
+        // 데이터 로드가 성공하면 컨텐츠 Wrapper를 숨김 상태로 시작
+        document.getElementById('stats-content-wrapper').style.display = 'none';
+
         const response = await requestGas('getAvailableYears');
         const availableYears = response.availableYears;
         
-        if (availableYears.length === 0) {
-            document.getElementById('stats-container').innerHTML = 
-                '<p class="alert alert-warning">출석 기록이 있는 연도가 없습니다.</p>';
+        if (!Array.isArray(availableYears) || availableYears.length === 0) {
+            document.getElementById('stats-display').innerHTML = 
+                '<p class="alert alert-warning">출석 기록이 있는 연도가 없습니다. (시트 이름이 출석기록_YYYY 형식인지 확인하세요)</p>';
             return;
         }
 
-        // 연도 탭 생성 및 클릭 이벤트 연결
+        // 1. 연도 탭 생성 및 초기 선택
         initYearTabs(availableYears);
-
-        // 가장 최근 연도의 데이터 로드
         currentYear = availableYears[0];
         document.getElementById(`year-tab-${currentYear}`).classList.add('active');
+
+        // 2. 카테고리 탭 초기화 및 이벤트 연결
+        initCategoryTabs();
+
+        // 3. 데이터 로드 (가장 최근 연도)
         await loadStats(currentYear);
 
+        // 4. 로딩 메시지 제거 및 컨텐츠 표시
+        document.getElementById('stats-display').innerHTML = '';
+        document.getElementById('stats-content-wrapper').style.display = 'block';
+
     } catch (error) {
-        document.getElementById('stats-container').innerHTML = 
-            `<p class="alert alert-danger">연도 정보 로딩에 실패했습니다: ${error}</p>`;
+        document.getElementById('stats-display').innerHTML = 
+            `<p class="alert alert-danger">연도 정보 로딩에 실패했습니다. (GAS URL 또는 서버 함수 오류): ${error}</p>`;
         console.error("Available Years Load Error:", error);
     }
 }
 
 /**
- * 연도 탭을 동적으로 생성합니다.
- * @param {Array<number>} years - 사용 가능한 연도 목록
- */
-function initYearTabs(years) {
-    const yearTabsContainer = document.getElementById('yearTabs');
-    yearTabsContainer.innerHTML = ''; // 기존 내용 초기화
-
-    years.forEach(year => {
-        const button = document.createElement('button');
-        button.className = 'btn btn-outline-primary me-2';
-        button.id = `year-tab-${year}`;
-        button.textContent = year;
-        button.onclick = () => handleYearChange(year);
-        yearTabsContainer.appendChild(button);
-    });
-}
-
-/**
  * 연도 탭 클릭 시 이벤트 핸들러
- * @param {number} year - 클릭된 연도
  */
 async function handleYearChange(year) {
     if (year === currentYear) return;
 
-    // UI에서 기존 연도 탭 비활성화 및 새 연도 탭 활성화
+    // UI 변경
     if (currentYear) {
         document.getElementById(`year-tab-${currentYear}`).classList.remove('active');
     }
     document.getElementById(`year-tab-${year}`).classList.add('active');
     currentYear = year;
 
+    // 데이터 로드
     await loadStats(year);
 }
 
 /**
- * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다. (성능 최적화 적용)
- * @param {number} year - 로드할 연도
+ * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다.
  */
 async function loadStats(year) {
     const loadingDiv = document.getElementById('stats-display');
     loadingDiv.innerHTML = '<div class="alert alert-info">통계 데이터를 불러오는 중...</div>';
+    document.getElementById('stats-content-wrapper').style.display = 'none';
     
-    // 1. 이미 캐시된 데이터가 있으면 바로 표시 (클라이언트 측 캐싱)
+    // 1. 캐시된 데이터 확인
     if (allStats[year]) {
         displayStats(allStats[year]);
         return;
     }
 
-    // 2. 서버에 요청 (성능 최적화: 연도별 데이터만 요청)
+    // 2. 서버에 요청
     try {
         const response = await requestGas('getStats', { year: year });
         const stats = response.stats;
@@ -154,100 +149,234 @@ async function loadStats(year) {
         // 데이터 캐시 저장 및 표시
         allStats[year] = stats;
         displayStats(stats);
+        
+        loadingDiv.innerHTML = '';
+        document.getElementById('stats-content-wrapper').style.display = 'block';
 
     } catch (error) {
         loadingDiv.innerHTML = `<p class="alert alert-danger">통계 데이터 로드 실패 (${year}년): ${error}</p>`;
+        document.getElementById('stats-content-wrapper').style.display = 'none';
         console.error(`Stats Load Error (${year}):`, error);
     }
 }
 
+// ==================== 카테고리 및 필터 관리 ====================
 
-// ==================== 데이터 표시 ====================
+function initCategoryTabs() {
+    // 1. 카테고리 탭 이벤트 리스너 연결
+    document.querySelectorAll('.category-tab').forEach(button => {
+        button.addEventListener('click', function() {
+            handleCategoryChange(this.dataset.category);
+        });
+    });
+
+    // 2. 개인별 통계 필터 및 정렬 이벤트 연결
+    document.querySelectorAll('.filter-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            handlePersonalFilterChange('team', this.dataset.team);
+        });
+    });
+
+    document.getElementById('sortOption').addEventListener('change', function() {
+        handlePersonalFilterChange('sort', this.value);
+    });
+
+    // 3. 초기 상태 설정: 팀별 통계 활성화
+    handleCategoryChange('team', true); 
+}
 
 /**
- * 불러온 데이터를 바탕으로 통계를 표시합니다.
- * @param {object} stats - 서버에서 받은 통계 데이터 객체
+ * 카테고리 탭 클릭 시 화면 전환
+ */
+function handleCategoryChange(category, isInit = false) {
+    // UI 활성화/비활성화
+    document.querySelectorAll('.category-tab').forEach(button => {
+        if (button.dataset.category === category) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
+
+    // 콘텐츠 영역 표시/숨김
+    document.getElementById('teamStats').style.display = 'none';
+    document.getElementById('personalStats').style.display = 'none';
+    document.getElementById('weeklyStats').style.display = 'none';
+    document.getElementById('monthTabs').style.display = 'none';
+    
+    switch (category) {
+        case 'team':
+            document.getElementById('teamStats').style.display = 'block';
+            break;
+        case 'personal':
+            document.getElementById('personalStats').style.display = 'block';
+            // 개인별 통계 표시 시, 필터/정렬 상태에 따라 테이블 다시 그리기
+            if (allStats[currentYear]) {
+                const teamFilter = document.querySelector('.filter-btn.active').dataset.team;
+                const sortOption = document.getElementById('sortOption').value;
+                displayPersonalStats(allStats[currentYear].personalStats, teamFilter, sortOption);
+            }
+            break;
+        case 'monthly':
+            document.getElementById('weeklyStats').style.display = 'block';
+            document.getElementById('monthTabs').style.display = 'flex';
+            
+            // 월별 탭이 클릭되지 않은 상태라면, 가장 최근 월을 강제 클릭
+            if (allStats[currentYear]) {
+                const activeMonthTab = document.querySelector('.month-tab.active');
+                if (!activeMonthTab || isInit) {
+                    const initialMonth = getCurrentMonthFromStats(allStats[currentYear].weeklyStats);
+                    if (initialMonth) {
+                        // 엘리먼트가 존재하는지 확인 후 클릭
+                        document.getElementById(`month-tab-${initialMonth}`)?.click(); 
+                    }
+                } else if (!isInit) {
+                    activeMonthTab.click(); 
+                }
+            }
+            break;
+    }
+}
+
+/**
+ * 개인별 통계 필터/정렬 변경 핸들러
+ */
+function handlePersonalFilterChange(type, value) {
+    if (!allStats[currentYear]) return;
+
+    if (type === 'team') {
+        // 팀 필터 UI 변경
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector(`.filter-btn[data-team="${value}"]`).classList.add('active');
+    }
+    
+    // 현재 필터/정렬 값 가져오기
+    const teamFilter = document.querySelector('.filter-btn.active').dataset.team;
+    const sortOption = document.getElementById('sortOption').value;
+
+    displayPersonalStats(allStats[currentYear].personalStats, teamFilter, sortOption);
+}
+
+// ==================== 데이터 표시 및 가공 ====================
+
+/**
+ * 불러온 데이터를 바탕으로 통계를 표시합니다. (HTML ID 불일치 오류 수정 완료)
  */
 function displayStats(stats) {
     // 탭 및 초기 표시 설정
     initMonthTabs(stats.weeklyStats);
     
-    // 기본으로 현재 월의 데이터 표시 (성능 최적화)
-    const currentMonth = new Date().getMonth() + 1;
-    const initialMonth = getCurrentMonthFromStats(stats.weeklyStats) || currentMonth;
+    // 개인별 통계 필터 초기값 설정 (필요 시)
+    const teamFilter = document.querySelector('.filter-btn.active')?.dataset.team || 'all';
+    const sortOption = document.getElementById('sortOption')?.value || 'rate-desc';
     
-    // 모든 섹션을 초기화
-    document.getElementById('personal-stats').innerHTML = '';
-    document.getElementById('team-stats').innerHTML = '';
-    document.getElementById('weekly-stats-container').innerHTML = '';
+    // 🚨 수정됨: HTML ID에 맞게 초기화 (personalStats, teamStats, weeklyStats 사용)
+    document.getElementById('personalStats').innerHTML = ''; 
+    document.getElementById('teamStats').innerHTML = '';     
+    document.getElementById('weeklyStats').innerHTML = '';   
 
-    // 개인별 통계 표시
-    displayPersonalStats(stats.personalStats, stats.targetYear, stats.totalSaturdays);
+    // 개인별 통계 표시 (이 함수 내에서 personalStats 컨테이너에 내용 채움)
+    displayPersonalStats(stats.personalStats, teamFilter, sortOption); 
 
     // 팀별 통계 표시
     displayTeamStats(stats.teamStats);
     
-    // 주차별 통계는 월별 탭에서 처리
-    filterWeeklyStatsByMonth(initialMonth, stats.weeklyStats);
-    
-    // 월별 탭 UI 활성화 (가장 최근 월)
-    document.querySelector('.month-tab.active')?.classList.remove('active');
-    document.getElementById(`month-tab-${initialMonth}`).classList.add('active');
-}
+    // 초기 로드 시 팀별 통계 탭이 활성화되도록 설정
+    handleCategoryChange('team', true);
 
-/**
- * 개인별 통계를 테이블로 표시합니다.
- */
-function displayPersonalStats(personalStats, year, totalSaturdays) {
-    const container = document.getElementById('personal-stats');
-    container.innerHTML = `<h4>${year}년 개인 출석 통계 (${totalSaturdays}주 기준)</h4>`;
-    
-    if (personalStats.length === 0) {
-        container.innerHTML += '<p class="text-secondary">개인 출석 기록이 없습니다.</p>';
-        return;
+    // 기간 정보 업데이트
+    const periodElement = document.querySelector('.period');
+    if (periodElement) {
+        periodElement.textContent = `${stats.targetYear}년 통계 (${stats.totalSaturdays}주 기준)`;
     }
 
-    // 출석률(rate) 기준으로 내림차순 정렬
-    personalStats.sort((a, b) => b.rate - a.rate);
-
-    let html = `
-        <table class="table table-striped table-hover">
-            <thead>
-                <tr>
-                    <th>순위</th>
-                    <th>이름</th>
-                    <th>팀</th>
-                    <th class="text-end">출석 횟수</th>
-                    <th class="text-end">출석률 (%)</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-
-    personalStats.forEach((p, index) => {
-        const rateDisplay = p.rate.toFixed(1);
-        html += `
-            <tr>
-                <td>${index + 1}</td>
-                <td>${p.name}</td>
-                <td><span class="badge bg-primary">${p.team}</span></td>
-                <td class="text-end">${p.attendanceCount} / ${totalSaturdays}</td>
-                <td class="text-end">
-                    <span class="fw-bold">${rateDisplay}%</span>
-                </td>
-            </tr>
-        `;
-    });
-
-    html += '</tbody></table>';
-    container.innerHTML += html;
+    // HTML 내의 stats-display 영역 초기화 (로딩 메시지 제거)
+    document.getElementById('stats-display').innerHTML = '';
+    
+    // 통계 내용 전체 Wrapper 표시
+    document.getElementById('stats-content-wrapper').style.display = 'block'; 
 }
 
-/**
- * 팀별 통계를 카드 형태로 표시합니다.
- */
+function displayPersonalStats(personalStats, teamFilter, sortOption) {
+    const container = document.getElementById('personalStats');
+    
+    // 1. 필터링
+    let filteredStats = personalStats;
+    if (teamFilter !== 'all') {
+        filteredStats = personalStats.filter(p => p.team === teamFilter);
+    }
+    
+    // 2. 정렬
+    filteredStats.sort((a, b) => {
+        switch (sortOption) {
+            case 'rate-asc':
+                return a.rate - b.rate;
+            case 'name':
+                return a.name.localeCompare(b.name);
+            case 'count-desc':
+                return b.attendanceCount - a.attendanceCount;
+            case 'rate-desc':
+            default:
+                return b.rate - a.rate;
+        }
+    });
+
+    const targetYear = allStats[currentYear].targetYear;
+    const totalSaturdays = allStats[currentYear].totalSaturdays;
+
+    let html = `
+        <h4>${targetYear}년 개인 출석 통계 (${totalSaturdays}주 기준)</h4>
+    `;
+    
+    if (filteredStats.length === 0) {
+        html += `<p class="text-secondary">필터링 조건에 맞는 기록이 없습니다.</p>`;
+    } else {
+        html += `
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>순위</th>
+                        <th>이름</th>
+                        <th>팀</th>
+                        <th class="text-end">출석 횟수</th>
+                        <th class="text-end">출석률 (%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        filteredStats.forEach((p, index) => {
+            const rateDisplay = p.rate.toFixed(1);
+            html += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${p.name}</td>
+                    <td><span class="badge bg-primary">${p.team}</span></td>
+                    <td class="text-end">${p.attendanceCount} / ${totalSaturdays}</td>
+                    <td class="text-end">
+                        <span class="fw-bold">${rateDisplay}%</span>
+                    </td>
+                </tr>
+            `;
+        });
+        html += '</tbody></table>';
+    }
+    
+    // 기존 필터 그룹 DIV를 찾습니다.
+    const filterGroupDiv = container.querySelector('.filter-options');
+    
+    // 컨테이너 전체를 새 내용으로 덮어씁니다.
+    container.innerHTML = html;
+    
+    // 필터 그룹이 존재하면, 새 내용의 맨 위에 다시 넣어줍니다.
+    if (filterGroupDiv) {
+        container.prepend(filterGroupDiv);
+    }
+}
+
+
 function displayTeamStats(teamStats) {
-    const container = document.getElementById('team-stats');
+    const container = document.getElementById('teamStats');
     container.innerHTML = '<h4>팀별 평균 출석률</h4><div class="row">';
     
     const teams = Object.keys(teamStats).sort();
@@ -277,63 +406,76 @@ function displayTeamStats(teamStats) {
     container.innerHTML += '</div>';
 }
 
-// ==================== 월별 필터링 ====================
+function initYearTabs(years) {
+    const yearTabsContainer = document.getElementById('yearTabs');
+    yearTabsContainer.innerHTML = ''; 
 
-/**
- * 주차별 통계를 바탕으로 월 탭을 동적으로 생성합니다.
- */
+    years.forEach(year => {
+        const button = document.createElement('button');
+        button.className = 'tab-btn year-tab';
+        button.id = `year-tab-${year}`;
+        button.textContent = year;
+        button.onclick = () => handleYearChange(year);
+        yearTabsContainer.appendChild(button);
+    });
+}
+
 function initMonthTabs(weeklyStats) {
     const monthTabsContainer = document.getElementById('monthTabs');
     monthTabsContainer.innerHTML = '';
     
+    if (!Array.isArray(weeklyStats) || weeklyStats.length === 0) return;
+    
     const months = new Set();
     
     weeklyStats.forEach(stat => {
-        // fullDate는 'yyyy-MM-dd' 형식입니다.
+        if (!stat || !stat.fullDate) return; 
         const month = parseInt(stat.fullDate.substring(5, 7));
         if (month >= 1 && month <= 12) {
             months.add(month);
         }
     });
     
-    const sortedMonths = Array.from(months).sort((a, b) => b - a); // 최신 월부터 정렬
+    const sortedMonths = Array.from(months).sort((a, b) => b - a);
 
     sortedMonths.forEach(month => {
         const button = document.createElement('button');
-        button.className = 'month-tab btn btn-outline-secondary me-2';
+        button.className = 'tab-btn month-tab';
         button.id = `month-tab-${month}`;
         button.textContent = `${month}월`;
         button.onclick = () => {
-            // UI 활성화 변경
             document.querySelectorAll('.month-tab').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            
-            // 데이터 필터링 및 표시
             filterWeeklyStatsByMonth(month, allStats[currentYear].weeklyStats);
         };
         monthTabsContainer.appendChild(button);
     });
 }
 
-/**
- * 주차별 통계에서 현재 연도의 가장 최근 월을 반환합니다.
- */
 function getCurrentMonthFromStats(weeklyStats) {
     if (weeklyStats.length === 0) return null;
-    
-    // weeklyStats는 시간순 정렬되어 있으므로 마지막 항목이 가장 최근입니다.
     const lastStat = weeklyStats[weeklyStats.length - 1];
     return parseInt(lastStat.fullDate.substring(5, 7));
 }
 
-/**
- * 월별로 주차별 통계를 필터링하여 테이블로 표시합니다.
- * @param {number} month - 필터링할 월 (1-12)
- * @param {Array<object>} weeklyStats - 해당 연도의 전체 주차별 통계
- */
 function filterWeeklyStatsByMonth(month, weeklyStats) {
-    const container = document.getElementById('weekly-stats-container');
-    container.innerHTML = `<h4>${month}월 주차별 출석 현황</h4>`;
+    const container = document.getElementById('weeklyStats');
+    
+    // 월별 헤더 업데이트 또는 생성
+    let header = container.querySelector('h4');
+    if (!header) {
+        header = document.createElement('h4');
+        container.prepend(header);
+    }
+    header.textContent = `${month}월 주차별 출석 현황`;
+    
+    // 테이블 내용을 담을 컨테이너
+    let tableContent = container.querySelector('#weekly-table-content');
+    if (!tableContent) {
+        tableContent = document.createElement('div');
+        tableContent.id = 'weekly-table-content';
+        container.appendChild(tableContent);
+    }
     
     const monthStr = month.toString().padStart(2, '0');
     
@@ -342,7 +484,7 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
     });
 
     if (filteredStats.length === 0) {
-        container.innerHTML += `<p class="text-secondary">${month}월의 출석 기록이 없습니다.</p>`;
+        tableContent.innerHTML = `<p class="text-secondary">${month}월의 출석 기록이 없습니다.</p>`;
         return;
     }
 
@@ -375,10 +517,14 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
     });
 
     html += '</tbody></table>';
-    container.innerHTML += html;
+    tableContent.innerHTML = html;
 }
-
 
 // ==================== 초기 실행 ====================
 
 document.addEventListener('DOMContentLoaded', initStatsPage);
+document.getElementById('refreshStatsBtn').addEventListener('click', () => {
+    // 캐시된 데이터를 지우고 새로 로드
+    allStats = {}; 
+    initStatsPage();
+});
