@@ -325,7 +325,7 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
     const totalSaturdays = allStats[currentYear].totalSaturdays;
 
     let html = `
-        <h4>${targetYear}년 개인 출석 통계 (${totalSaturdays}주 기준)</h4>
+        <h4>👤 ${targetYear}년 개인 출석 통계 (${totalSaturdays}주 기준)</h4>
     `;
     
     if (filteredStats.length === 0) {
@@ -377,33 +377,37 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
 
 function displayTeamStats(teamStats) {
     const container = document.getElementById('teamStats');
-    container.innerHTML = '<h4>팀별 평균 출석률</h4><div class="row">';
-    
+    const targetYear = allStats[currentYear].targetYear;
+
+    container.innerHTML = `<h4>🏆 ${targetYear}년 팀별 평균 출석률</h4>`;
+
     const teams = Object.keys(teamStats).sort();
+
+    let cardsHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px;">';
 
     teams.forEach(team => {
         const stats = teamStats[team];
         const rateDisplay = stats.rate.toFixed(1);
         const countDisplay = stats.count.toFixed(1);
-        
+
         let bgColor = '';
         if (team === 'A') bgColor = 'bg-success';
         else if (team === 'B') bgColor = 'bg-info';
         else if (team === 'C') bgColor = 'bg-warning';
 
-        container.innerHTML += `
-            <div class="col-md-4 mb-3">
-                <div class="card text-white ${bgColor}">
-                    <div class="card-body">
-                        <h5 class="card-title">팀 ${team}</h5>
-                        <p class="card-text fs-3">${rateDisplay}%</p>
-                        <p class="card-text small">평균 출석 횟수: ${countDisplay}회</p>
-                    </div>
+        cardsHtml += `
+            <div class="card text-white ${bgColor}">
+                <div class="card-body">
+                    <h5 class="card-title">팀 ${team}</h5>
+                    <p class="card-text fs-3">${rateDisplay}%</p>
+                    <p class="card-text small">평균 출석 횟수: ${countDisplay}회</p>
                 </div>
             </div>
         `;
     });
-    container.innerHTML += '</div>';
+
+    cardsHtml += '</div>';
+    container.innerHTML += cardsHtml;
 }
 
 function initYearTabs(years) {
@@ -436,7 +440,7 @@ function initMonthTabs(weeklyStats) {
         }
     });
     
-    const sortedMonths = Array.from(months).sort((a, b) => b - a);
+    const sortedMonths = Array.from(months).sort((a, b) => a - b);
 
     sortedMonths.forEach(month => {
         const button = document.createElement('button');
@@ -467,7 +471,7 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
         header = document.createElement('h4');
         container.prepend(header);
     }
-    header.textContent = `${month}월 주차별 출석 현황`;
+    header.textContent = `📅 ${month}월 주차별 출석 현황`;
     
     // 테이블 내용을 담을 컨테이너
     let tableContent = container.querySelector('#weekly-table-content');
@@ -489,7 +493,7 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
     }
 
     let html = `
-        <table class="table table-bordered table-sm">
+        <table class="table">
             <thead>
                 <tr>
                     <th>날짜</th>
@@ -503,11 +507,11 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
             <tbody>
     `;
 
-    filteredStats.forEach(stat => {
+    filteredStats.forEach((stat, index) => {
         html += `
             <tr>
                 <td>${stat.date}</td>
-                <td>${stat.week}주차</td>
+                <td>${index + 1}주차</td>
                 <td><span class="badge bg-dark">${stat.count}명</span></td>
                 <td class="text-center">${stat.teamCounts.A}</td>
                 <td class="text-center">${stat.teamCounts.B}</td>
