@@ -689,64 +689,75 @@ function getMyLocation() {
  */
 function initMapAsync() {
     return new Promise((resolve, reject) => {
-        // 카카오맵 SDK가 로드되었는지 확인
+        console.log('🗺️ 카카오맵 초기화 시작...');
+
+        // 1. 지도 컨테이너 확인
+        const mapContainer = document.getElementById('map');
+        if (!mapContainer) {
+            console.error('❌ 지도 컨테이너(#map)를 찾을 수 없습니다.');
+            reject('지도 컨테이너 없음');
+            return;
+        }
+        console.log('✅ 지도 컨테이너 확인됨:', mapContainer);
+
+        // 2. 카카오맵 SDK가 로드되었는지 확인
         if (!window.kakao || !window.kakao.maps) {
-            console.error('❌ 카카오맵 SDK를 불러올 수 없습니다.');
+            console.error('❌ 카카오맵 SDK를 불러올 수 없습니다. window.kakao:', window.kakao);
             reject('카카오맵 SDK 로드 실패');
             return;
         }
+        console.log('✅ 카카오맵 SDK 확인됨');
 
-        console.log('🗺️ 카카오맵 초기화 시작...');
+        // 3. 카카오맵 SDK가 준비되면 지도 초기화
+        try {
+            const mapOption = {
+                center: new kakao.maps.LatLng(37.566826, 126.9786567), // 서울 시청
+                level: 3 // 지도의 확대 레벨
+            };
+            console.log('🗺️ 지도 옵션 생성:', mapOption);
 
-        // 카카오맵 SDK가 준비되면 지도 초기화
-        kakao.maps.load(() => {
-            try {
-                const mapContainer = document.getElementById('map'), // 지도를 표시할 div
-                      mapOption = {
-                        center: new kakao.maps.LatLng(37.566826, 126.9786567), // 서울 시청
-                        level: 3 // 지도의 확대 레벨
-                    };
+            // 지도를 생성합니다
+            window.map = new kakao.maps.Map(mapContainer, mapOption);
+            console.log('✅ 지도 객체 생성 완료:', window.map);
 
-                // 지도를 생성합니다
-                window.map = new kakao.maps.Map(mapContainer, mapOption);
+            // 마커가 표시될 위치입니다. (초기 위치는 지도 중심)
+            const initialPosition = mapOption.center;
 
-                // 마커가 표시될 위치입니다. (초기 위치는 지도 중심)
-                const initialPosition = mapOption.center;
+            // 마커를 생성합니다
+            window.marker = new kakao.maps.Marker({
+                position: initialPosition,
+                draggable: true // 마커를 드래그 가능하도록 설정합니다
+            });
 
-                // 마커를 생성합니다
-                window.marker = new kakao.maps.Marker({
-                    position: initialPosition,
-                    draggable: true // 마커를 드래그 가능하도록 설정합니다
-                });
+            // 마커가 지도 위에 표시되도록 설정합니다
+            window.marker.setMap(window.map);
+            console.log('✅ 마커 생성 및 설정 완료');
 
-                // 마커가 지도 위에 표시되도록 설정합니다
-                window.marker.setMap(window.map);
+            // 마커 드래그가 끝났을 때 이벤트 처리
+            kakao.maps.event.addListener(window.marker, 'dragend', function() {
+                const latlng = window.marker.getPosition();
+                document.getElementById('latitude').value = latlng.getLat();
+                document.getElementById('longitude').value = latlng.getLng();
+            });
 
-                // 마커 드래그가 끝났을 때 이벤트 처리
-                kakao.maps.event.addListener(window.marker, 'dragend', function() {
-                    const latlng = window.marker.getPosition();
-                    document.getElementById('latitude').value = latlng.getLat();
-                    document.getElementById('longitude').value = latlng.getLng();
-                });
+            // 지도 클릭 시 해당 위치로 마커 이동 및 좌표 업데이트
+            kakao.maps.event.addListener(window.map, 'click', function(mouseEvent) {
+                const latlng = mouseEvent.latLng;
+                window.marker.setPosition(latlng);
+                document.getElementById('latitude').value = latlng.getLat();
+                document.getElementById('longitude').value = latlng.getLng();
+            });
 
-                // 지도 클릭 시 해당 위치로 마커 이동 및 좌표 업데이트
-                kakao.maps.event.addListener(window.map, 'click', function(mouseEvent) {
-                    const latlng = mouseEvent.latLng;
-                    window.marker.setPosition(latlng);
-                    document.getElementById('latitude').value = latlng.getLat();
-                    document.getElementById('longitude').value = latlng.getLng();
-                });
+            console.log('✅ 카카오맵 초기화 완료');
 
-                console.log('✅ 카카오맵 초기화 완료');
-
-                // 초기 위치 로드
-                loadLocation();
-                resolve();
-            } catch (error) {
-                console.error('❌ 카카오맵 초기화 오류:', error);
-                reject(error);
-            }
-        });
+            // 초기 위치 로드
+            loadLocation();
+            resolve();
+        } catch (error) {
+            console.error('❌ 카카오맵 초기화 오류:', error);
+            console.error('❌ 에러 스택:', error.stack);
+            reject(error);
+        }
     });
 }
 
