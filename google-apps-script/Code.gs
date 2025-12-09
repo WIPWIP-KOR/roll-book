@@ -9,10 +9,10 @@ const SHEET_NAMES = {
   MEMBERS: '회원목록',
   LOCATION: '위치설정',
   SATURDAYS: '토요일일정',
-  SETTINGS: '설정' // ✨ 추가: 설정 시트 이름
+  SETTINGS: '설정' 
 };
 
-const PASSWORD_CELL = 'B1'; // ✨ 추가: 설정 시트에서 비밀번호를 저장할 셀
+const PASSWORD_CELL = 'B1'; // 설정 시트에서 비밀번호를 저장할 셀
 const REQUIRED_RADIUS = 50; // 50미터
 
 // ==================== 메인 함수 ====================
@@ -21,26 +21,29 @@ const REQUIRED_RADIUS = 50; // 50미터
  * GET 요청 처리 (GitHub Pages와 통신을 위해 모든 액션을 처리)
  */
 function doGet(e) {
-  // 💡💡💡 디버깅용 로그 추가 💡💡💡
   Logger.log('요청 파라미터(e.parameter): ' + JSON.stringify(e.parameter));
-  // 💡💡💡 로그 추가 끝 💡💡💡
-
+  
   const action = e.parameter.action;
   const callback = e.parameter.callback;
 
   try {
     switch(action) {
       
-      // ✨ 관리자 인증 기능 (stats.js에서 호출)
-      case 'checkAdminPassword':
+      // ✨ 관리자 인증 상태 확인 (초기 진입 시 팝업 유무 결정)
+      case 'checkAdminStatus': // 함수명 변경: checkAdminPassword -> checkAdminStatus (인증 시도 아님)
+          // 비밀번호 미등록 상태라면 바로 true 반환 (바로 이동)
+          const statusResult = checkAdminStatus(); 
+          return createResponse(true, null, statusResult, callback);
+
+      // ✨ 관리자 비밀번호를 입력받아 인증 시도
+      case 'authenticateAdmin':
           const passwordToCheck = e.parameter.password || "";
-          const isAuthenticated = checkAdminPassword(passwordToCheck);
+          const isAuthenticated = authenticateAdmin(passwordToCheck);
           return createResponse(true, null, { isAuthenticated: isAuthenticated }, callback);
 
-      // ✨ 관리자 비밀번호 설정 기능 (admin.js에서 호출)
+      // ✨ 관리자 비밀번호 설정/변경/해제 기능
       case 'setAdminPassword':
           const newPassword = e.parameter.newPassword || "";
-          // 클라이언트에서 빈 문자열이 오면 해제(미등록) 처리
           const success = setAdminPassword(newPassword);
           return createResponse(true, null, { success: success }, callback);
           
@@ -61,7 +64,6 @@ function doGet(e) {
         };
         return saveLocation(dataFromParams, callback);
       case 'attend':
-        // JSONP(GET) 요청으로 온 출석 데이터를 처리합니다.
         return processAttendance(e.parameter, e, callback);
       default:
         return createResponse(false, 'Invalid action', null, callback);
@@ -94,43 +96,55 @@ function doPost(e) {
   }
 }
 
-// ==================== 관리자 비밀번호 관리 ====================
+// ==================== 관리자 비밀번호 관리 (수정됨) ====================
 
 /**
- * 관리자 비밀번호를 확인하는 함수 
- * @param {string} inputPassword - 사용자가 입력한 비밀번호 (빈 문자열일 수 있음)
+ * 💥💥💥 수정된 핵심 함수 💥💥💥
+ * 관리자 비밀번호의 설정 상태만 확인하여 클라이언트에게 알립니다.
+ * @returns {{isSet: boolean}} - 비밀번호 설정 여부
+ */
+function checkAdminStatus() {
+  const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS); 
+  const storedValue = sheet.getRange(PASSWORD_CELL).getValue();
+  const storedPassword = String(storedValue || '').trim(); 
+    
+  const isSet = storedPassword !== "";
+  
+  Logger.log(`Admin password set status: ${isSet}`);
+  return { isSet: isSet };
+}
+
+/**
+ * 클라이언트에서 입력된 비밀번호를 확인하는 함수 
+ * @param {string} inputPassword - 사용자가 입력한 비밀번호
  * @returns {boolean} - 인증 성공 여부 (true/false)
  */
-function checkAdminPassword(inputPassword) {
+function authenticateAdmin(inputPassword) {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS); // 설정 시트 가져오기
-    
-    // 시트에 저장된 실제 비밀번호를 가져와 문자열로 변환하고 공백을 제거합니다.
+    const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS); 
     const storedValue = sheet.getRange(PASSWORD_CELL).getValue();
     const storedPassword = String(storedValue || '').trim(); 
     
-    // 1. 비밀번호가 등록되지 않은 경우 (셀이 비어있는 경우)
+    // 1. 비밀번호가 등록되지 않은 경우 (checkAdminStatus에서 이미 처리되었으나, 안전 장치)
     if (storedPassword === "") {
-      Logger.log('No admin password registered. Access granted.');
-      return true; // 등록된 비밀번호가 없으면 바로 이동 허용
+      Logger.log('Authentication attempted, but no password registered. Denied.');
+      return false; // 미등록 상태에서 authenticate를 호출하면 실패 처리 (새 비밀번호 설정을 유도)
     }
     
     // 2. 등록된 비밀번호가 있는 경우: 입력된 비밀번호와 비교
     const isAuthenticated = (inputPassword === storedPassword);
     
-    Logger.log(`Password registered. Input: ${inputPassword}, Stored: ${storedPassword}, Result: ${isAuthenticated}`);
-    
+    Logger.log(`Authentication result: ${isAuthenticated}`);
     return isAuthenticated;
 
   } catch (e) {
-    Logger.log('Error in checkAdminPassword: ' + e.toString());
+    Logger.log('Error in authenticateAdmin: ' + e.toString());
     return false; 
   }
 }
 
 /**
- * 관리자 페이지에서 비밀번호를 설정/변경하는 함수
+ * 관리자 페이지에서 비밀번호를 설정/변경/해제하는 함수
  * @param {string} newPassword - 새로 설정할 4자리 비밀번호 (빈 문자열 가능)
  * @returns {boolean} - 저장 성공 여부 (true/false)
  */
@@ -143,8 +157,6 @@ function setAdminPassword(newPassword) {
   
     try {
         const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
-        
-        // B1 셀에 비밀번호를 저장합니다.
         sheet.getRange(PASSWORD_CELL).setValue(newPassword);
         
         Logger.log(`Admin password updated to: "${newPassword}"`);
@@ -157,6 +169,7 @@ function setAdminPassword(newPassword) {
 
 
 // ==================== 출석 처리 ====================
+// (기존 코드 유지)
 
 /**
  * 출석 처리
@@ -164,19 +177,14 @@ function setAdminPassword(newPassword) {
 function processAttendance(data, e, callback) {
   const { name, team, latitude, longitude, userAgent } = data;
 
-  // 입력 검증
   if (!name || !team || !latitude || !longitude) {
     return createResponse(false, '필수 정보가 누락되었습니다.', null, callback);
   }
 
-  // 팀 검증
   if (!['A', 'B', 'C'].includes(team)) {
     return createResponse(false, '올바른 팀을 선택해주세요.', null, callback);
   }
 
-  // ❌ 토요일 확인 로직 제거: 이제 모든 요일 출석 가능
-
-  // 위치 확인
   const targetLocation = getTargetLocation();
   if (!targetLocation) {
     return createResponse(false, '출석 위치가 설정되지 않았습니다. 관리자에게 문의하세요.', null, callback);
@@ -191,18 +199,13 @@ function processAttendance(data, e, callback) {
     return createResponse(false, `출석 불가 지역입니다. (${Math.round(distance)}m 떨어짐)`, null, callback);
   }
 
-  // IP 주소 추출
   const ipAddress = getClientIP(e);
 
-  // 중복 출석 체크
   if (isDuplicateAttendance(name, ipAddress)) {
     return createResponse(false, '이미 오늘 출석하셨습니다.', null, callback);
   }
 
-  // 출석 기록 저장
   saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distance);
-
-  // 회원 정보 업데이트
   updateMember(name, team);
 
   return createResponse(true, '출석이 완료되었습니다!', null, callback);
@@ -220,14 +223,13 @@ function isDuplicateAttendance(name, ipAddress) {
 
   for (let i = 1; i < data.length; i++) {
     const rowDate = data[i][0];
-    const rowName = data[i][2]; // 💡 수정: '요일' 컬럼 추가로 인덱스 1 -> 2
-    const rowIP = data[i][7];   // 💡 수정: '요일' 컬럼 추가로 인덱스 6 -> 7
+    const rowName = data[i][2]; 
+    const rowIP = data[i][7];   
 
     if (!rowDate) continue;
 
     const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 
-    // 같은 날짜에 같은 이름 또는 같은 IP
     if (rowDateStr === todayStr) {
       if (rowName === name || rowIP === ipAddress) {
         return true;
@@ -244,7 +246,6 @@ function isDuplicateAttendance(name, ipAddress) {
 function saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distance) {
   const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE);
 
-  // 헤더 수정: '요일' 컬럼 추가
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(['날짜', '요일', '이름', '팀', '출석시간', '위도', '경도', 'IP주소', '거리(m)']);
   }
@@ -252,11 +253,11 @@ function saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distan
   const now = new Date();
   const date = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   const time = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss');
-  const dayOfWeek = getDayOfWeek(now); // 💡 요일 계산
+  const dayOfWeek = getDayOfWeek(now); 
 
   sheet.appendRow([
     date,
-    dayOfWeek, // 💡 요일 데이터 저장
+    dayOfWeek, 
     name,
     team,
     time,
@@ -273,7 +274,6 @@ function saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distan
 function updateMember(name, team) {
   const sheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
 
-  // 헤더가 없으면 추가
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(['이름', '팀', '최초등록일', '총출석수']);
   }
@@ -281,10 +281,8 @@ function updateMember(name, team) {
   const data = sheet.getDataRange().getValues();
   let found = false;
 
-  // 기존 회원 찾기
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === name) {
-      // 출석 수 증가
       const currentCount = data[i][3] || 0;
       sheet.getRange(i + 1, 4).setValue(currentCount + 1);
       found = true;
@@ -292,7 +290,6 @@ function updateMember(name, team) {
     }
   }
 
-  // 새 회원 추가
   if (!found) {
     const now = new Date();
     const date = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
@@ -301,6 +298,7 @@ function updateMember(name, team) {
 }
 
 // ==================== 위치 관리 ====================
+// (기존 코드 유지)
 
 /**
  * 위치 저장 (doGet/doPost 모두에서 호출 가능)
@@ -314,7 +312,6 @@ function saveLocation(data, callback) {
 
   const sheet = getOrCreateSheet(SHEET_NAMES.LOCATION);
 
-  // 기존 데이터 삭제하고 새로 저장
   sheet.clear();
   sheet.appendRow(['항목', '값']);
   sheet.appendRow(['위도', latitude]);
@@ -357,6 +354,7 @@ function getTargetLocation() {
 }
 
 // ==================== 회원 관리 ====================
+// (기존 코드 유지)
 
 /**
  * 회원 목록 조회
@@ -386,6 +384,7 @@ function getMembers(callback) {
 }
 
 // ==================== 통계 ====================
+// (기존 코드 유지)
 
 /**
  * 오늘 출석 현황
@@ -412,9 +411,9 @@ function getTodayAttendance(callback) {
 
     if (rowDateStr === todayStr) {
       attendance.push({
-        name: data[i][2], // 💡 수정: '요일' 컬럼 추가로 인덱스 1 -> 2
-        team: data[i][3], // 💡 수정: '요일' 컬럼 추가로 인덱스 2 -> 3
-        time: data[i][4]  // 💡 수정: '요일' 컬럼 추가로 인덱스 3 -> 4
+        name: data[i][2], 
+        team: data[i][3], 
+        time: data[i][4]  
       });
     }
   }
@@ -430,17 +429,14 @@ function getStats(callback) {
   const saturdays = generateSaturdays();
   const totalSaturdays = saturdays.length;
 
-  // 출석 기록 가져오기
   const attendanceSheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE);
   const attendanceData = attendanceSheet.getLastRow() > 1 ?
     attendanceSheet.getDataRange().getValues().slice(1) : [];
 
-  // 회원 목록 가져오기
   const membersSheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
   const membersData = membersSheet.getLastRow() > 1 ?
     membersSheet.getDataRange().getValues().slice(1) : [];
 
-  // 개인별 통계 계산
   const personalStats = [];
 
   membersData.forEach(member => {
@@ -458,7 +454,6 @@ function getStats(callback) {
     });
   });
 
-  // 팀별 통계 계산
   const teamStats = {
     A: { count: 0, total: 0, rate: 0 },
     B: { count: 0, total: 0, rate: 0 },
@@ -481,7 +476,6 @@ function getStats(callback) {
     }
   });
 
-  // 주차별 통계
   const weeklyStats = [];
   const attendanceByDate = {};
 
@@ -490,7 +484,7 @@ function getStats(callback) {
     if (!date) return;
 
     const dateStr = Utilities.formatDate(new Date(date), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    const team = row[3]; // 💡 수정: '요일' 컬럼 추가로 인덱스 2 -> 3
+    const team = row[3]; 
 
     if (!attendanceByDate[dateStr]) {
       attendanceByDate[dateStr] = {
@@ -531,17 +525,15 @@ function getStats(callback) {
  */
 function generateSaturdays() {
   const saturdays = [];
-  const start = new Date(2025, 0, 1); // 2025-01-01
-  const end = new Date(2026, 11, 31); // 2026-12-31
+  const start = new Date(2025, 0, 1); 
+  const end = new Date(2026, 11, 31); 
 
   let current = new Date(start);
 
-  // 첫 토요일 찾기
   while (current.getDay() !== 6) {
     current.setDate(current.getDate() + 1);
   }
 
-  // 모든 토요일 추가
   while (current <= end) {
     saturdays.push(new Date(current));
     current.setDate(current.getDate() + 7);
@@ -551,6 +543,7 @@ function generateSaturdays() {
 }
 
 // ==================== 유틸리티 ====================
+// (기존 코드 유지)
 
 /**
  * 요일 계산 함수 (일월화수목금토 반환)
@@ -569,7 +562,6 @@ function getOrCreateSheet(sheetName) {
 
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
-    // ✨ 설정 시트가 새로 생성될 때 기본 헤더 추가 (getOrCreateSheet에서 처리)
     if (sheetName === SHEET_NAMES.SETTINGS && sheet.getLastRow() === 0) {
         sheet.appendRow(['항목', '값']);
     }
@@ -627,14 +619,12 @@ function createResponse(success, message, data, callback) {
 
   const json = JSON.stringify(response);
 
-  // JSONP 콜백이 제공되면 JSONP 형식으로 반환하여 CORS를 우회합니다.
   if (callback) {
     return ContentService
       .createTextOutput(`${callback}(${json})`)
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   
-  // 콜백이 없으면 일반 JSON으로 반환
   return ContentService
     .createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);

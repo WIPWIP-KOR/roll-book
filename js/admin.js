@@ -1,3 +1,7 @@
+// ====================================================================
+// admin.js (클라이언트 측 JavaScript) - 수정된 전체 코드
+// ====================================================================
+
 // 설정
 const CONFIG = {
     // ⚠️⚠️⚠️ 여기를 실제 Google Apps Script 배포 URL로 변경하세요 ⚠️⚠️⚠️
@@ -29,14 +33,97 @@ const membersList = document.getElementById('membersList');
 const setPasswordBtn = document.getElementById('setPasswordBtn');
 const newPasswordInput = document.getElementById('newPassword');
 const passwordMessage = document.getElementById('passwordMessage');
+const adminContent = document.getElementById('adminContent'); // 관리자 페이지 전체 컨테이너 ID (admin.html에 필요)
 
+
+// =================================================================
+// 💥 인증 시작 및 초기화 💥
+// =================================================================
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
-    // 💡 jQuery 로드 여부 확인 (admin.html에 <script src=".../jquery.min.js"></script> 필요)
     if (typeof jQuery === 'undefined') {
         alert("jQuery 라이브러리가 로드되지 않았습니다. admin.html 파일을 확인하세요.");
         return;
+    }
+
+    // 1. 관리자 인증 상태 확인 (초기 진입 로직)
+    // adminContent를 숨기고 인증 상태에 따라 표시하도록 처리 (admin.html의 CSS/구조 필요)
+    if (adminContent) {
+        adminContent.style.display = 'none';
+    }
+    
+    // ✨✨✨ 핵심 수정 부분: 인증 상태 확인 시작 ✨✨✨
+    google.script.run
+        .withSuccessHandler(handleAdminStatus)
+        .withFailureHandler(showError)
+        .checkAdminStatus(); 
+    // ✨✨✨ 수정 끝 ✨✨✨
+    
+    // 이벤트 리스너는 인증 성공 후 initializeAdminPage에서 연결하는 것이 더 안전하지만,
+    // DOMContentLoaded에서 연결하고 버튼을 비활성화하는 방식으로 진행합니다.
+    
+    // 이벤트 리스너 연결 (페이지 로드 후, 인증 전)
+    saveLocationBtn.addEventListener('click', saveLocation);
+    getMyLocationBtn.addEventListener('click', getMyLocation);
+    generateQRBtn.addEventListener('click', generateQRCode);
+    downloadQRBtn.addEventListener('click', downloadQRCode);
+    refreshTodayBtn.addEventListener('click', loadTodayAttendance);
+    refreshMembersBtn.addEventListener('click', loadMembers);
+    
+    if (setPasswordBtn) {
+        setPasswordBtn.addEventListener('click', handleSetPassword);
+    }
+});
+
+/**
+ * 관리자 인증 상태에 따라 페이지 로드 방식을 결정합니다. (Code.gs에서 호출됨)
+ * @param {{isSet: boolean}} result - 비밀번호 설정 여부
+ */
+function handleAdminStatus(result) {
+    console.log("Admin Status Check Result:", result);
+
+    if (result.isSet === false) {
+        // 💥 비밀번호가 미설정 상태: 팝업 없이 바로 관리자 페이지를 초기화합니다.
+        initializeAdminPage();
+    } else {
+        // 비밀번호가 설정되어 있음: 팝업을 띄워 인증을 시도합니다.
+        showPasswordPrompt();
+    }
+}
+
+/**
+ * 비밀번호가 설정되어 있을 때 팝업을 띄우고 인증을 시도합니다.
+ */
+function showPasswordPrompt() {
+    const password = prompt("관리자 비밀번호를 입력하세요.");
+
+    if (password !== null) {
+        // 사용자 입력 비밀번호를 백엔드(authenticateAdmin)로 전송하여 인증 시도
+        google.script.run
+            .withSuccessHandler(function(authResult) {
+                if (authResult.isAuthenticated) {
+                    initializeAdminPage(); // 인증 성공
+                } else {
+                    alert("비밀번호가 일치하지 않습니다.");
+                    showPasswordPrompt(); // 재시도
+                }
+            })
+            .withFailureHandler(showError)
+            .authenticateAdmin(password); // Code.gs의 authenticateAdmin 호출
+    } else {
+        alert("관리자 권한이 필요합니다.");
+        // window.location.href = 'index.html'; // 일반 페이지로 리다이렉트 (선택 사항)
+    }
+}
+
+/**
+ * 비밀번호가 없거나 인증에 성공했을 때 관리자 페이지 초기화 (기존 초기화 코드 통합)
+ */
+function initializeAdminPage() {
+    console.log("관리자 페이지 로드 시작.");
+    if (adminContent) {
+        adminContent.style.display = 'block'; // 숨겨진 콘텐츠 표시
     }
 
     // 출석 URL 설정
@@ -53,20 +140,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 회원 목록 불러오기
     loadMembers();
+}
 
-    // 이벤트 리스너
-    saveLocationBtn.addEventListener('click', saveLocation);
-    getMyLocationBtn.addEventListener('click', getMyLocation);
-    generateQRBtn.addEventListener('click', generateQRCode);
-    downloadQRBtn.addEventListener('click', downloadQRCode);
-    refreshTodayBtn.addEventListener('click', loadTodayAttendance);
-    refreshMembersBtn.addEventListener('click', loadMembers);
-    
-    // ✨ 비밀번호 설정 이벤트 리스너 추가
-    if (setPasswordBtn) {
-        setPasswordBtn.addEventListener('click', handleSetPassword);
+/**
+ * 일반적인 Google Apps Script 오류 핸들러
+ */
+function showError(error) {
+    console.error("Scripts Error:", error);
+    alert("오류가 발생했습니다: " + (error.message || error));
+}
+
+
+// =================================================================
+// 2. 관리자 비밀번호 설정 기능 (AJAX / JSONP) - 기존 코드 유지 및 개선
+// =================================================================
+
+/**
+ * 비밀번호 설정 버튼 클릭 처리 함수 (AJAX/JSONP 방식)
+ */
+function handleSetPassword() {
+    if (typeof CONFIG === 'undefined' || !CONFIG.GAS_URL) {
+        passwordMessage.textContent = "❌ CONFIG.GAS_URL이 정의되지 않았습니다. 관리자에게 문의하세요.";
+        passwordMessage.style.color = 'red';
+        return;
     }
-});
+
+    const newPassword = newPasswordInput.value.trim();
+    passwordMessage.textContent = ''; 
+    setPasswordBtn.disabled = true;
+
+    if (newPassword === "") {
+        const confirmClear = confirm("비밀번호를 공백으로 저장하면 관리자 인증이 해제됩니다. 계속하시겠습니까?");
+        if (!confirmClear) {
+            setPasswordBtn.disabled = false;
+            return;
+        }
+    } else if (newPassword.length !== 4 || isNaN(newPassword)) {
+        passwordMessage.textContent = '🚨 비밀번호는 정확히 4자리 숫자여야 합니다.';
+        passwordMessage.style.color = 'red';
+        setPasswordBtn.disabled = false;
+        return;
+    }
+
+    const encodedPassword = encodeURIComponent(newPassword);
+    const gasUrl = `${CONFIG.GAS_URL}?action=setAdminPassword&newPassword=${encodedPassword}`;
+    
+    $.ajax({
+        url: gasUrl,
+        dataType: 'jsonp', 
+        success: function(data) {
+            // Code.gs의 createResponse 구조에 따라 data.success가 true고, data.success.success가 true인지 확인
+            if (data.success && (data.success === true || (data.success.success !== undefined && data.success.success === true))) { 
+                const msg = (newPassword === "") 
+                    ? '✅ 관리자 비밀번호가 해제(미등록)되었습니다. 다음 접속부터 바로 이동됩니다.'
+                    : '✅ 관리자 비밀번호가 성공적으로 갱신되었습니다. 다음 접속부터 팝업이 나타납니다.';
+                passwordMessage.textContent = msg;
+                passwordMessage.style.color = 'green';
+                newPasswordInput.value = ''; 
+            } else {
+                passwordMessage.textContent = '❌ 비밀번호 저장에 실패했습니다. (스크립트 오류 또는 유효하지 않은 비밀번호)';
+                passwordMessage.style.color = 'red';
+            }
+        },
+        error: function() {
+            passwordMessage.textContent = '⚠️ 통신 오류: 비밀번호 저장에 실패했습니다. 네트워크를 확인하세요.';
+            passwordMessage.style.color = 'red';
+        },
+        complete: function() {
+            setPasswordBtn.disabled = false;
+        }
+    });
+}
+
+// =================================================================
+// 3. 기존 관리자 기능 함수들 (유지)
+// =================================================================
+
+// 나머지 함수 (loadCurrentLocation, saveLocation, getMyLocation, generateQRCode, 
+// downloadQRCode, loadTodayAttendance, loadMembers, showLocationMessage, 
+// initKakaoMap, searchPlaces, placesSearchCB, selectPlace, setLocation, window.searchPlaces)
+// 는 변경 없이 그대로 유지됩니다.
 
 // 현재 설정된 위치 불러오기 (GET 요청, $.ajax 사용)
 function loadCurrentLocation() {
@@ -74,7 +227,7 @@ function loadCurrentLocation() {
 
     $.ajax({
         url: `${CONFIG.GAS_URL}?action=getLocation`,
-        dataType: 'jsonp', // CORS 우회
+        dataType: 'jsonp', 
         success: function(data) {
             if (data.success && data.location) {
                 currentLocation.innerHTML = `
@@ -99,7 +252,6 @@ function saveLocation() {
     const lng = parseFloat(longitudeInput.value);
     const name = locationNameInput.value.trim();
 
-    // 입력 검증 (기존 코드 유지)
     if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
         showLocationMessage('유효한 위도와 경도를 입력해주세요.', 'error');
         return;
@@ -113,26 +265,16 @@ function saveLocation() {
     saveLocationBtn.disabled = true;
     saveLocationBtn.textContent = '저장 중...';
 
-    // 💡 GitHub Pages에서는 GET 방식(JSONP)으로 데이터를 URL 파라미터로 전송합니다.
-    const dataToSend = {
-        action: 'saveLocation', 
-        latitude: lat,
-        longitude: lng,
-        name: name
-    };
-    
-    // URL에 파라미터를 추가하여 GET 요청을 만듭니다.
     const urlWithParams = `${CONFIG.GAS_URL}?action=saveLocation&latitude=${lat}&longitude=${lng}&name=${encodeURIComponent(name)}`;
 
     $.ajax({
         url: urlWithParams,
-        dataType: 'jsonp',          // ✅ JSONP (GET 방식) 사용
+        dataType: 'jsonp',          
         success: function(data) {
             if (data.success) {
                 showLocationMessage('위치가 저장되었습니다!', 'success');
                 loadCurrentLocation();
 
-                // 입력 필드 초기화
                 latitudeInput.value = '';
                 longitudeInput.value = '';
                 locationNameInput.value = '';
@@ -151,7 +293,7 @@ function saveLocation() {
     });
 }
 
-// 내 현재 위치 가져오기 (기존 코드 유지)
+// 내 현재 위치 가져오기
 function getMyLocation() {
     if (!navigator.geolocation) {
         showLocationMessage('위치 서비스를 지원하지 않는 브라우저입니다.', 'error');
@@ -194,7 +336,7 @@ function getMyLocation() {
     );
 }
 
-// QR 코드 생성 (기존 코드 유지)
+// QR 코드 생성
 function generateQRCode() {
     const url = attendanceUrlInput.value;
 
@@ -203,10 +345,8 @@ function generateQRCode() {
         return;
     }
 
-    // 기존 QR 코드 제거
     qrcodeDiv.innerHTML = '';
 
-    // 새 QR 코드 생성
     new QRCode(qrcodeDiv, {
         text: url,
         width: 256,
@@ -219,7 +359,7 @@ function generateQRCode() {
     downloadQRBtn.style.display = 'block';
 }
 
-// QR 코드 다운로드 (기존 코드 유지)
+// QR 코드 다운로드
 function downloadQRCode() {
     const canvas = qrcodeDiv.querySelector('canvas');
 
@@ -242,7 +382,7 @@ function loadTodayAttendance() {
 
     $.ajax({
         url: `${CONFIG.GAS_URL}?action=getTodayAttendance`,
-        dataType: 'jsonp', // CORS 우회
+        dataType: 'jsonp', 
         success: function(data) {
             if (data.success && data.attendance && data.attendance.length > 0) {
                 todayAttendance.innerHTML = '';
@@ -261,7 +401,6 @@ function loadTodayAttendance() {
                     todayAttendance.appendChild(item);
                 });
 
-                // 통계 추가
                 const teamCounts = { A: 0, B: 0, C: 0 };
                 data.attendance.forEach(record => {
                     if (teamCounts[record.team] !== undefined) {
@@ -300,12 +439,11 @@ function loadMembers() {
 
     $.ajax({
         url: `${CONFIG.GAS_URL}?action=getMembers`,
-        dataType: 'jsonp', // CORS 우회
+        dataType: 'jsonp', 
         success: function(data) {
             if (data.success && data.members && data.members.length > 0) {
                 membersList.innerHTML = '';
 
-                // 팀별로 정렬
                 const sortedMembers = data.members.sort((a, b) => {
                     if (a.team !== b.team) {
                         return a.team.localeCompare(b.team);
@@ -327,7 +465,6 @@ function loadMembers() {
                     membersList.appendChild(item);
                 });
 
-                // 통계 추가
                 const teamCounts = { A: 0, B: 0, C: 0 };
                 data.members.forEach(member => {
                     if (teamCounts[member.team] !== undefined) {
@@ -359,7 +496,7 @@ function loadMembers() {
     });
 }
 
-// 위치 메시지 표시 (기존 코드 유지)
+// 위치 메시지 표시
 function showLocationMessage(text, type) {
     locationMessage.textContent = text;
     locationMessage.className = `message ${type} show`;
@@ -379,7 +516,6 @@ let ps; // 장소 검색 객체
  * 카카오맵 초기화
  */
 function initKakaoMap() {
-    // kakao 객체가 로드되지 않았으면 경고
     if (typeof kakao === 'undefined') {
         console.warn('카카오맵 API가 로드되지 않았습니다. admin.html의 YOUR_KAKAO_APP_KEY를 발급받은 키로 변경하세요.');
         const mapEl = document.getElementById('map');
@@ -389,10 +525,8 @@ function initKakaoMap() {
         return;
     }
 
-    // 기본 위치 (서울시청)
     const defaultPosition = new kakao.maps.LatLng(37.5665, 126.9780);
 
-    // 지도 생성
     const mapContainer = document.getElementById('map');
     const mapOption = {
         center: defaultPosition,
@@ -400,11 +534,8 @@ function initKakaoMap() {
     };
 
     map = new kakao.maps.Map(mapContainer, mapOption);
-
-    // 장소 검색 객체 생성
     ps = new kakao.maps.services.Places();
 
-    // 지도 클릭 이벤트
     kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
         const latlng = mouseEvent.latLng;
         setLocation(latlng.getLat(), latlng.getLng(), '지도에서 선택한 위치');
@@ -429,7 +560,6 @@ function searchPlaces() {
         return;
     }
 
-    // 장소 검색
     ps.keywordSearch(keyword, placesSearchCB);
 }
 
@@ -478,11 +608,9 @@ function selectPlace(place) {
 
     setLocation(lat, lng, name);
 
-    // 지도 중심 이동
     const position = new kakao.maps.LatLng(lat, lng);
     map.setCenter(position);
 
-    // 검색 결과 닫기
     document.getElementById('searchResults').innerHTML = '';
 }
 
@@ -490,97 +618,24 @@ function selectPlace(place) {
  * 위치 설정 (마커 표시 및 입력란 자동 입력)
  */
 function setLocation(lat, lng, name) {
-    // 입력란에 값 설정
     document.getElementById('latitude').value = lat;
     document.getElementById('longitude').value = lng;
     document.getElementById('locationName').value = name;
 
-    // 기존 마커 제거
     if (marker) {
         marker.setMap(null);
     }
 
-    // 새 마커 생성
-    const position = new kakao.maps.maps.LatLng(lat, lng);
+    const position = new kakao.maps.LatLng(lat, lng);
     marker = new kakao.maps.Marker({
         position: position,
         map: map
     });
 
-    // 지도 중심 이동
     map.setCenter(position);
 
-    // 성공 메시지
     showLocationMessage(`위치가 선택되었습니다: ${name}`, 'success');
 }
 
 // 전역 함수로 노출 (HTML에서 호출)
 window.searchPlaces = searchPlaces
-
-
-// =================================================================
-// ✨ 관리자 비밀번호 설정 기능 (AJAX / JSONP)
-// =================================================================
-
-/**
- * 비밀번호 설정 버튼 클릭 처리 함수 (AJAX/JSONP 방식)
- */
-function handleSetPassword() {
-    // CONFIG 객체가 정의되어 있는지 재확인 
-    if (typeof CONFIG === 'undefined' || !CONFIG.GAS_URL) {
-        passwordMessage.textContent = "❌ CONFIG.GAS_URL이 정의되지 않았습니다. 관리자에게 문의하세요.";
-        passwordMessage.style.color = 'red';
-        return;
-    }
-
-    const newPassword = newPasswordInput.value.trim();
-    passwordMessage.textContent = ''; // 메시지 초기화
-    setPasswordBtn.disabled = true;
-
-    // 1. 입력값 검증 (4자리 숫자 또는 빈 문자열 허용)
-    if (newPassword === "") {
-        // 비밀번호를 비우고 저장하면 '미등록 상태'로 돌아갑니다.
-        const confirmClear = confirm("비밀번호를 공백으로 저장하면 관리자 인증이 해제됩니다. 계속하시겠습니까?");
-        if (!confirmClear) {
-            setPasswordBtn.disabled = false;
-            return;
-        }
-    } else if (newPassword.length !== 4 || isNaN(newPassword)) {
-        passwordMessage.textContent = '🚨 비밀번호는 정확히 4자리 숫자여야 합니다.';
-        passwordMessage.style.color = 'red';
-        setPasswordBtn.disabled = false;
-        return;
-    }
-
-    // 2. Apps Script 호출 (doGet의 setAdminPassword 액션 호출)
-    // URL 인코딩을 통해 newPassword 값을 안전하게 전달합니다.
-    const encodedPassword = encodeURIComponent(newPassword);
-    const gasUrl = `${CONFIG.GAS_URL}?action=setAdminPassword&newPassword=${encodedPassword}`;
-    
-    $.ajax({
-        url: gasUrl,
-        dataType: 'jsonp', // JSONP 사용
-        success: function(data) {
-            // Apps Script의 응답 구조 확인 (data.success가 true고, data.success.success가 true인지 확인)
-            // Code.gs의 createResponse 구조에 따라 data.success: true, data.success: { success: true } 일 수 있음
-            if (data.success && (data.success === true || data.success.success === true)) { 
-                const msg = (newPassword === "") 
-                    ? '✅ 관리자 비밀번호가 해제(미등록)되었습니다.'
-                    : '✅ 관리자 비밀번호가 성공적으로 갱신되었습니다.';
-                passwordMessage.textContent = msg;
-                passwordMessage.style.color = 'green';
-                newPasswordInput.value = ''; // 입력 필드 초기화
-            } else {
-                passwordMessage.textContent = '❌ 비밀번호 저장에 실패했습니다. (스크립트 오류 또는 유효하지 않은 비밀번호)';
-                passwordMessage.style.color = 'red';
-            }
-        },
-        error: function() {
-            passwordMessage.textContent = '⚠️ 통신 오류: 비밀번호 저장에 실패했습니다. 네트워크를 확인하세요.';
-            passwordMessage.style.color = 'red';
-        },
-        complete: function() {
-            setPasswordBtn.disabled = false;
-        }
-    });
-}
