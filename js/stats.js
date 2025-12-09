@@ -1,268 +1,384 @@
-// ====================================================================
-// stats.js (클라이언트 측 JavaScript) - JSONP 인증 로직 적용 버전
-// ====================================================================
+/**
+ * 풋살 동호회 출석 시스템 - 통계 페이지 (stats.js)
+ * * 기능:
+ * 1. GAS 서버에서 개인별, 팀별, 주차별 통계 데이터를 로드 및 표시
+ * 2. 동적 연도 탭을 생성하고 연도별 데이터를 필터링
+ * 3. 월별 탭을 통해 주차별 데이터를 필터링
+ */
 
-const CONFIG = {
-    // ⚠️⚠️⚠️ 여기를 실제 Google Apps Script 배포 URL로 변경하세요 ⚠️⚠️⚠️
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec', // 나중에 변경 필요
-};
+// Google Apps Script 배포 URL로 변경해야 합니다.
+const GAS_URL = 'YOUR_DEPLOYED_GOOGLE_APPS_SCRIPT_URL_HERE'; 
 
-const teamStatsDiv = document.getElementById('teamStats');
-const personalStatsDiv = document.getElementById('personalStats');
-const weeklyStatsDiv = document.getElementById('weeklyStats');
-const sortOption = document.getElementById('sortOption');
-const refreshStatsBtn = document.getElementById('refreshStatsBtn');
-let allStatsData = null; // 원본 데이터를 저장할 변수
+// ==================== 유틸리티 ====================
 
-document.addEventListener('DOMContentLoaded', () => {
-    // 💡 jQuery 로드 여부 확인
-    if (typeof jQuery === 'undefined') {
-        showMessage('오류: jQuery 라이브러리가 로드되지 않았습니다.', 'error');
-        return;
-    }
-
-    loadStats();
-
-    // 이벤트 리스너
-    document.querySelectorAll('.filter-btn').forEach(button => {
-        button.addEventListener('click', (e) => {
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            e.target.classList.add('active');
-            displayPersonalStats(allStatsData.personalStats);
-        });
-    });
-
-    sortOption.addEventListener('change', () => {
-        displayPersonalStats(allStatsData.personalStats);
-    });
-
-    refreshStatsBtn.addEventListener('click', loadStats);
-});
-
-// 통계 데이터 로드 (GET 요청, $.ajax 사용)
-function loadStats() {
-    refreshStatsBtn.disabled = true;
-    teamStatsDiv.innerHTML = '<p class="loading">데이터를 불러오는 중...</p>';
-    personalStatsDiv.innerHTML = '<p class="loading">데이터를 불러오는 중...</p>';
-    weeklyStatsDiv.innerHTML = '<p class="loading">데이터를 불러오는 중...</p>';
-
-    $.ajax({
-        url: `${CONFIG.GAS_URL}?action=getStats`,
-        dataType: 'jsonp', // CORS 우회
-        success: function(data) {
-            if (data.success && data.stats) {
-                allStatsData = data.stats;
-                displayTeamStats(allStatsData.teamStats);
-                displayPersonalStats(allStatsData.personalStats);
-                displayWeeklyStats(allStatsData.weeklyStats);
-            } else {
-                const msg = data.message || '통계 데이터 로딩에 실패했습니다.';
-                teamStatsDiv.innerHTML = `<p style="color: red;">${msg}</p>`;
-                personalStatsDiv.innerHTML = `<p style="color: red;">${msg}</p>`;
-                weeklyStatsDiv.innerHTML = `<p style="color: red;">${msg}</p>`;
+/**
+ * GAS 서버에 JSONP 요청을 보내는 범용 함수
+ * @param {string} action - 실행할 Apps Script 함수 (액션)
+ * @param {object} params - 요청에 포함할 파라미터 객체
+ * @returns {Promise} - 서버 응답 결과를 resolve 하는 프로미스
+ */
+function requestGas(action, params = {}) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'jsonpCallback_' + Date.now();
+        
+        window[callbackName] = (response) => {
+            const script = document.getElementById(callbackName);
+            if (script) {
+                script.remove();
             }
-        },
-        error: function(jqXHR, textStatus, errorThrown) {
-            const msg = `데이터 로딩 중 네트워크 오류가 발생했습니다. (${textStatus})`;
-            console.error(msg, errorThrown);
-            teamStatsDiv.innerHTML = `<p style="color: red;">${msg}</p>`;
-            personalStatsDiv.innerHTML = `<p style="color: red;">${msg}</p>`;
-            weeklyStatsDiv.innerHTML = `<p style="color: red;">${msg}</p>`;
-        },
-        complete: function() {
-            refreshStatsBtn.disabled = false;
+            delete window[callbackName];
+            
+            if (response.success) {
+                resolve(response);
+            } else {
+                reject(response.message || '서버 오류가 발생했습니다.');
+            }
+        };
+
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', action);
+        url.searchParams.append('callback', callbackName);
+
+        for (const key in params) {
+            if (params[key] !== undefined && params[key] !== null) {
+                url.searchParams.append(key, params[key]);
+            }
         }
+
+        const script = document.createElement('script');
+        script.src = url.toString();
+        script.id = callbackName;
+        document.head.appendChild(script);
+
+        script.onerror = () => {
+            reject('네트워크 연결 또는 서버 응답에 실패했습니다.');
+            const script = document.getElementById(callbackName);
+            if (script) {
+                script.remove();
+            }
+            delete window[callbackName];
+        };
     });
 }
 
-// 팀별 통계 표시
-function displayTeamStats(stats) {
-    teamStatsDiv.innerHTML = '';
-    const teams = ['A', 'B', 'C'];
+
+// ==================== 연도 및 데이터 로드 관리 ====================
+
+// 전역 변수로 현재 선택된 연도와 통계 데이터를 저장합니다.
+let currentYear = null; 
+let allStats = {}; // { 2025: {personal: [...], ...}, 2026: {...} }
+
+/**
+ * 페이지 로드 시 실행: 사용 가능한 모든 연도를 가져와 탭을 초기화합니다.
+ */
+async function initStatsPage() {
+    try {
+        const response = await requestGas('getAvailableYears');
+        const availableYears = response.availableYears;
+        
+        if (availableYears.length === 0) {
+            document.getElementById('stats-container').innerHTML = 
+                '<p class="alert alert-warning">출석 기록이 있는 연도가 없습니다.</p>';
+            return;
+        }
+
+        // 연도 탭 생성 및 클릭 이벤트 연결
+        initYearTabs(availableYears);
+
+        // 가장 최근 연도의 데이터 로드
+        currentYear = availableYears[0];
+        document.getElementById(`year-tab-${currentYear}`).classList.add('active');
+        await loadStats(currentYear);
+
+    } catch (error) {
+        document.getElementById('stats-container').innerHTML = 
+            `<p class="alert alert-danger">연도 정보 로딩에 실패했습니다: ${error}</p>`;
+        console.error("Available Years Load Error:", error);
+    }
+}
+
+/**
+ * 연도 탭을 동적으로 생성합니다.
+ * @param {Array<number>} years - 사용 가능한 연도 목록
+ */
+function initYearTabs(years) {
+    const yearTabsContainer = document.getElementById('yearTabs');
+    yearTabsContainer.innerHTML = ''; // 기존 내용 초기화
+
+    years.forEach(year => {
+        const button = document.createElement('button');
+        button.className = 'btn btn-outline-primary me-2';
+        button.id = `year-tab-${year}`;
+        button.textContent = year;
+        button.onclick = () => handleYearChange(year);
+        yearTabsContainer.appendChild(button);
+    });
+}
+
+/**
+ * 연도 탭 클릭 시 이벤트 핸들러
+ * @param {number} year - 클릭된 연도
+ */
+async function handleYearChange(year) {
+    if (year === currentYear) return;
+
+    // UI에서 기존 연도 탭 비활성화 및 새 연도 탭 활성화
+    if (currentYear) {
+        document.getElementById(`year-tab-${currentYear}`).classList.remove('active');
+    }
+    document.getElementById(`year-tab-${year}`).classList.add('active');
+    currentYear = year;
+
+    await loadStats(year);
+}
+
+/**
+ * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다. (성능 최적화 적용)
+ * @param {number} year - 로드할 연도
+ */
+async function loadStats(year) {
+    const loadingDiv = document.getElementById('stats-display');
+    loadingDiv.innerHTML = '<div class="alert alert-info">통계 데이터를 불러오는 중...</div>';
+    
+    // 1. 이미 캐시된 데이터가 있으면 바로 표시 (클라이언트 측 캐싱)
+    if (allStats[year]) {
+        displayStats(allStats[year]);
+        return;
+    }
+
+    // 2. 서버에 요청 (성능 최적화: 연도별 데이터만 요청)
+    try {
+        const response = await requestGas('getStats', { year: year });
+        const stats = response.stats;
+        
+        // 데이터 캐시 저장 및 표시
+        allStats[year] = stats;
+        displayStats(stats);
+
+    } catch (error) {
+        loadingDiv.innerHTML = `<p class="alert alert-danger">통계 데이터 로드 실패 (${year}년): ${error}</p>`;
+        console.error(`Stats Load Error (${year}):`, error);
+    }
+}
+
+
+// ==================== 데이터 표시 ====================
+
+/**
+ * 불러온 데이터를 바탕으로 통계를 표시합니다.
+ * @param {object} stats - 서버에서 받은 통계 데이터 객체
+ */
+function displayStats(stats) {
+    // 탭 및 초기 표시 설정
+    initMonthTabs(stats.weeklyStats);
+    
+    // 기본으로 현재 월의 데이터 표시 (성능 최적화)
+    const currentMonth = new Date().getMonth() + 1;
+    const initialMonth = getCurrentMonthFromStats(stats.weeklyStats) || currentMonth;
+    
+    // 모든 섹션을 초기화
+    document.getElementById('personal-stats').innerHTML = '';
+    document.getElementById('team-stats').innerHTML = '';
+    document.getElementById('weekly-stats-container').innerHTML = '';
+
+    // 개인별 통계 표시
+    displayPersonalStats(stats.personalStats, stats.targetYear, stats.totalSaturdays);
+
+    // 팀별 통계 표시
+    displayTeamStats(stats.teamStats);
+    
+    // 주차별 통계는 월별 탭에서 처리
+    filterWeeklyStatsByMonth(initialMonth, stats.weeklyStats);
+    
+    // 월별 탭 UI 활성화 (가장 최근 월)
+    document.querySelector('.month-tab.active')?.classList.remove('active');
+    document.getElementById(`month-tab-${initialMonth}`).classList.add('active');
+}
+
+/**
+ * 개인별 통계를 테이블로 표시합니다.
+ */
+function displayPersonalStats(personalStats, year, totalSaturdays) {
+    const container = document.getElementById('personal-stats');
+    container.innerHTML = `<h4>${year}년 개인 출석 통계 (${totalSaturdays}주 기준)</h4>`;
+    
+    if (personalStats.length === 0) {
+        container.innerHTML += '<p class="text-secondary">개인 출석 기록이 없습니다.</p>';
+        return;
+    }
+
+    // 출석률(rate) 기준으로 내림차순 정렬
+    personalStats.sort((a, b) => b.rate - a.rate);
+
+    let html = `
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>순위</th>
+                    <th>이름</th>
+                    <th>팀</th>
+                    <th class="text-end">출석 횟수</th>
+                    <th class="text-end">출석률 (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    personalStats.forEach((p, index) => {
+        const rateDisplay = p.rate.toFixed(1);
+        html += `
+            <tr>
+                <td>${index + 1}</td>
+                <td>${p.name}</td>
+                <td><span class="badge bg-primary">${p.team}</span></td>
+                <td class="text-end">${p.attendanceCount} / ${totalSaturdays}</td>
+                <td class="text-end">
+                    <span class="fw-bold">${rateDisplay}%</span>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML += html;
+}
+
+/**
+ * 팀별 통계를 카드 형태로 표시합니다.
+ */
+function displayTeamStats(teamStats) {
+    const container = document.getElementById('team-stats');
+    container.innerHTML = '<h4>팀별 평균 출석률</h4><div class="row">';
+    
+    const teams = Object.keys(teamStats).sort();
 
     teams.forEach(team => {
-        const teamData = stats[team];
-        const rate = (teamData.rate || 0).toFixed(1);
-        const count = Math.round(teamData.count);
-
-        const item = document.createElement('div');
-        item.className = 'stat-item team-item';
-        item.innerHTML = `
-            <div class="team-name">${team}팀</div>
-            <div class="team-rate">${rate}%</div>
-            <div class="team-count">(${count}/${teamData.total}회 평균 출석)</div>
-            <div class="progress-bar-container">
-                <div class="progress-bar" style="width: ${rate}%;"></div>
-            </div>
-        `;
-        teamStatsDiv.appendChild(item);
-    });
-}
-
-// 개인별 통계 표시
-function displayPersonalStats(personalStats) {
-    if (!personalStats || personalStats.length === 0) {
-        personalStatsDiv.innerHTML = '<p>등록된 회원 및 통계가 없습니다.</p>';
-        return;
-    }
-
-    const selectedTeam = document.querySelector('.filter-btn.active').dataset.team;
-    const sortValue = sortOption.value;
-
-    let filteredStats = personalStats.filter(stat => selectedTeam === 'all' || stat.team === selectedTeam);
-
-    // 정렬 로직
-    filteredStats.sort((a, b) => {
-        if (sortValue === 'rate-desc') return (b.rate || 0) - (a.rate || 0);
-        if (sortValue === 'rate-asc') return (a.rate || 0) - (b.rate || 0);
-        if (sortValue === 'count-desc') return (b.attendanceCount || 0) - (a.attendanceCount || 0);
-        if (sortValue === 'name') return a.name.localeCompare(b.name);
-        return 0;
-    });
-
-    personalStatsDiv.innerHTML = '';
-    
-    filteredStats.forEach(stat => {
-        const rate = (stat.rate || 0).toFixed(1);
+        const stats = teamStats[team];
+        const rateDisplay = stats.rate.toFixed(1);
+        const countDisplay = stats.count.toFixed(1);
         
-        const item = document.createElement('div');
-        item.className = `stat-item personal-item team-${stat.team.toLowerCase()}`;
-        item.innerHTML = `
-            <div class="person-info">
-                <strong>${stat.name}</strong> (${stat.team}팀)
-            </div>
-            <div class="person-rate">${rate}%</div>
-            <div class="person-count">(${stat.attendanceCount}/${stat.totalSaturdays}회 출석)</div>
-            <div class="progress-bar-container">
-                <div class="progress-bar" style="width: ${rate}%;"></div>
+        let bgColor = '';
+        if (team === 'A') bgColor = 'bg-success';
+        else if (team === 'B') bgColor = 'bg-info';
+        else if (team === 'C') bgColor = 'bg-warning';
+
+        container.innerHTML += `
+            <div class="col-md-4 mb-3">
+                <div class="card text-white ${bgColor}">
+                    <div class="card-body">
+                        <h5 class="card-title">팀 ${team}</h5>
+                        <p class="card-text fs-3">${rateDisplay}%</p>
+                        <p class="card-text small">평균 출석 횟수: ${countDisplay}회</p>
+                    </div>
+                </div>
             </div>
         `;
-        personalStatsDiv.appendChild(item);
     });
+    container.innerHTML += '</div>';
 }
 
-// 주차별 통계 표시
-function displayWeeklyStats(weeklyStats) {
-    if (!weeklyStats || weeklyStats.length === 0) {
-        weeklyStatsDiv.innerHTML = '<p>주차별 통계 데이터가 없습니다.</p>';
-        return;
-    }
+// ==================== 월별 필터링 ====================
 
-    weeklyStatsDiv.innerHTML = '';
+/**
+ * 주차별 통계를 바탕으로 월 탭을 동적으로 생성합니다.
+ */
+function initMonthTabs(weeklyStats) {
+    const monthTabsContainer = document.getElementById('monthTabs');
+    monthTabsContainer.innerHTML = '';
     
-    // 최근 10주만 표시 (스크롤 가능하게)
-    const recentWeeks = weeklyStats.slice(-10).reverse();
-
-    recentWeeks.forEach(week => {
-        const total = week.teamCounts.A + week.teamCounts.B + week.teamCounts.C;
-        
-        if (total === 0) return; // 출석이 없으면 표시하지 않음
-
-        const item = document.createElement('div');
-        item.className = 'stat-item weekly-item';
-        item.innerHTML = `
-            <div class="week-header">
-                <strong>${week.date}</strong> (총 ${week.count}명 출석)
-            </div>
-            <div class="team-details">
-                A팀: ${week.teamCounts.A}명 | B팀: ${week.teamCounts.B}명 | C팀: ${week.teamCounts.C}명
-            </div>
-        `;
-        weeklyStatsDiv.appendChild(item);
+    const months = new Set();
+    
+    weeklyStats.forEach(stat => {
+        // fullDate는 'yyyy-MM-dd' 형식입니다.
+        const month = parseInt(stat.fullDate.substring(5, 7));
+        if (month >= 1 && month <= 12) {
+            months.add(month);
+        }
     });
-}
+    
+    const sortedMonths = Array.from(months).sort((a, b) => b - a); // 최신 월부터 정렬
 
-// 메시지 표시 (임시)
-function showMessage(text, type) {
-    console.log(`[${type.toUpperCase()}] ${text}`);
-}
-
-// =================================================================
-// ✨ 관리자 페이지 접근 인증 로직 (AJAX / JSONP 방식으로 통일)
-// =================================================================
-
-document.addEventListener('DOMContentLoaded', () => {
-    const adminLink = document.querySelector('a[href="admin.html"]');
-
-    if (adminLink) {
-        adminLink.addEventListener('click', function(e) {
-            e.preventDefault(); // 기본 링크 이동 방지
+    sortedMonths.forEach(month => {
+        const button = document.createElement('button');
+        button.className = 'month-tab btn btn-outline-secondary me-2';
+        button.id = `month-tab-${month}`;
+        button.textContent = `${month}월`;
+        button.onclick = () => {
+            // UI 활성화 변경
+            document.querySelectorAll('.month-tab').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
             
-            // 1. 관리자 인증 상태 확인 시작
-            checkAdminStatusForNavigation();
-        });
-    }
-});
-
-/**
- * 💥 JSONP: 관리자 비밀번호 설정 상태를 확인하는 함수 (Code.gs의 checkAdminStatus 호출)
- * - 이 함수는 stats.html에서 admin.html로 이동할 때만 사용됩니다.
- */
-function checkAdminStatusForNavigation() {
-    $.ajax({
-        url: `${CONFIG.GAS_URL}?action=checkAdminStatus`,
-        dataType: 'jsonp',
-        success: function(response) {
-            if (response.success && response.isSet !== undefined) {
-                handleAdminStatusForNavigation(response);
-            } else {
-                alert("인증 상태를 불러오지 못했습니다. 서버 상태를 확인하세요.");
-            }
-        },
-        error: function() {
-            alert("Apps Script 통신 오류: 관리자 인증 상태를 확인할 수 없습니다.");
-        }
+            // 데이터 필터링 및 표시
+            filterWeeklyStatsByMonth(month, allStats[currentYear].weeklyStats);
+        };
+        monthTabsContainer.appendChild(button);
     });
 }
 
 /**
- * 관리자 인증 상태에 따라 페이지 이동 방식을 결정합니다.
- * @param {{isSet: boolean}} result - 비밀번호 설정 여부
+ * 주차별 통계에서 현재 연도의 가장 최근 월을 반환합니다.
  */
-function handleAdminStatusForNavigation(result) {
-    if (result.isSet === false) {
-        // 💥 비밀번호가 미설정 상태: 바로 이동
-        window.location.href = "admin.html";
-    } else {
-        // 비밀번호가 설정되어 있음: 팝업을 띄워 인증을 시도
-        showPasswordPromptForNavigation();
-    }
-}
-
-/**
- * 비밀번호가 설정되어 있을 때 팝업을 띄우고 인증을 시도합니다.
- */
-function showPasswordPromptForNavigation() {
-    const password = prompt("관리자 페이지로 이동하려면 4자리 비밀번호를 입력하세요.");
-
-    if (password !== null) {
-        // ✨✨✨ JSONP: authenticateAdmin 호출 ✨✨✨
-        authenticateAdminForNavigation(password.trim()); 
-    } else {
-        alert("관리자 페이지 이동이 취소되었습니다.");
-    }
-}
-
-/**
- * 💥 JSONP: 사용자 입력 비밀번호를 서버로 보내 인증 시도 (Code.gs의 authenticateAdmin 호출)
- */
-function authenticateAdminForNavigation(password) {
-    const encodedPassword = encodeURIComponent(password);
-    const gasUrl = `${CONFIG.GAS_URL}?action=authenticateAdmin&password=${encodedPassword}`;
+function getCurrentMonthFromStats(weeklyStats) {
+    if (weeklyStats.length === 0) return null;
     
-    $.ajax({
-        url: gasUrl,
-        dataType: 'jsonp',
-        success: function(response) {
-            if (response.success && response.isAuthenticated) {
-                window.location.href = "admin.html"; // 인증 성공 시 이동
-            } else {
-                alert("비밀번호가 일치하지 않습니다. 다시 시도해 주세요.");
-                // 인증 실패 시 다시 팝업을 띄우지 않고, 사용자가 다시 버튼을 누르도록 유도
-            }
-        },
-        error: function() {
-             alert("인증 시스템 오류: 서버와 통신할 수 없습니다.");
-        }
-    });
+    // weeklyStats는 시간순 정렬되어 있으므로 마지막 항목이 가장 최근입니다.
+    const lastStat = weeklyStats[weeklyStats.length - 1];
+    return parseInt(lastStat.fullDate.substring(5, 7));
 }
+
+/**
+ * 월별로 주차별 통계를 필터링하여 테이블로 표시합니다.
+ * @param {number} month - 필터링할 월 (1-12)
+ * @param {Array<object>} weeklyStats - 해당 연도의 전체 주차별 통계
+ */
+function filterWeeklyStatsByMonth(month, weeklyStats) {
+    const container = document.getElementById('weekly-stats-container');
+    container.innerHTML = `<h4>${month}월 주차별 출석 현황</h4>`;
+    
+    const monthStr = month.toString().padStart(2, '0');
+    
+    const filteredStats = weeklyStats.filter(stat => {
+        return stat.fullDate.substring(5, 7) === monthStr;
+    });
+
+    if (filteredStats.length === 0) {
+        container.innerHTML += `<p class="text-secondary">${month}월의 출석 기록이 없습니다.</p>`;
+        return;
+    }
+
+    let html = `
+        <table class="table table-bordered table-sm">
+            <thead>
+                <tr>
+                    <th>날짜</th>
+                    <th>주차</th>
+                    <th>전체 출석</th>
+                    <th class="text-center">A팀</th>
+                    <th class="text-center">B팀</th>
+                    <th class="text-center">C팀</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    filteredStats.forEach(stat => {
+        html += `
+            <tr>
+                <td>${stat.date}</td>
+                <td>${stat.week}주차</td>
+                <td><span class="badge bg-dark">${stat.count}명</span></td>
+                <td class="text-center">${stat.teamCounts.A}</td>
+                <td class="text-center">${stat.teamCounts.B}</td>
+                <td class="text-center">${stat.teamCounts.C}</td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML += html;
+}
+
+
+// ==================== 초기 실행 ====================
+
+document.addEventListener('DOMContentLoaded', initStatsPage);

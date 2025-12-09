@@ -1,24 +1,25 @@
 /**
  * 풋살 동호회 출석 시스템 - Google Apps Script
+ * 최종 버전: 연도별 시트 분리, 회원 목록 캐싱, 자동 연도 확장 기능 적용
  */
 
 // ==================== 설정 ====================
 
 const SHEET_NAMES = {
-  ATTENDANCE: '출석기록',
+  ATTENDANCE: '출석기록', // (이 이름 뒤에 _YYYY가 붙어 시트가 생성됨)
   MEMBERS: '회원목록',
   LOCATION: '위치설정',
-  SATURDAYS: '토요일일정',
   SETTINGS: '설정' 
 };
 
 const PASSWORD_CELL = 'B2'; // 설정 시트에서 비밀번호를 저장할 셀
 const REQUIRED_RADIUS = 50; // 50미터
+const CACHE_TTL_SECONDS = 21600; // 회원 목록 캐시 만료 시간 (6시간)
 
 // ==================== 메인 함수 ====================
 
 /**
- * GET 요청 처리 (GitHub Pages와 통신을 위해 모든 액션을 처리)
+ * GET 요청 처리 (주요 액션 및 통계 연도 처리)
  */
 function doGet(e) {
   Logger.log('요청 파라미터(e.parameter): ' + JSON.stringify(e.parameter));
@@ -28,32 +29,37 @@ function doGet(e) {
 
   try {
     switch(action) {
-      
-      // 관리자 인증 상태 확인 (초기 진입 시 팝업 유무 결정)
+      // 관리자/인증
       case 'checkAdminStatus':
           const statusResult = checkAdminStatus(); 
           return createResponse(true, null, statusResult, callback);
-
-      // 관리자 비밀번호를 입력받아 인증 시도
       case 'authenticateAdmin':
           const passwordToCheck = e.parameter.password || "";
           const isAuthenticated = authenticateAdmin(passwordToCheck);
           return createResponse(true, null, { isAuthenticated: isAuthenticated }, callback);
-
-      // 관리자 비밀번호 설정/변경/해제 기능
       case 'setAdminPassword':
           const newPassword = e.parameter.newPassword || "";
           const success = setAdminPassword(newPassword);
           return createResponse(true, null, { success: success }, callback);
           
+      // 데이터/정보 조회
       case 'getMembers':
         return getMembers(callback);
       case 'getLocation':
         return getLocation(callback);
       case 'getTodayAttendance':
         return getTodayAttendance(callback);
+        
+      // 💡 연도별 통계 조회 (성능 최적화 적용)
       case 'getStats':
-        return getStats(callback);
+        const targetYear = e.parameter.year; 
+        return getStats(callback, targetYear);
+        
+      // 💡 통계 페이지 초기 로드 시 필요한 연도 목록 조회
+      case 'getAvailableYears':
+        return getAvailableYears(callback);
+        
+      // 데이터 쓰기
       case 'saveLocation':
         const dataFromParams = {
           action: 'saveLocation',
@@ -73,7 +79,7 @@ function doGet(e) {
 }
 
 /**
- * POST 요청 처리 (현재 프로젝트에서는 대부분 doGet으로 통합됨)
+ * POST 요청 처리 (doGet으로 대부분 통합되었으나 유지)
  */
 function doPost(e) {
   let callback = e.parameter.callback;
@@ -95,69 +101,40 @@ function doPost(e) {
   }
 }
 
-// ==================== 관리자 비밀번호 관리 ====================
+// ==================== 관리자 비밀번호 관리 (기존 로직 유지) ====================
 
-/**
- * 관리자 비밀번호의 설정 상태만 확인하여 클라이언트에게 알립니다.
- * @returns {{isSet: boolean}} - 비밀번호 설정 여부
- */
 function checkAdminStatus() {
   const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS); 
   const storedValue = sheet.getRange(PASSWORD_CELL).getValue();
   const storedPassword = String(storedValue || '').trim(); 
-    
   const isSet = storedPassword !== "";
-  
   Logger.log(`Admin password set status: ${isSet}`);
   return { isSet: isSet };
 }
 
-/**
- * 클라이언트에서 입력된 비밀번호를 확인하는 함수 
- * @param {string} inputPassword - 사용자가 입력한 비밀번호
- * @returns {boolean} - 인증 성공 여부 (true/false)
- */
 function authenticateAdmin(inputPassword) {
   try {
     const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS); 
     const storedValue = sheet.getRange(PASSWORD_CELL).getValue();
     const storedPassword = String(storedValue || '').trim(); 
-    
-    // 비밀번호가 미등록 상태라면 인증 시도 실패 처리
     if (storedPassword === "") {
       Logger.log('Authentication attempted, but no password registered. Denied.');
       return false; 
     }
-    
-    // 등록된 비밀번호와 비교
     const isAuthenticated = (inputPassword === storedPassword);
-    
     Logger.log(`Authentication result: ${isAuthenticated}`);
     return isAuthenticated;
-
   } catch (e) {
     Logger.log('Error in authenticateAdmin: ' + e.toString());
     return false; 
   }
 }
 
-/**
- * 관리자 페이지에서 비밀번호를 설정/변경/해제하는 함수
- * @param {string} newPassword - 새로 설정할 4자리 비밀번호 (빈 문자열 가능)
- * @returns {boolean} - 저장 성공 여부 (true/false)
- */
 function setAdminPassword(newPassword) {
-    // ... (유효성 검사 생략)
-  
     try {
         const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
-        
-        // 💡 수정: A2 셀에 레이블을 함께 기록 (자동 복구 목적)
-        sheet.getRange('A2').setValue('관리자 비밀번호'); // 레이블 설정
-        
-        // B2 셀에 비밀번호 저장
-        sheet.getRange(PASSWORD_CELL).setValue(newPassword); // PASSWORD_CELL은 'B2'여야 함
-        
+        sheet.getRange('A2').setValue('관리자 비밀번호');
+        sheet.getRange(PASSWORD_CELL).setValue(newPassword);
         Logger.log(`Admin password updated to: "${newPassword}"`);
         return true;
     } catch (e) {
@@ -166,13 +143,8 @@ function setAdminPassword(newPassword) {
     }
 }
 
+// ==================== 출석 처리 (연도별 시트 적용) ====================
 
-// ==================== 출석 처리 ====================
-// (이하 출석 처리, 위치 관리, 회원 관리, 통계, 유틸리티 함수는 변동 없음)
-
-/**
- * 출석 처리
- */
 function processAttendance(data, e, callback) {
   const { name, team, latitude, longitude, userAgent } = data;
 
@@ -200,10 +172,12 @@ function processAttendance(data, e, callback) {
 
   const ipAddress = getClientIP(e);
 
+  // 💡 현재 연도 시트만 확인하여 중복 체크
   if (isDuplicateAttendance(name, ipAddress)) {
     return createResponse(false, '이미 오늘 출석하셨습니다.', null, callback);
   }
 
+  // 💡 현재 연도 시트에 기록
   saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distance);
   updateMember(name, team);
 
@@ -211,10 +185,12 @@ function processAttendance(data, e, callback) {
 }
 
 /**
- * 중복 출석 체크
+ * 중복 출석 체크 (현재 연도 시트만 확인)
  */
 function isDuplicateAttendance(name, ipAddress) {
-  const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE);
+  const sheet = getAttendanceSheet(new Date().getFullYear());
+  if (!sheet || sheet.getLastRow() <= 1) return false;
+
   const today = new Date();
   const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
 
@@ -235,15 +211,22 @@ function isDuplicateAttendance(name, ipAddress) {
       }
     }
   }
-
   return false;
 }
 
 /**
- * 출석 기록 저장
+ * 출석 기록 저장 (현재 연도 시트에 저장)
  */
 function saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distance) {
-  const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE);
+  const currentYear = new Date().getFullYear();
+  let sheet = getAttendanceSheet(currentYear);
+
+  if (!sheet) {
+      // 시트가 없으면 자동 생성 및 헤더 삽입
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const newSheetName = getAttendanceSheetName(currentYear);
+      sheet = ss.insertSheet(newSheetName);
+  }
 
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(['날짜', '요일', '이름', '팀', '출석시간', '위도', '경도', 'IP주소', '거리(m)']);
@@ -268,7 +251,7 @@ function saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distan
 }
 
 /**
- * 회원 정보 업데이트
+ * 회원 정보 업데이트 (총 출석수 누적)
  */
 function updateMember(name, team) {
   const sheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
@@ -284,6 +267,10 @@ function updateMember(name, team) {
     if (data[i][0] === name) {
       const currentCount = data[i][3] || 0;
       sheet.getRange(i + 1, 4).setValue(currentCount + 1);
+      
+      // 💡 캐시 무효화: 회원 정보가 변경되었으므로 캐시를 지웁니다.
+      CacheService.getScriptCache().remove('ALL_MEMBERS_DATA');
+      
       found = true;
       break;
     }
@@ -293,57 +280,42 @@ function updateMember(name, team) {
     const now = new Date();
     const date = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
     sheet.appendRow([name, team, date, 1]);
+    
+    // 💡 캐시 무효화
+    CacheService.getScriptCache().remove('ALL_MEMBERS_DATA');
   }
 }
 
-// ==================== 위치 관리 ====================
+// ==================== 위치 관리 (기존 로직 유지) ====================
 
-/**
- * 위치 저장 (doGet/doPost 모두에서 호출 가능)
- */
 function saveLocation(data, callback) {
   const { latitude, longitude, name } = data;
-
   if (!latitude || !longitude || !name) {
     return createResponse(false, '필수 정보가 누락되었습니다.', null, callback);
   }
-
   const sheet = getOrCreateSheet(SHEET_NAMES.LOCATION);
-
   sheet.clear();
   sheet.appendRow(['항목', '값']);
   sheet.appendRow(['위도', latitude]);
   sheet.appendRow(['경도', longitude]);
   sheet.appendRow(['장소명', name]);
-
   return createResponse(true, '위치가 저장되었습니다.', null, callback);
 }
 
-/**
- * 위치 조회
- */
 function getLocation(callback) {
   const targetLocation = getTargetLocation();
-
   if (!targetLocation) {
     return createResponse(false, '저장된 위치가 없습니다.', null, callback);
   }
-
   return createResponse(true, null, { location: targetLocation }, callback);
 }
 
-/**
- * 목표 위치 가져오기
- */
 function getTargetLocation() {
   const sheet = getOrCreateSheet(SHEET_NAMES.LOCATION);
-
   if (sheet.getLastRow() < 2) {
     return null;
   }
-
   const data = sheet.getDataRange().getValues();
-
   return {
     latitude: parseFloat(data[1][1]),
     longitude: parseFloat(data[2][1]),
@@ -351,16 +323,35 @@ function getTargetLocation() {
   };
 }
 
-// ==================== 회원 관리 ====================
+// ==================== 회원 목록 및 통계 (최적화 적용) ====================
 
 /**
- * 회원 목록 조회
+ * 회원 목록 조회 및 캐싱 적용 (성능 최적화)
  */
 function getMembers(callback) {
+  const cache = CacheService.getScriptCache();
+  const CACHE_KEY = 'ALL_MEMBERS_DATA';
+  
+  // 1. 캐시에서 데이터 로드 시도
+  let membersJson = cache.get(CACHE_KEY);
+  
+  if (membersJson) {
+      Logger.log('Members data loaded from cache.');
+      const members = JSON.parse(membersJson);
+      if (callback) {
+          return createResponse(true, 'Loaded from cache', { members: members }, callback);
+      }
+      return members; // 콜백이 없으면 순수 데이터 반환
+  }
+  
+  // 2. 캐시 부재 시 시트에서 로드
   const sheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
-
+  
   if (sheet.getLastRow() <= 1) {
-    return createResponse(true, null, { members: [] }, callback);
+      if (callback) {
+          return createResponse(true, null, { members: [] }, callback);
+      }
+      return [];
   }
 
   const data = sheet.getDataRange().getValues();
@@ -372,23 +363,28 @@ function getMembers(callback) {
         name: data[i][0],
         team: data[i][1],
         firstDate: data[i][2],
-        attendanceCount: data[i][3] || 0
+        attendanceCountTotal: data[i][3] || 0 // 총 출석수
       });
     }
   }
 
-  return createResponse(true, null, { members: members }, callback);
+  // 3. 캐시에 저장
+  membersJson = JSON.stringify(members);
+  cache.put(CACHE_KEY, membersJson, CACHE_TTL_SECONDS);
+  Logger.log('Members data loaded from sheet and saved to cache.');
+
+  if (callback) {
+      return createResponse(true, null, { members: members }, callback);
+  }
+  return members;
 }
 
-// ==================== 통계 ====================
-
 /**
- * 오늘 출석 현황
+ * 오늘 출석 현황 (현재 연도 시트만 확인)
  */
 function getTodayAttendance(callback) {
-  const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE);
-
-  if (sheet.getLastRow() <= 1) {
+  const sheet = getAttendanceSheet(new Date().getFullYear()); // 현재 연도 시트
+  if (!sheet || sheet.getLastRow() <= 1) {
     return createResponse(true, null, { attendance: [] }, callback);
   }
 
@@ -400,9 +396,7 @@ function getTodayAttendance(callback) {
 
   for (let i = 1; i < data.length; i++) {
     const rowDate = data[i][0];
-
     if (!rowDate) continue;
-
     const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 
     if (rowDateStr === todayStr) {
@@ -413,71 +407,88 @@ function getTodayAttendance(callback) {
       });
     }
   }
-
   return createResponse(true, null, { attendance: attendance }, callback);
 }
 
 /**
- * 전체 통계
+ * 전체 통계 (요청된 연도에 대한 데이터만 처리)
  */
-function getStats(callback) {
-  const saturdays = generateSaturdays();
+function getStats(callback, year) {
+  const targetYear = parseInt(year);
+  if (isNaN(targetYear)) {
+      return createResponse(false, '유효한 연도가 지정되지 않았습니다.', null, callback);
+  }
+
+  const saturdays = generateSaturdays(targetYear);
   const totalSaturdays = saturdays.length;
 
-  const attendanceSheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE);
-  const attendanceData = attendanceSheet.getLastRow() > 1 ?
+  // 💡 해당 연도의 출석 기록 시트만 사용
+  const attendanceSheet = getAttendanceSheet(targetYear);
+  const attendanceData = (attendanceSheet && attendanceSheet.getLastRow() > 1) ?
     attendanceSheet.getDataRange().getValues().slice(1) : [];
 
-  const membersSheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
-  const membersData = membersSheet.getLastRow() > 1 ?
-    membersSheet.getDataRange().getValues().slice(1) : [];
+  // 💡 캐시된 회원 목록 사용 (성능 최적화)
+  const members = getMembers(null); 
+  
+  // 1. 개인별 통계 계산을 위한 해당 연도 출석 횟수 집계
+  const attendanceCountMap = {};
+  members.forEach(m => attendanceCountMap[m.name] = 0);
+  
+  // 출석 기록 시트 스캔 (해당 연도 데이터만 있으므로 빠름)
+  attendanceData.forEach(row => {
+    const rowName = row[2];
+    if (attendanceCountMap[rowName] !== undefined) {
+        attendanceCountMap[rowName]++;
+    }
+  });
 
   const personalStats = [];
-
-  membersData.forEach(member => {
-    const name = member[0];
-    const team = member[1];
-    const attendanceCount = member[3] || 0;
-    const rate = totalSaturdays > 0 ? (attendanceCount / totalSaturdays) * 100 : 0;
+  members.forEach(member => {
+    const attendanceCountInYear = attendanceCountMap[member.name] || 0;
+    const rate = totalSaturdays > 0 ? (attendanceCountInYear / totalSaturdays) * 100 : 0;
 
     personalStats.push({
-      name: name,
-      team: team,
-      attendanceCount: attendanceCount,
+      name: member.name,
+      team: member.team,
+      attendanceCount: attendanceCountInYear, 
+      attendanceCountTotal: member.attendanceCountTotal, 
       totalSaturdays: totalSaturdays,
       rate: rate
     });
   });
 
+  // 2. 팀별 통계 계산
   const teamStats = {
     A: { count: 0, total: 0, rate: 0 },
     B: { count: 0, total: 0, rate: 0 },
     C: { count: 0, total: 0, rate: 0 }
   };
+    Object.keys(teamStats).forEach(team => {
+        const teamMembers = personalStats.filter(s => s.team === team);
+        const teamMemberCount = teamMembers.length;
+        
+        if (teamMemberCount > 0) {
+            const totalAttendanceForTeam = teamMembers.reduce((sum, member) => sum + member.attendanceCount, 0);
+            
+            teamStats[team].count = totalAttendanceForTeam / teamMemberCount;
+            teamStats[team].total = totalSaturdays;
+            teamStats[team].rate = (teamStats[team].count / teamStats[team].total) * 100;
+        } else {
+            teamStats[team].count = 0;
+            teamStats[team].total = totalSaturdays;
+            teamStats[team].rate = 0;
+        }
+    });
 
-  personalStats.forEach(stat => {
-    if (teamStats[stat.team]) {
-      teamStats[stat.team].count += stat.attendanceCount;
-      teamStats[stat.team].total += stat.totalSaturdays;
-    }
-  });
 
-  Object.keys(teamStats).forEach(team => {
-    const teamMemberCount = personalStats.filter(s => s.team === team).length;
-    if (teamMemberCount > 0 && teamStats[team].total > 0) {
-      teamStats[team].count = teamStats[team].count / teamMemberCount;
-      teamStats[team].total = totalSaturdays;
-      teamStats[team].rate = (teamStats[team].count / teamStats[team].total) * 100;
-    }
-  });
-
+  // 3. 주차별 통계 계산
   const weeklyStats = [];
   const attendanceByDate = {};
-
+  
   attendanceData.forEach(row => {
     const date = row[0];
     if (!date) return;
-
+    
     const dateStr = Utilities.formatDate(new Date(date), Session.getScriptTimeZone(), 'yyyy-MM-dd');
     const team = row[3]; 
 
@@ -496,10 +507,13 @@ function getStats(callback) {
 
   saturdays.forEach((sat, index) => {
     const dateStr = Utilities.formatDate(sat, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const displayDateStr = Utilities.formatDate(sat, Session.getScriptTimeZone(), 'MM/dd'); 
+    
     const stats = attendanceByDate[dateStr] || { count: 0, teamCounts: { A: 0, B: 0, C: 0 } };
 
     weeklyStats.push({
-      date: dateStr,
+      date: displayDateStr, 
+      fullDate: dateStr,    
       week: index + 1,
       count: stats.count,
       teamCounts: stats.teamCounts
@@ -510,18 +524,19 @@ function getStats(callback) {
     stats: {
       personalStats: personalStats,
       teamStats: teamStats,
-      weeklyStats: weeklyStats
+      weeklyStats: weeklyStats,
+      targetYear: targetYear 
     }
   }, callback);
 }
 
 /**
- * 2025-01 ~ 2026-12 사이의 모든 토요일 생성 (통계용)
+ * 특정 연도의 토요일만 생성
  */
-function generateSaturdays() {
+function generateSaturdays(year) {
   const saturdays = [];
-  const start = new Date(2025, 0, 1); 
-  const end = new Date(2026, 11, 31); 
+  const start = new Date(year, 0, 1); 
+  const end = new Date(year, 11, 31); 
 
   let current = new Date(start);
 
@@ -537,20 +552,59 @@ function generateSaturdays() {
   return saturdays;
 }
 
-// ==================== 유틸리티 ====================
+/**
+ * 💡 새로운 액션: 사용 가능한 모든 연도를 조회
+ */
+function getAvailableYears(callback) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheets = ss.getSheets();
+    const years = new Set();
+    const prefix = `${SHEET_NAMES.ATTENDANCE}_`;
+
+    sheets.forEach(sheet => {
+        const name = sheet.getName();
+        if (name.startsWith(prefix)) {
+            const yearStr = name.substring(prefix.length);
+            const yearNum = parseInt(yearStr);
+            if (!isNaN(yearNum) && yearStr.length === 4) {
+                years.add(yearNum);
+            }
+        }
+    });
+
+    const sortedYears = Array.from(years).sort((a, b) => b - a); // 최신 연도부터 정렬
+
+    return createResponse(true, null, { availableYears: sortedYears }, callback);
+}
+
+
+// ==================== 유틸리티 (수정된 시트 로직 반영) ====================
 
 /**
- * 요일 계산 함수 (일월화수목금토 반환)
+ * 💡 출석 기록 시트 이름 생성 (YYYY 반영)
  */
-function getDayOfWeek(date) {
-    const days = ['일', '월', '화', '수', '목', '금', '토'];
-    return days[date.getDay()];
+function getAttendanceSheetName(year) {
+    return `${SHEET_NAMES.ATTENDANCE}_${year}`;
 }
 
 /**
- * 시트 가져오기 또는 생성
+ * 💡 특정 연도의 출석 시트 가져오기
+ */
+function getAttendanceSheet(year) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    return ss.getSheetByName(getAttendanceSheetName(year));
+}
+
+/**
+ * 시트 가져오기 또는 생성 (기본 시트만 처리)
  */
 function getOrCreateSheet(sheetName) {
+  // 출석 시트 요청은 getAttendanceSheet 함수로 처리해야 함
+  if (sheetName.startsWith(SHEET_NAMES.ATTENDANCE)) {
+      Logger.log(`Warning: Attempted to use getOrCreateSheet for attendance sheet ${sheetName}. Use getAttendanceSheet.`);
+      return null;
+  }
+    
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(sheetName);
 
@@ -564,9 +618,11 @@ function getOrCreateSheet(sheetName) {
   return sheet;
 }
 
-/**
- * 두 좌표 간 거리 계산 (Haversine 공식)
- */
+function getDayOfWeek(date) {
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    return days[date.getDay()];
+}
+
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371e3; // 지구 반지름 (미터)
   const φ1 = lat1 * Math.PI / 180;
@@ -582,9 +638,6 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-/**
- * 클라이언트 IP 주소 추출
- */
 function getClientIP(e) {
   try {
     const headers = JSON.stringify(e);
@@ -598,9 +651,6 @@ function getClientIP(e) {
   }
 }
 
-/**
- * JSON 응답 생성 (JSONP 방식으로 CORS 문제 해결)
- */
 function createResponse(success, message, data, callback) {
   const response = {
     success: success,

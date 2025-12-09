@@ -7,54 +7,96 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#667eea">
     <title>출석률 통계 - 청라FS</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css"> 
+    <style>
+        /* 탭 구조를 위한 기본 스타일 (style.css에 추가 권장) */
+        .tab-container {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ccc;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 1em;
+            color: #555;
+            transition: color 0.3s, border-bottom 0.3s;
+            flex-shrink: 0;
+        }
+        .tab-btn.active {
+            color: #667eea;
+            font-weight: bold;
+            border-bottom: 2px solid #667eea;
+        }
+        .level-3 .tab-btn {
+            padding: 8px 12px;
+            font-size: 0.9em;
+        }
+        .stats-content-area {
+            padding-top: 10px;
+        }
+        /* 기존 필터 그룹은 개인 통계 Div 안에 유지 */
+        .filter-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>📊 출석률 통계</h1>
-            <p class="period">2025.01 ~ 2026.12</p>
+            <p class="period">2025.01 ~ 2026.12</p> 
         </div>
 
-        <div class="stats-section">
-            <h2>🏆 팀별 출석률</h2>
-            <div id="teamStats" class="team-stats">
-                <p>데이터를 불러오는 중...</p>
-            </div>
+        <div id="yearTabs" class="tab-container level-1"></div>
+
+        <div id="categoryTabs" class="tab-container level-2">
+            <button class="tab-btn category-tab" data-category="team">🏆 팀별 통계</button>
+            <button class="tab-btn category-tab" data-category="personal">👤 개인별 통계</button>
+            <button class="tab-btn category-tab" data-category="monthly">📅 월별 출석 현황</button>
         </div>
 
-        <div class="stats-section">
-            <h2>👤 개인별 출석률</h2>
+        <div id="monthTabs" class="tab-container level-3" style="display: none;"></div>
 
-            <div class="filter-group">
-                <label>팀 필터:</label>
-                <button class="filter-btn active" data-team="all">전체</button>
-                <button class="filter-btn" data-team="A">A팀</button>
-                <button class="filter-btn" data-team="B">B팀</button>
-                <button class="filter-btn" data-team="C">C팀</button>
+        <hr>
+
+        <div id="teamStats" class="stats-content-area team-stats" style="display: none;">
             </div>
 
-            <div class="filter-group">
-                <label>정렬:</label>
-                <select id="sortOption">
-                    <option value="rate-desc">출석률 높은순</option>
-                    <option value="rate-asc">출석률 낮은순</option>
-                    <option value="name">이름순</option>
-                    <option value="count-desc">출석 횟수순</option>
-                </select>
+        <div id="personalStats" class="stats-content-area personal-stats" style="display: none;">
+            
+            <div class="filter-options">
+                <div class="filter-group">
+                    <label>팀 필터:</label>
+                    <button class="filter-btn active" data-team="all">전체</button>
+                    <button class="filter-btn" data-team="A">A팀</button>
+                    <button class="filter-btn" data-team="B">B팀</button>
+                    <button class="filter-btn" data-team="C">C팀</button>
+                </div>
+    
+                <div class="filter-group">
+                    <label>정렬:</label>
+                    <select id="sortOption">
+                        <option value="rate-desc">출석률 높은순</option>
+                        <option value="rate-asc">출석률 낮은순</option>
+                        <option value="name">이름순</option>
+                        <option value="count-desc">출석 횟수순</option>
+                    </select>
+                </div>
+            </div>
+            
             </div>
 
-            <div id="personalStats" class="personal-stats">
-                <p>데이터를 불러오는 중...</p>
+        <div id="weeklyStats" class="stats-content-area weekly-stats" style="display: none;">
             </div>
-        </div>
 
-        <div class="stats-section">
-            <h2>📅 주차별 출석 현황</h2>
-            <div id="weeklyStats" class="weekly-stats">
-                <p>데이터를 불러오는 중...</p>
-            </div>
-        </div>
 
         <div class="footer">
             <button id="refreshStatsBtn" class="btn-primary">새로고침</button>

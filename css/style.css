@@ -338,15 +338,18 @@ body {
 
 /* 통계 페이지 */
 .stats-section {
-    padding: 20px;
-    border-bottom: 1px solid #e0e0e0;
+    padding: 0 20px 20px 20px; /* 탭 구조에 맞게 상단 패딩 조정 */
+    border-bottom: none; /* 탭 구조에서 섹션 경계선 제거 */
 }
 
 .stats-section h2 {
     margin-bottom: 15px;
     color: #333;
+    /* 탭 구조에서 섹션 제목은 보통 숨기거나 탭 이름으로 대체됩니다. */
+    /* display: none; */ 
 }
 
+/* 팀별 통계 (기존 스타일) */
 .team-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -440,17 +443,18 @@ body {
     background: #f9f9f9;
 }
 
-.progress-bar {
+.progress-bar-container {
     width: 100%;
-    height: 20px;
+    height: 10px; /* 진행률 바 높이 조정 */
     background: #e0e0e0;
-    border-radius: 10px;
+    border-radius: 5px;
     overflow: hidden;
+    margin-top: 5px;
 }
 
-.progress-fill {
+.progress-bar {
     height: 100%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
     transition: width 0.3s;
 }
 
@@ -475,6 +479,161 @@ body {
     margin-top: 5px;
     color: #666;
 }
+
+/* ==================== 통계 페이지 탭 구조 스타일 (추가됨) ==================== */
+
+/* 탭 컨테이너 */
+.tab-container {
+    display: flex;
+    margin: 15px 0 20px 0;
+    /* Level 2 탭만 하단 경계선 표시 */
+    border-bottom: 1px solid #e0e0e0; 
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch; /* iOS 스크롤 부드럽게 */
+    padding: 0 5px; /* 스크롤 여백 */
+}
+
+/* 탭 버튼 공통 스타일 */
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 1em;
+    color: #555;
+    transition: color 0.3s, border-bottom 0.3s;
+    flex-shrink: 0;
+    margin-bottom: -1px; /* border-bottom과 겹치지 않도록 */
+}
+
+/* 활성화된 탭 버튼 */
+.tab-btn.active {
+    color: #667eea;
+    font-weight: 600;
+    border-bottom: 3px solid #667eea;
+}
+
+/* 레벨 3 (월별) 탭 스타일 */
+.tab-container.level-3 {
+    margin-top: 5px;
+    margin-bottom: 15px;
+    border-bottom: none;
+    background: #f8f8f8;
+    border-radius: 8px;
+    padding: 5px;
+    gap: 5px;
+}
+
+.tab-container.level-3 .tab-btn {
+    padding: 6px 10px;
+    font-size: 0.9em;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+
+.tab-container.level-3 .tab-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+    border-bottom: 3px solid #667eea; /* 하단 border 제거 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* 탭 콘텐츠 영역 */
+.stats-content-area {
+    padding: 10px 0; /* 콘텐츠 상하 여백 */
+}
+
+/* 개인별 통계의 필터 그룹을 stats-content-area 안에 맞춥니다 */
+.stats-content-area .filter-group {
+    margin: 10px 0;
+}
+
+/* ==================== 통계 아이템 스타일 (JS 출력 구조에 맞게 재정의) ==================== */
+
+/* 팀별 통계 (displayTeamStats 함수 출력 구조) */
+.stat-item.team-item {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 10px;
+}
+
+.team-name {
+    font-weight: 700;
+    font-size: 1.1em;
+    color: #444;
+}
+
+.team-rate {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #764ba2;
+    margin: 5px 0;
+}
+
+.team-count {
+    font-size: 0.85em;
+    color: #777;
+    margin-bottom: 10px;
+}
+
+/* 개인별 통계 (displayPersonalStats 함수 출력 구조) */
+.stat-item.personal-item {
+    background: #fcfcfc;
+    border: 1px solid #e0e0e0;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+}
+
+.person-info strong {
+    color: #333;
+}
+
+.person-rate {
+    font-size: 1.4em;
+    font-weight: bold;
+    color: #667eea;
+    margin: 5px 0;
+}
+
+.person-count {
+    font-size: 0.8em;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+/* 주차별 통계 (displayMonthlyStats 함수 출력 구조) */
+.weekly-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.week-date {
+    font-size: 1.1em;
+    color: #667eea;
+    margin-bottom: 5px;
+}
+
+.week-total-count {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.week-team-summary span {
+    display: inline-block;
+    font-size: 0.9em;
+    color: #666;
+    margin-right: 10px;
+}
+
 
 /* 반응형 */
 @media (max-width: 600px) {

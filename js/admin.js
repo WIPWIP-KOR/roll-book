@@ -1,654 +1,474 @@
-// ====================================================================
-// admin.js (클라이언트 측 JavaScript) - JSONP 통일 버전
-// ====================================================================
+/**
+ * 풋살 동호회 출석 시스템 - 관리자 페이지 (admin.js)
+ * * 기능:
+ * 1. 관리자 인증 상태 확인 및 비밀번호 설정/변경/해제
+ * 2. 카카오 지도 API를 사용한 출석 위치 설정 및 저장
+ * 3. 현재 출석 현황 및 회원 목록 표시 (GET 요청)
+ */
 
-// 설정
-const CONFIG = {
-    // ⚠️⚠️⚠️ 여기를 실제 Google Apps Script 배포 URL로 변경하세요 ⚠️⚠️⚠️
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec', // 나중에 변경 필요
-    ATTENDANCE_URL: window.location.origin
-};
+// ==================== 설정 ====================
 
-// DOM 요소
-const latitudeInput = document.getElementById('latitude');
-const longitudeInput = document.getElementById('longitude');
-const locationNameInput = document.getElementById('locationName');
-const saveLocationBtn = document.getElementById('saveLocationBtn');
-const locationMessage = document.getElementById('locationMessage');
-const currentLocation = document.getElementById('currentLocation');
-const getMyLocationBtn = document.getElementById('getMyLocationBtn');
+// Google Apps Script 배포 URL로 변경해야 합니다.
+const GAS_URL = 'YOUR_DEPLOYED_GOOGLE_APPS_SCRIPT_URL_HERE'; 
 
-const attendanceUrlInput = document.getElementById('attendanceUrl');
-const generateQRBtn = document.getElementById('generateQRBtn');
-const qrcodeDiv = document.getElementById('qrcode');
-const downloadQRBtn = document.getElementById('downloadQRBtn');
-
-const refreshTodayBtn = document.getElementById('refreshTodayBtn');
-const todayAttendance = document.getElementById('todayAttendance');
-
-const refreshMembersBtn = document.getElementById('refreshMembersBtn');
-const membersList = document.getElementById('membersList');
-
-// ✨ 비밀번호 관리 DOM 요소 추가
-const setPasswordBtn = document.getElementById('setPasswordBtn');
-const newPasswordInput = document.getElementById('newPassword');
-const passwordMessage = document.getElementById('passwordMessage');
-const adminContent = document.getElementById('adminContent');
+// 카카오 지도 API의 클라이언트 키 (admin.js 파일의 HTML에 스크립트 태그로 포함되어야 함)
+// let map; // 전역 변수 지도 객체 (HTML에서 초기화될 예정)
+// let marker; // 전역 변수 마커 객체 (HTML에서 초기화될 예정)
 
 
-// =================================================================
-// 💥 인증 시작 및 초기화 💥
-// =================================================================
-
-// 초기화
-document.addEventListener('DOMContentLoaded', () => {
-    if (typeof jQuery === 'undefined') {
-        alert("jQuery 라이브러리가 로드되지 않았습니다. admin.html 파일을 확인하세요.");
-        return;
-    }
-
-    // 1. 관리자 인증 상태 확인 (초기 진입 로직)
-    if (adminContent) {
-        adminContent.style.display = 'none';
-    }
-    
-    // ✨✨✨ JSONP를 사용하여 checkAdminStatus 호출 ✨✨✨
-    checkAdminStatus(); 
-    
-    // 이벤트 리스너 연결 (페이지 로드 후)
-    saveLocationBtn.addEventListener('click', saveLocation);
-    getMyLocationBtn.addEventListener('click', getMyLocation);
-    generateQRBtn.addEventListener('click', generateQRCode);
-    downloadQRBtn.addEventListener('click', downloadQRCode);
-    refreshTodayBtn.addEventListener('click', loadTodayAttendance);
-    refreshMembersBtn.addEventListener('click', loadMembers);
-    
-    if (setPasswordBtn) {
-        setPasswordBtn.addEventListener('click', handleSetPassword);
-    }
-});
-
+// ==================== 유틸리티 ====================
 
 /**
- * 💥 JSONP: 관리자 비밀번호 설정 상태를 확인하는 함수 (Code.gs의 checkAdminStatus 호출)
+ * GAS 서버에 JSONP 요청을 보내는 범용 함수
+ * @param {string} action - 실행할 Apps Script 함수 (액션)
+ * @param {object} params - 요청에 포함할 파라미터 객체
+ * @returns {Promise} - 서버 응답 결과를 resolve 하는 프로미스
  */
-function checkAdminStatus() {
-    $.ajax({
-        url: `${CONFIG.GAS_URL}?action=checkAdminStatus`,
-        dataType: 'jsonp',
-        success: function(response) {
-            if (response.success && response.isSet !== undefined) {
-                handleAdminStatus(response);
-            } else {
-                showError({message: "인증 상태를 불러오지 못했습니다."});
+function requestGas(action, params = {}) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'jsonpCallback_' + Date.now();
+        
+        // 콜백 함수를 전역 범위에 등록
+        window[callbackName] = (response) => {
+            // 응답이 오면 스크립트 태그 제거 및 콜백 함수 해제
+            const script = document.getElementById(callbackName);
+            if (script) {
+                script.remove();
             }
-        },
-        error: function() {
-            showError({message: "Apps Script 통신 오류 (checkAdminStatus)"});
+            delete window[callbackName];
+            
+            if (response.success) {
+                resolve(response);
+            } else {
+                reject(response.message || '서버 오류가 발생했습니다.');
+            }
+        };
+
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', action);
+        url.searchParams.append('callback', callbackName);
+
+        for (const key in params) {
+            if (params[key] !== undefined && params[key] !== null) {
+                url.searchParams.append(key, params[key]);
+            }
         }
+
+        // 스크립트 태그를 생성하여 JSONP 요청
+        const script = document.createElement('script');
+        script.src = url.toString();
+        script.id = callbackName;
+        document.head.appendChild(script);
+
+        // 오류 처리 (네트워크 오류, 타임아웃 등 - GAS에서 응답이 오지 않는 경우)
+        // GAS는 HTTP 200 응답 내에서 오류를 반환하므로, 이는 주로 네트워크 레벨의 오류를 잡습니다.
+        script.onerror = () => {
+            reject('네트워크 연결 또는 서버 응답에 실패했습니다.');
+            const script = document.getElementById(callbackName);
+            if (script) {
+                script.remove();
+            }
+            delete window[callbackName];
+        };
     });
 }
 
 /**
- * 관리자 인증 상태에 따라 페이지 로드 방식을 결정합니다.
- * @param {{isSet: boolean}} result - 비밀번호 설정 여부
+ * QR 코드를 생성하고 표시합니다.
+ * @param {string} url - QR 코드로 변환할 URL (출석 페이지 URL)
  */
-function handleAdminStatus(result) {
-    console.log("Admin Status Check Result:", result);
-
-    if (result.isSet === false) {
-        // 💥 비밀번호가 미설정 상태: 팝업 없이 바로 관리자 페이지를 초기화합니다.
-        initializeAdminPage();
-    } else {
-        // 비밀번호가 설정되어 있음: 팝업을 띄워 인증을 시도합니다.
-        showPasswordPrompt();
+function generateQRCode(url) {
+    const qrCodeContainer = document.getElementById('qr-code');
+    if (qrCodeContainer) {
+        qrCodeContainer.innerHTML = '';
+        new QRCode(qrCodeContainer, {
+            text: url,
+            width: 200,
+            height: 200,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+        document.getElementById('qr-link').href = url;
     }
 }
 
-/**
- * 비밀번호가 설정되어 있을 때 팝업을 띄우고 인증을 시도합니다.
- */
-function showPasswordPrompt() {
-    const password = prompt("관리자 비밀번호를 입력하세요.");
 
-    if (password !== null) {
-        // ✨✨✨ JSONP: authenticateAdmin 호출 ✨✨✨
-        authenticateAdmin(password); 
-    } else {
-        alert("관리자 권한이 필요합니다.");
-    }
-}
+// ==================== 인증 관리 ====================
 
 /**
- * 💥 JSONP: 사용자 입력 비밀번호를 서버로 보내 인증 시도 (Code.gs의 authenticateAdmin 호출)
+ * 관리자 인증 상태 확인 및 팝업 표시
  */
-function authenticateAdmin(password) {
-    const encodedPassword = encodeURIComponent(password);
-    const gasUrl = `${CONFIG.GAS_URL}?action=authenticateAdmin&password=${encodedPassword}`;
-    
-    $.ajax({
-        url: gasUrl,
-        dataType: 'jsonp',
-        success: function(response) {
-            if (response.success && response.isAuthenticated) {
-                initializeAdminPage(); // 인증 성공
-            } else {
-                alert("비밀번호가 일치하지 않습니다.");
-                showPasswordPrompt(); // 재시도
-            }
-        },
-        error: function() {
-             showError({message: "Apps Script 통신 오류 (authenticateAdmin)"});
-             showPasswordPrompt(); // 통신 오류 시 재시도
+async function checkAdminStatus() {
+    try {
+        const response = await requestGas('checkAdminStatus');
+        const status = response.isSet;
+
+        if (status === false) {
+            // 비밀번호 미설정 상태: 설정 팝업 강제 표시
+            document.getElementById('admin-auth-title').textContent = '관리자 비밀번호 설정';
+            document.getElementById('password-action').textContent = '비밀번호 설정';
+            document.getElementById('current-password-group').style.display = 'none';
+            document.getElementById('adminAuthModal').style.display = 'block';
+            document.getElementById('password-action').onclick = setAdminPassword;
+        } else {
+            // 비밀번호 설정 상태: 관리자 페이지 로드
+            document.getElementById('admin-container').style.display = 'block';
+            await loadAdminData();
         }
-    });
-}
 
-
-/**
- * 비밀번호가 없거나 인증에 성공했을 때 관리자 페이지 초기화
- */
-function initializeAdminPage() {
-    console.log("관리자 페이지 로드 시작.");
-    if (adminContent) {
-        adminContent.style.display = 'block'; 
+    } catch (error) {
+        console.error('인증 상태 확인 오류:', error);
+        alert('서버와의 통신에 실패했습니다. 관리자에게 문의하세요.');
     }
-
-    attendanceUrlInput.value = CONFIG.ATTENDANCE_URL;
-    initKakaoMap();
-    loadCurrentLocation();
-    loadTodayAttendance();
-    loadMembers();
 }
 
 /**
- * 일반적인 오류 핸들러
+ * 관리자 인증 시도 (비밀번호 입력 팝업용)
  */
-function showError(error) {
-    console.error("Error:", error);
-    alert("오류가 발생했습니다: " + (error.message || "알 수 없는 오류"));
-}
-
-
-// =================================================================
-// 2. 관리자 비밀번호 설정 기능 (JSONP) - 기존 코드 유지
-// =================================================================
-
-/**
- * 비밀번호 설정 버튼 클릭 처리 함수 (AJAX/JSONP 방식)
- */
-function handleSetPassword() {
-    if (typeof CONFIG === 'undefined' || !CONFIG.GAS_URL) {
-        passwordMessage.textContent = "❌ CONFIG.GAS_URL이 정의되지 않았습니다. 관리자에게 문의하세요.";
-        passwordMessage.style.color = 'red';
+async function authenticateAdminAttempt() {
+    const password = document.getElementById('current-password').value;
+    if (!password) {
+        alert('비밀번호를 입력해주세요.');
         return;
     }
+    
+    try {
+        const response = await requestGas('authenticateAdmin', { password: password });
+        
+        if (response.isAuthenticated) {
+            alert('인증 성공!');
+            document.getElementById('adminAuthModal').style.display = 'none';
+            document.getElementById('admin-container').style.display = 'block';
+            await loadAdminData();
+        } else {
+            alert('비밀번호가 일치하지 않습니다.');
+        }
 
-    const newPassword = newPasswordInput.value.trim();
-    passwordMessage.textContent = ''; 
-    setPasswordBtn.disabled = true;
+    } catch (error) {
+        alert('인증 중 오류가 발생했습니다: ' + error);
+    }
+}
 
+/**
+ * 관리자 비밀번호 설정/변경/해제 처리
+ */
+async function setAdminPassword() {
+    const newPassword = document.getElementById('new-password').value;
+    
+    // 비밀번호 해제
     if (newPassword === "") {
-        const confirmClear = confirm("비밀번호를 공백으로 저장하면 관리자 인증이 해제됩니다. 계속하시겠습니까?");
-        if (!confirmClear) {
-            setPasswordBtn.disabled = false;
+        if (!confirm('비밀번호를 해제하시겠습니까? 해제 시 누구나 접근 가능합니다.')) {
             return;
         }
     } else if (newPassword.length !== 4 || isNaN(newPassword)) {
-        passwordMessage.textContent = '🚨 비밀번호는 정확히 4자리 숫자여야 합니다.';
-        passwordMessage.style.color = 'red';
-        setPasswordBtn.disabled = false;
+        alert('비밀번호는 4자리 숫자로 입력해야 합니다.');
         return;
     }
-
-    const encodedPassword = encodeURIComponent(newPassword);
-    const gasUrl = `${CONFIG.GAS_URL}?action=setAdminPassword&newPassword=${encodedPassword}`;
     
-    $.ajax({
-        url: gasUrl,
-        dataType: 'jsonp', 
-        success: function(data) {
-            if (data.success && (data.success === true || (data.success.success !== undefined && data.success.success === true))) { 
-                const msg = (newPassword === "") 
-                    ? '✅ 관리자 비밀번호가 해제(미등록)되었습니다. 다음 접속부터 바로 이동됩니다.'
-                    : '✅ 관리자 비밀번호가 성공적으로 갱신되었습니다. 다음 접속부터 팝업이 나타납니다.';
-                passwordMessage.textContent = msg;
-                passwordMessage.style.color = 'green';
-                newPasswordInput.value = ''; 
-            } else {
-                passwordMessage.textContent = '❌ 비밀번호 저장에 실패했습니다. (스크립트 오류 또는 유효하지 않은 비밀번호)';
-                passwordMessage.style.color = 'red';
-            }
-        },
-        error: function() {
-            passwordMessage.textContent = '⚠️ 통신 오류: 비밀번호 저장에 실패했습니다. 네트워크를 확인하세요.';
-            passwordMessage.style.color = 'red';
-        },
-        complete: function() {
-            setPasswordBtn.disabled = false;
+    try {
+        const response = await requestGas('setAdminPassword', { newPassword: newPassword });
+
+        if (response.success) {
+            alert(newPassword === "" ? '비밀번호가 해제되었습니다.' : '비밀번호가 설정/변경되었습니다.');
+            document.getElementById('adminAuthModal').style.display = 'none';
+            // 상태 재확인 (새로운 상태에 맞춰 페이지 로드)
+            await checkAdminStatus(); 
+        } else {
+            alert('비밀번호 설정에 실패했습니다.');
         }
-    });
-}
-
-// =================================================================
-// 3. 기존 관리자 기능 함수들 (유지)
-// =================================================================
-
-// 현재 설정된 위치 불러오기 (GET 요청, $.ajax 사용)
-function loadCurrentLocation() {
-    currentLocation.textContent = '위치 정보를 불러오는 중...';
-
-    $.ajax({
-        url: `${CONFIG.GAS_URL}?action=getLocation`,
-        dataType: 'jsonp', 
-        success: function(data) {
-            if (data.success && data.location) {
-                currentLocation.innerHTML = `
-                    <strong>${data.location.name || '이름 없음'}</strong><br>
-                    위도: ${data.location.latitude}<br>
-                    경도: ${data.location.longitude}
-                `;
-            } else {
-                currentLocation.textContent = '아직 위치가 설정되지 않았습니다.';
-            }
-        },
-        error: function(jqXHR, textStatus, errorThrown) {
-            console.error('위치 정보 로딩 실패:', textStatus, errorThrown);
-            currentLocation.textContent = '위치 정보를 불러오는데 실패했습니다.';
-        }
-    });
-}
-
-// 위치 저장 (JSONP 요청, $.ajax 사용)
-function saveLocation() {
-    const lat = parseFloat(latitudeInput.value);
-    const lng = parseFloat(longitudeInput.value);
-    const name = locationNameInput.value.trim();
-
-    if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        showLocationMessage('유효한 위도와 경도를 입력해주세요.', 'error');
-        return;
+    } catch (error) {
+        alert('비밀번호 설정 중 오류가 발생했습니다: ' + error);
     }
+}
+
+/**
+ * 비밀번호 관리 팝업 열기 (설정된 비밀번호를 변경/해제할 때 사용)
+ */
+function openPasswordManagementModal() {
+    document.getElementById('admin-auth-title').textContent = '관리자 비밀번호 변경/해제';
+    document.getElementById('password-action').textContent = '변경/해제 실행';
+    document.getElementById('current-password-group').style.display = 'none'; // 현재 비밀번호 확인은 GAS에서 별도로 처리할 수도 있지만, 여기서는 단순화
+    document.getElementById('new-password').value = '';
+    
+    const actionButton = document.getElementById('password-action');
+    actionButton.onclick = setAdminPassword;
+    
+    document.getElementById('adminAuthModal').style.display = 'block';
+}
+
+
+// ==================== 지도 및 위치 관리 ====================
+
+/**
+ * 저장된 출석 위치를 불러와 지도에 표시하고, 위치 설정 정보를 업데이트합니다.
+ */
+async function loadLocation() {
+    try {
+        const response = await requestGas('getLocation');
+        const location = response.location;
+
+        if (location) {
+            const lat = location.latitude;
+            const lon = location.longitude;
+            const name = location.name;
+            
+            // 1. 지도에 마커 및 중심 이동
+            const moveLatLon = new kakao.maps.LatLng(lat, lon);
+            
+            // 지도와 마커가 존재할 경우
+            if (window.map && window.marker) { 
+                window.map.setCenter(moveLatLon);
+                window.marker.setPosition(moveLatLon);
+            }
+            
+            // 2. 입력 필드 업데이트
+            document.getElementById('latitude-input').value = lat;
+            document.getElementById('longitude-input').value = lon;
+            document.getElementById('location-name-input').value = name;
+            
+            // 3. 표시 영역 업데이트
+            document.getElementById('current-location-display').textContent = 
+                `현재 설정 위치: ${name} (위도: ${lat}, 경도: ${lon})`;
+
+        } else {
+            document.getElementById('current-location-display').textContent = 
+                '**경고: 출석 위치가 설정되지 않았습니다.**';
+        }
+
+    } catch (error) {
+        console.error('위치 불러오기 오류:', error);
+        document.getElementById('current-location-display').textContent = 
+            '위치 정보를 불러오는 데 실패했습니다.';
+    }
+}
+
+/**
+ * 현재 지도상의 마커 위치를 GAS 서버에 저장합니다.
+ */
+async function saveLocation() {
+    const position = window.marker.getPosition();
+    const lat = position.getLat();
+    const lon = position.getLng();
+    const name = document.getElementById('location-name-input').value.trim();
 
     if (!name) {
-        showLocationMessage('장소 이름을 입력해주세요.', 'error');
+        alert('장소명을 입력해주세요.');
+        return;
+    }
+    
+    if (!confirm(`위도: ${lat}, 경도: ${lon}을 출석 위치로 저장하시겠습니까?`)) {
         return;
     }
 
-    saveLocationBtn.disabled = true;
-    saveLocationBtn.textContent = '저장 중...';
-
-    const urlWithParams = `${CONFIG.GAS_URL}?action=saveLocation&latitude=${lat}&longitude=${lng}&name=${encodeURIComponent(name)}`;
-
-    $.ajax({
-        url: urlWithParams,
-        dataType: 'jsonp',          
-        success: function(data) {
-            if (data.success) {
-                showLocationMessage('위치가 저장되었습니다!', 'success');
-                loadCurrentLocation();
-
-                latitudeInput.value = '';
-                longitudeInput.value = '';
-                locationNameInput.value = '';
-            } else {
-                showLocationMessage(data.message || '위치 저장에 실패했습니다.', 'error');
-            }
-        },
-        error: function(jqXHR, textStatus, errorThrown) {
-            console.error('위치 저장 에러:', textStatus, errorThrown);
-            showLocationMessage('위치 저장 중 오류가 발생했습니다.', 'error');
-        },
-        complete: function() {
-            saveLocationBtn.disabled = false;
-            saveLocationBtn.textContent = '위치 저장';
-        }
-    });
-}
-
-// 내 현재 위치 가져오기
-function getMyLocation() {
-    if (!navigator.geolocation) {
-        showLocationMessage('위치 서비스를 지원하지 않는 브라우저입니다.', 'error');
-        return;
-    }
-
-    getMyLocationBtn.disabled = true;
-    getMyLocationBtn.textContent = '위치 확인 중...';
-
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            latitudeInput.value = position.coords.latitude;
-            longitudeInput.value = position.coords.longitude;
-
-            showLocationMessage('현재 위치를 가져왔습니다!', 'success');
-
-            getMyLocationBtn.disabled = false;
-            getMyLocationBtn.textContent = '내 현재 위치 가져오기';
-        },
-        (error) => {
-            let errorMsg = '위치 정보를 가져올 수 없습니다.';
-
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    errorMsg = '위치 정보 권한이 거부되었습니다.';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    errorMsg = '위치 정보를 사용할 수 없습니다.';
-                    break;
-                case error.TIMEOUT:
-                    errorMsg = '위치 정보 요청 시간이 초과되었습니다.';
-                    break;
-            }
-
-            showLocationMessage(errorMsg, 'error');
-
-            getMyLocationBtn.disabled = false;
-            getMyLocationBtn.textContent = '내 현재 위치 가져오기';
-        }
-    );
-}
-
-// QR 코드 생성
-function generateQRCode() {
-    const url = attendanceUrlInput.value;
-
-    if (!url) {
-        alert('URL이 없습니다.');
-        return;
-    }
-
-    qrcodeDiv.innerHTML = '';
-
-    new QRCode(qrcodeDiv, {
-        text: url,
-        width: 256,
-        height: 256,
-        colorDark: '#000000',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.H
-    });
-
-    downloadQRBtn.style.display = 'block';
-}
-
-// QR 코드 다운로드
-function downloadQRCode() {
-    const canvas = qrcodeDiv.querySelector('canvas');
-
-    if (!canvas) {
-        alert('QR 코드를 먼저 생성해주세요.');
-        return;
-    }
-
-    const url = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = 'futsal-attendance-qr.png';
-    link.href = url;
-    link.click();
-}
-
-// 오늘 출석 현황 불러오기 (GET 요청, $.ajax 사용)
-function loadTodayAttendance() {
-    refreshTodayBtn.disabled = true;
-    todayAttendance.innerHTML = '<p class="loading">데이터를 불러오는 중</p>';
-
-    $.ajax({
-        url: `${CONFIG.GAS_URL}?action=getTodayAttendance`,
-        dataType: 'jsonp', 
-        success: function(data) {
-            if (data.success && data.attendance && data.attendance.length > 0) {
-                todayAttendance.innerHTML = '';
-
-                data.attendance.forEach(record => {
-                    const item = document.createElement('div');
-                    item.className = 'attendance-item';
-                    item.innerHTML = `
-                        <div>
-                            <strong>${record.name}</strong> (${record.team}팀)
-                            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
-                                ${record.time}
-                            </div>
-                        </div>
-                    `;
-                    todayAttendance.appendChild(item);
-                });
-
-                const teamCounts = { A: 0, B: 0, C: 0 };
-                data.attendance.forEach(record => {
-                    if (teamCounts[record.team] !== undefined) {
-                        teamCounts[record.team]++;
-                    }
-                });
-
-                const statsDiv = document.createElement('div');
-                statsDiv.className = 'info-box';
-                statsDiv.style.marginTop = '15px';
-                statsDiv.innerHTML = `
-                    <strong>📊 출석 통계</strong><br>
-                    총 ${data.attendance.length}명 출석<br>
-                    A팀: ${teamCounts.A}명 | B팀: ${teamCounts.B}명 | C팀: ${teamCounts.C}명
-                `;
-                todayAttendance.appendChild(statsDiv);
-
-            } else {
-                todayAttendance.innerHTML = '<p>오늘 출석 기록이 없습니다.</p>';
-            }
-        },
-        error: function(jqXHR, textStatus, errorThrown) {
-            console.error('출석 현황 로딩 실패:', textStatus, errorThrown);
-            todayAttendance.innerHTML = '<p style="color: red;">데이터를 불러오는데 실패했습니다.</p>';
-        },
-        complete: function() {
-            refreshTodayBtn.disabled = false;
-        }
-    });
-}
-
-// 회원 목록 불러오기 (GET 요청, $.ajax 사용)
-function loadMembers() {
-    refreshMembersBtn.disabled = true;
-    membersList.innerHTML = '<p class="loading">데이터를 불러오는 중</p>';
-
-    $.ajax({
-        url: `${CONFIG.GAS_URL}?action=getMembers`,
-        dataType: 'jsonp', 
-        success: function(data) {
-            if (data.success && data.members && data.members.length > 0) {
-                membersList.innerHTML = '';
-
-                const sortedMembers = data.members.sort((a, b) => {
-                    if (a.team !== b.team) {
-                        return a.team.localeCompare(b.team);
-                    }
-                    return a.name.localeCompare(b.name);
-                });
-
-                sortedMembers.forEach(member => {
-                    const item = document.createElement('div');
-                    item.className = 'member-item';
-                    item.innerHTML = `
-                        <div>
-                            <strong>${member.name}</strong> (${member.team}팀)
-                        </div>
-                        <div style="font-size: 0.9em; color: #666;">
-                            출석 ${member.attendanceCount || 0}회
-                        </div>
-                    `;
-                    membersList.appendChild(item);
-                });
-
-                const teamCounts = { A: 0, B: 0, C: 0 };
-                data.members.forEach(member => {
-                    if (teamCounts[member.team] !== undefined) {
-                        teamCounts[member.team]++;
-                    }
-                });
-
-                const statsDiv = document.createElement('div');
-                statsDiv.className = 'info-box';
-                statsDiv.style.marginTop = '15px';
-                statsDiv.innerHTML = `
-                    <strong>📊 회원 통계</strong><br>
-                    총 ${data.members.length}명<br>
-                    A팀: ${teamCounts.A}명 | B팀: ${teamCounts.B}명 | C팀: ${teamCounts.C}명
-                `;
-                membersList.appendChild(statsDiv);
-
-            } else {
-                membersList.innerHTML = '<p>등록된 회원이 없습니다.</p>';
-            }
-        },
-        error: function(jqXHR, textStatus, errorThrown) {
-            console.error('회원 목록 로딩 실패:', textStatus, errorThrown);
-            membersList.innerHTML = '<p style="color: red;">데이터를 불러오는데 실패했습니다.</p>';
-        },
-        complete: function() {
-            refreshMembersBtn.disabled = false;
-        }
-    });
-}
-
-// 위치 메시지 표시
-function showLocationMessage(text, type) {
-    locationMessage.textContent = text;
-    locationMessage.className = `message ${type} show`;
-
-    setTimeout(() => {
-        locationMessage.classList.remove('show');
-    }, 5000);
-}
-
-// ==================== 카카오맵 관련 (기존 코드 유지) ====================
-
-let map; // 카카오맵 객체
-let marker; // 마커 객체
-let ps; // 장소 검색 객체
-
-/**
- * 카카오맵 초기화
- */
-function initKakaoMap() {
-    if (typeof kakao === 'undefined') {
-        console.warn('카카오맵 API가 로드되지 않았습니다. admin.html의 YOUR_KAKAO_APP_KEY를 발급받은 키로 변경하세요.');
-        const mapEl = document.getElementById('map');
-        if (mapEl) {
-            mapEl.innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">카카오맵 API 키를 설정해주세요. 자세한 내용은 https://developers.kakao.com 를 확인하세요.</p>';
-        }
-        return;
-    }
-
-    const defaultPosition = new kakao.maps.LatLng(37.5665, 126.9780);
-
-    const mapContainer = document.getElementById('map');
-    const mapOption = {
-        center: defaultPosition,
-        level: 3
-    };
-
-    map = new kakao.maps.Map(mapContainer, mapOption);
-    ps = new kakao.maps.services.Places();
-
-    kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
-        const latlng = mouseEvent.latLng;
-        setLocation(latlng.getLat(), latlng.getLng(), '지도에서 선택한 위치');
-    });
-
-    console.log('카카오맵 초기화 완료');
-}
-
-/**
- * 장소 검색
- */
-function searchPlaces() {
-    if (!ps) {
-        alert('카카오맵 API가 로드되지 않았습니다.');
-        return;
-    }
-
-    const keyword = document.getElementById('mapSearch').value.trim();
-
-    if (!keyword) {
-        alert('검색어를 입력해주세요.');
-        return;
-    }
-
-    ps.keywordSearch(keyword, placesSearchCB);
-}
-
-/**
- * 장소 검색 결과 콜백
- */
-function placesSearchCB(data, status, pagination) {
-    const searchResults = document.getElementById('searchResults');
-
-    if (status === kakao.maps.services.Status.OK) {
-        searchResults.innerHTML = '<h4>검색 결과</h4>';
-
-        data.forEach((place, index) => {
-            const resultItem = document.createElement('div');
-            resultItem.className = 'search-result-item';
-            resultItem.innerHTML = `
-                <div class="result-number">${index + 1}</div>
-                <div class="result-content">
-                    <strong>${place.place_name}</strong>
-                    <div class="result-address">${place.address_name}</div>
-                    ${place.phone ? `<div class="result-phone">📞 ${place.phone}</div>` : ''}
-                </div>
-            `;
-
-            resultItem.onclick = () => {
-                selectPlace(place);
-            };
-
-            searchResults.appendChild(resultItem);
+    try {
+        const response = await requestGas('saveLocation', {
+            latitude: lat,
+            longitude: lon,
+            name: name
         });
 
-    } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
-        searchResults.innerHTML = '<p style="padding: 20px; text-align: center;">검색 결과가 없습니다.</p>';
-    } else if (status === kakao.maps.services.Status.ERROR) {
-        searchResults.innerHTML = '<p style="padding: 20px; text-align: center; color: red;">검색 중 오류가 발생했습니다.</p>';
+        if (response.success) {
+            alert('출석 위치가 성공적으로 저장되었습니다!');
+            loadLocation(); // 저장 후 새로고침
+        } else {
+            alert('위치 저장에 실패했습니다: ' + response.message);
+        }
+    } catch (error) {
+        alert('위치 저장 중 오류가 발생했습니다: ' + error);
+    }
+}
+
+
+// ==================== 데이터 로드 및 표시 ====================
+
+/**
+ * 관리자 페이지의 모든 데이터를 로드하고 표시합니다.
+ */
+async function loadAdminData() {
+    // 로딩 인디케이터 표시
+    document.getElementById('attendance-list').innerHTML = '로딩 중...';
+    document.getElementById('member-list').innerHTML = '로딩 중...';
+
+    // 1. 위치 로드 및 지도 초기화
+    if (window.map === undefined) {
+        initMap(); // 지도 초기화는 한 번만 수행
+    }
+    await loadLocation();
+
+    // 2. 출석 페이지 QR 코드 생성 (출석 페이지의 실제 URL로 변경 필요)
+    const attendanceUrl = GAS_URL.replace('/exec', '/dev'); // 또는 실제 배포된 출석 페이지 URL
+    generateQRCode(attendanceUrl);
+
+    // 3. 오늘 출석 현황 로드
+    await loadTodayAttendance();
+
+    // 4. 회원 목록 로드
+    await loadMembers();
+}
+
+/**
+ * 오늘 출석 현황을 서버에서 불러와 테이블에 표시합니다.
+ */
+async function loadTodayAttendance() {
+    const container = document.getElementById('attendance-list');
+    container.innerHTML = '출석 현황 로딩 중...';
+    
+    try {
+        const response = await requestGas('getTodayAttendance');
+        const attendance = response.attendance;
+
+        if (attendance.length === 0) {
+            container.innerHTML = '<p class="text-secondary">오늘 출석 기록이 없습니다.</p>';
+            return;
+        }
+
+        let html = `
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>이름</th>
+                        <th>팀</th>
+                        <th>출석 시간</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        attendance.forEach(record => {
+            html += `
+                <tr>
+                    <td>${record.name}</td>
+                    <td>${record.team}</td>
+                    <td>${record.time}</td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+    } catch (error) {
+        container.innerHTML = `<p class="text-danger">출석 현황 로드 실패: ${error}</p>`;
+        console.error('출석 현황 로드 오류:', error);
     }
 }
 
 /**
- * 검색 결과에서 장소 선택
+ * 전체 회원 목록을 서버에서 불러와 테이블에 표시합니다.
  */
-function selectPlace(place) {
-    const lat = parseFloat(place.y);
-    const lng = parseFloat(place.x);
-    const name = place.place_name;
+async function loadMembers() {
+    const container = document.getElementById('member-list');
+    container.innerHTML = '회원 목록 로딩 중...';
+    
+    try {
+        // 💡 GAS에서 캐싱된 회원 목록을 사용하므로, 속도가 빠릅니다.
+        const response = await requestGas('getMembers');
+        const members = response.members;
 
-    setLocation(lat, lng, name);
+        if (members.length === 0) {
+            container.innerHTML = '<p class="text-secondary">등록된 회원 목록이 없습니다.</p>';
+            return;
+        }
 
-    const position = new kakao.maps.LatLng(lat, lng);
-    map.setCenter(position);
+        let html = `
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>이름</th>
+                        <th>팀</th>
+                        <th>총 출석수</th>
+                        <th>최초 등록일</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        // 총 출석수를 기준으로 내림차순 정렬
+        members.sort((a, b) => b.attendanceCountTotal - a.attendanceCountTotal);
 
-    document.getElementById('searchResults').innerHTML = '';
+        members.forEach(member => {
+            // attendanceCountTotal은 GAS에서 캐시된 객체에 추가된 필드명입니다.
+            const count = member.attendanceCountTotal !== undefined ? member.attendanceCountTotal : member.attendanceCount;
+            html += `
+                <tr>
+                    <td>${member.name}</td>
+                    <td>${member.team}</td>
+                    <td>${count}회</td>
+                    <td>${member.firstDate}</td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+    } catch (error) {
+        container.innerHTML = `<p class="text-danger">회원 목록 로드 실패: ${error}</p>`;
+        console.error('회원 목록 로드 오류:', error);
+    }
 }
 
+
+// ==================== 지도 API 초기화 (Kakao Map) ====================
+
 /**
- * 위치 설정 (마커 표시 및 입력란 자동 입력)
+ * 카카오 맵을 초기화하고 마커를 설정합니다.
+ * 이 함수는 HTML 파일의 <script> 태그에서 카카오 맵 API 로드 완료 후 호출되어야 합니다.
  */
-function setLocation(lat, lng, name) {
-    document.getElementById('latitude').value = lat;
-    document.getElementById('longitude').value = lng;
-    document.getElementById('locationName').value = name;
-
-    if (marker) {
-        marker.setMap(null);
-    }
-
-    const position = new kakao.maps.LatLng(lat, lng);
-    marker = new kakao.maps.Marker({
-        position: position,
-        map: map
+function initMap() {
+    const mapContainer = document.getElementById('map'), // 지도를 표시할 div 
+          mapOption = { 
+            center: new kakao.maps.LatLng(37.566826, 126.9786567), // 서울 시청
+            level: 3 // 지도의 확대 레벨
+        };
+    
+    // 지도를 생성합니다    
+    window.map = new kakao.maps.Map(mapContainer, mapOption); 
+    
+    // 마커가 표시될 위치입니다. (초기 위치는 지도 중심)
+    const initialPosition = mapOption.center;
+    
+    // 마커를 생성합니다
+    window.marker = new kakao.maps.Marker({
+        position: initialPosition,
+        draggable: true // 마커를 드래그 가능하도록 설정합니다
     });
 
-    map.setCenter(position);
+    // 마커가 지도 위에 표시되도록 설정합니다
+    window.marker.setMap(window.map);
+    
+    // 마커 드래그가 끝났을 때 이벤트 처리
+    kakao.maps.event.addListener(window.marker, 'dragend', function() {
+        const latlng = window.marker.getPosition();
+        document.getElementById('latitude-input').value = latlng.getLat();
+        document.getElementById('longitude-input').value = latlng.getLng();
+    });
+    
+    // 지도 클릭 시 해당 위치로 마커 이동 및 좌표 업데이트
+    kakao.maps.event.addListener(window.map, 'click', function(mouseEvent) {
+        const latlng = mouseEvent.latLng; 
+        window.marker.setPosition(latlng);
+        document.getElementById('latitude-input').value = latlng.getLat();
+        document.getElementById('longitude-input').value = latlng.getLng();
+    });
 
-    showLocationMessage(`위치가 선택되었습니다: ${name}`, 'success');
+    // 초기 위치 로드
+    loadLocation();
 }
 
-// 전역 함수로 노출 (HTML에서 호출)
-window.searchPlaces = searchPlaces
+// ==================== 이벤트 리스너 및 초기 실행 ====================
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. 관리자 인증 상태 확인 및 페이지 로드 시작
+    checkAdminStatus(); 
+
+    // 2. 이벤트 리스너 연결
+    document.getElementById('auth-submit').addEventListener('click', authenticateAdminAttempt);
+    document.getElementById('password-manage-btn').addEventListener('click', openPasswordManagementModal);
+    document.getElementById('save-location-btn').addEventListener('click', saveLocation);
+    document.getElementById('reload-data-btn').addEventListener('click', loadAdminData);
+});
+
+// 3. 카카오 지도 API가 로드되면 initMap 함수를 호출해야 합니다.
+// (이 부분은 HTML 파일에서 <script src="...&autoload=false" ...> 후 window.kakao.maps.load(initMap); 와 같이 처리됩니다.)
