@@ -128,20 +128,68 @@ function requestGas(action, params = {}) {
 
 /**
  * QR 코드를 생성하고 표시합니다.
- * @param {string} url - QR 코드로 변환할 URL (출석 페이지 URL)
  */
-function generateQRCode(url) {
+function generateQRCode() {
+    const urlInput = document.getElementById('attendanceUrl');
+    const url = urlInput.value;
+
+    if (!url) {
+        alert('출석 URL이 설정되지 않았습니다.');
+        return;
+    }
+
     const qrCodeContainer = document.getElementById('qrcode');
     if (qrCodeContainer) {
+        // 기존 QR 코드 제거
         qrCodeContainer.innerHTML = '';
-        new QRCode(qrCodeContainer, {
+
+        // 새 QR 코드 생성
+        window.qrCodeInstance = new QRCode(qrCodeContainer, {
             text: url,
             width: 200,
             height: 200,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
         });
+
+        // 다운로드 버튼 표시
+        document.getElementById('downloadQRBtn').style.display = 'inline-block';
+
+        console.log('✅ QR 코드 생성 완료:', url);
+    }
+}
+
+/**
+ * QR 코드를 이미지 파일로 다운로드합니다.
+ */
+function downloadQRCode() {
+    const qrCodeContainer = document.getElementById('qrcode');
+    const canvas = qrCodeContainer.querySelector('canvas');
+
+    if (!canvas) {
+        alert('QR 코드를 먼저 생성해주세요.');
+        return;
+    }
+
+    try {
+        // Canvas를 이미지로 변환
+        const imageData = canvas.toDataURL('image/png');
+
+        // 다운로드 링크 생성
+        const downloadLink = document.createElement('a');
+        downloadLink.href = imageData;
+        downloadLink.download = '출석체크_QR코드.png';
+
+        // 다운로드 실행
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+
+        console.log('✅ QR 코드 다운로드 완료');
+    } catch (error) {
+        console.error('❌ QR 코드 다운로드 오류:', error);
+        alert('QR 코드 다운로드 중 오류가 발생했습니다.');
     }
 }
 
@@ -397,9 +445,12 @@ async function loadAdminData() {
         }
     }
 
-    // 2. 출석 페이지 QR 코드 생성 (출석 페이지의 실제 URL로 변경 필요)
+    // 2. 출석 페이지 URL 설정 및 표시
     const attendanceUrl = window.location.origin + window.location.pathname.replace('admin.html', 'index.html');
-    generateQRCode(attendanceUrl);
+    document.getElementById('attendanceUrl').value = attendanceUrl;
+
+    // QR 코드 자동 생성
+    generateQRCode();
 
     // 🚀 3. 병렬로 데이터 로드 (성능 향상)
     try {
@@ -737,6 +788,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const getMyLocationBtn = document.getElementById('getMyLocationBtn');
     if (getMyLocationBtn) {
         getMyLocationBtn.addEventListener('click', getMyLocation);
+    }
+
+    const generateQRBtn = document.getElementById('generateQRBtn');
+    if (generateQRBtn) {
+        generateQRBtn.addEventListener('click', generateQRCode);
+    }
+
+    const downloadQRBtn = document.getElementById('downloadQRBtn');
+    if (downloadQRBtn) {
+        downloadQRBtn.addEventListener('click', downloadQRCode);
     }
 });
 
