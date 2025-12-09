@@ -1,4 +1,8 @@
-const CONFIG = {
+// ====================================================================
+// stats.js (클라이언트 측 JavaScript) - JSONP 인증 로직 적용 버전
+// ====================================================================
+
+Const CONFIG = {
     // ⚠️⚠️⚠️ 여기를 실제 Google Apps Script 배포 URL로 변경하세요 ⚠️⚠️⚠️
     GAS_URL: 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec', // 나중에 변경 필요
 };
@@ -174,7 +178,7 @@ function showMessage(text, type) {
 }
 
 // =================================================================
-// ✨ 관리자 페이지 접근 인증 로직 (AJAX / JSONP 방식으로 변경)
+// ✨ 관리자 페이지 접근 인증 로직 (AJAX / JSONP 방식으로 통일)
 // =================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -183,41 +187,82 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminLink) {
         adminLink.addEventListener('click', function(e) {
             e.preventDefault(); // 기본 링크 이동 방지
-
-            // 팝업 메시지를 수정하여 미등록 시 안내를 추가합니다.
-            const password = prompt("관리자 페이지로 이동하려면 4자리 비밀번호를 입력하세요.\n(비밀번호 미등록 시 비워두고 '확인')");
-
-            if (password === null) {
-                alert("비밀번호 입력이 취소되었습니다.");
-                return;
-            }
             
-            const trimmedPassword = password.trim();
-
-            // 비어있지 않은 입력값에 대해서만 4자리 숫자 여부를 검사합니다.
-            if (trimmedPassword !== "" && (trimmedPassword.length !== 4 || isNaN(trimmedPassword))) {
-                alert("비밀번호는 4자리 숫자여야 합니다.");
-                return;
-            }
-
-            // Apps Script의 doGet을 호출하여 비밀번호를 인증합니다.
-            // checkAdminPassword 함수를 doGet 내부에서 호출하도록 Apps Script도 수정해야 합니다.
-            $.ajax({
-                url: `${CONFIG.GAS_URL}?action=checkAdminPassword&password=${trimmedPassword}`,
-                dataType: 'jsonp', // JSONP 사용 (CORS 우회)
-                success: function(data) {
-                    if (data.success && data.isAuthenticated) {
-                        // 인증 성공 시 (비밀번호 일치 또는 비밀번호 미등록 상태) 관리자 페이지로 이동
-                        window.location.href = "admin.html";
-                    } else {
-                        // 인증 실패 시 (비밀번호 불일치) 경고 메시지 표시
-                        alert("비밀번호가 일치하지 않습니다. 다시 시도해 주세요.");
-                    }
-                },
-                error: function() {
-                    alert("인증 시스템 오류: 서버와 통신할 수 없습니다.");
-                }
-            });
+            // 1. 관리자 인증 상태 확인 시작
+            checkAdminStatusForNavigation();
         });
     }
 });
+
+/**
+ * 💥 JSONP: 관리자 비밀번호 설정 상태를 확인하는 함수 (Code.gs의 checkAdminStatus 호출)
+ * - 이 함수는 stats.html에서 admin.html로 이동할 때만 사용됩니다.
+ */
+function checkAdminStatusForNavigation() {
+    $.ajax({
+        url: `${CONFIG.GAS_URL}?action=checkAdminStatus`,
+        dataType: 'jsonp',
+        success: function(response) {
+            if (response.success && response.isSet !== undefined) {
+                handleAdminStatusForNavigation(response);
+            } else {
+                alert("인증 상태를 불러오지 못했습니다. 서버 상태를 확인하세요.");
+            }
+        },
+        error: function() {
+            alert("Apps Script 통신 오류: 관리자 인증 상태를 확인할 수 없습니다.");
+        }
+    });
+}
+
+/**
+ * 관리자 인증 상태에 따라 페이지 이동 방식을 결정합니다.
+ * @param {{isSet: boolean}} result - 비밀번호 설정 여부
+ */
+function handleAdminStatusForNavigation(result) {
+    if (result.isSet === false) {
+        // 💥 비밀번호가 미설정 상태: 바로 이동
+        window.location.href = "admin.html";
+    } else {
+        // 비밀번호가 설정되어 있음: 팝업을 띄워 인증을 시도
+        showPasswordPromptForNavigation();
+    }
+}
+
+/**
+ * 비밀번호가 설정되어 있을 때 팝업을 띄우고 인증을 시도합니다.
+ */
+function showPasswordPromptForNavigation() {
+    const password = prompt("관리자 페이지로 이동하려면 4자리 비밀번호를 입력하세요.");
+
+    if (password !== null) {
+        // ✨✨✨ JSONP: authenticateAdmin 호출 ✨✨✨
+        authenticateAdminForNavigation(password.trim()); 
+    } else {
+        alert("관리자 페이지 이동이 취소되었습니다.");
+    }
+}
+
+/**
+ * 💥 JSONP: 사용자 입력 비밀번호를 서버로 보내 인증 시도 (Code.gs의 authenticateAdmin 호출)
+ */
+function authenticateAdminForNavigation(password) {
+    const encodedPassword = encodeURIComponent(password);
+    const gasUrl = `${CONFIG.GAS_URL}?action=authenticateAdmin&password=${encodedPassword}`;
+    
+    $.ajax({
+        url: gasUrl,
+        dataType: 'jsonp',
+        success: function(response) {
+            if (response.success && response.isAuthenticated) {
+                window.location.href = "admin.html"; // 인증 성공 시 이동
+            } else {
+                alert("비밀번호가 일치하지 않습니다. 다시 시도해 주세요.");
+                // 인증 실패 시 다시 팝업을 띄우지 않고, 사용자가 다시 버튼을 누르도록 유도
+            }
+        },
+        error: function() {
+             alert("인증 시스템 오류: 서버와 통신할 수 없습니다.");
+        }
+    });
+}
