@@ -744,7 +744,17 @@ async function openMapSearch() {
         }
     } else {
         // 이미 초기화된 지도가 있으면 크기 재조정
-        kakao.maps.event.trigger(window.map, 'resize');
+        try {
+            // 카카오맵 v3는 relayout() 사용
+            if (window.map.relayout) {
+                window.map.relayout();
+            } else if (window.kakao && window.kakao.maps && window.kakao.maps.event) {
+                // 카카오맵 v2는 event.trigger 사용
+                window.kakao.maps.event.trigger(window.map, 'resize');
+            }
+        } catch (error) {
+            console.warn('지도 크기 재조정 실패:', error);
+        }
 
         // 현재 마커 위치로 지도 중심 이동
         if (window.marker) {
