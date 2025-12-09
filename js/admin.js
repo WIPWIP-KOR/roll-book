@@ -731,8 +731,8 @@ async function openMapSearch() {
     // 지도 섹션 표시
     mapSection.style.display = 'block';
 
-    // 지도가 아직 초기화되지 않았다면 초기화
-    if (window.map === undefined) {
+    // 지도가 제대로 초기화되지 않았다면 초기화
+    if (!window.map || typeof window.map.setCenter !== 'function') {
         try {
             console.log('🗺️ 지도 초기화 시작...');
             await initMapAsync();
@@ -746,7 +746,7 @@ async function openMapSearch() {
         // 이미 초기화된 지도가 있으면 크기 재조정
         try {
             // 카카오맵 v3는 relayout() 사용
-            if (window.map.relayout) {
+            if (window.map.relayout && typeof window.map.relayout === 'function') {
                 window.map.relayout();
             } else if (window.kakao && window.kakao.maps && window.kakao.maps.event) {
                 // 카카오맵 v2는 event.trigger 사용
@@ -757,9 +757,13 @@ async function openMapSearch() {
         }
 
         // 현재 마커 위치로 지도 중심 이동
-        if (window.marker) {
-            const position = window.marker.getPosition();
-            window.map.setCenter(position);
+        if (window.marker && window.marker.getPosition) {
+            try {
+                const position = window.marker.getPosition();
+                window.map.setCenter(position);
+            } catch (error) {
+                console.warn('마커 위치 이동 실패:', error);
+            }
         }
     }
 }
