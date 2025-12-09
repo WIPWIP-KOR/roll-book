@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#667eea">
     <title>관리자 페이지 - 청라FS </title>
     <link rel="stylesheet" href="css/style.css">
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ba33aab3a17f53b23105c96b7618df35&libraries=services"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ba33aab3a17f53b23105c96b7618df35&libraries=services&autoload=false"></script>
 </head>
 <body>
     <div class="container">
@@ -197,6 +197,45 @@
         .message-area.success {
             background: #e8f5e9;
             color: #2e7d32;
+        }
+
+        /* 검색 결과 스타일 */
+        .search-results-list {
+            margin-top: 15px;
+        }
+
+        .search-results-list h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1em;
+        }
+
+        .search-result-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .search-result-item:hover {
+            background: #f5f5ff;
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+
+        .search-result-item strong {
+            color: #333;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .search-result-item p {
+            color: #666;
+            font-size: 0.9em;
+            margin: 0;
         }
     </style>
 
