@@ -345,28 +345,26 @@ async function loadLocation() {
             const lat = location.latitude;
             const lon = location.longitude;
             const name = location.name;
-            
-            // 1. 지도에 마커 및 중심 이동
-            const moveLatLon = new kakao.maps.LatLng(lat, lon);
-            
-            // 지도와 마커가 존재할 경우
-            if (window.map && window.marker) { 
-                window.map.setCenter(moveLatLon);
-                window.marker.setPosition(moveLatLon);
-            }
-            
-            // 2. 입력 필드 업데이트
+
+            // 1. 입력 필드 업데이트
             document.getElementById('latitude').value = lat;
             document.getElementById('longitude').value = lon;
             document.getElementById('locationName').value = name;
 
-            // 3. 표시 영역 업데이트
+            // 2. 표시 영역 업데이트
             document.getElementById('currentLocation').textContent =
-                `현재 설정 위치: ${name} (위도: ${lat}, 경도: ${lon})`;
+                `${name} (위도: ${lat}, 경도: ${lon})`;
+
+            // 3. 지도가 이미 초기화되어 있다면 마커 위치 업데이트
+            if (window.map && window.marker) {
+                const moveLatLon = new kakao.maps.LatLng(lat, lon);
+                window.map.setCenter(moveLatLon);
+                window.marker.setPosition(moveLatLon);
+            }
 
         } else {
             document.getElementById('currentLocation').textContent =
-                '**경고: 출석 위치가 설정되지 않았습니다.**';
+                '⚠️ 출석 위치가 설정되지 않았습니다.';
         }
 
     } catch (error) {
@@ -435,15 +433,8 @@ async function loadAdminData() {
         </div>
     `;
 
-    // 1. 위치 로드 및 지도 초기화
-    if (window.map === undefined) {
-        try {
-            await initMapAsync(); // 지도 초기화는 한 번만 수행
-        } catch (error) {
-            console.error('❌ 지도 초기화 실패:', error);
-            // 지도 초기화 실패해도 다른 기능은 계속 동작하도록 함
-        }
-    }
+    // 1. 위치 정보만 로드 (지도는 사용자가 버튼 클릭 시 초기화)
+    await loadLocation();
 
     // 2. 출석 페이지 URL 설정 및 표시
     const attendanceUrl = window.location.origin + window.location.pathname.replace('admin.html', 'index.html');
@@ -452,10 +443,9 @@ async function loadAdminData() {
     // QR 코드 자동 생성
     generateQRCode();
 
-    // 🚀 3. 병렬로 데이터 로드 (성능 향상)
+    // 🚀 2. 병렬로 데이터 로드 (성능 향상)
     try {
         await Promise.all([
-            loadLocation(),
             loadTodayAttendance(),
             loadMembers()
         ]);
@@ -681,6 +671,48 @@ function getMyLocation() {
     }
 }
 
+// ==================== 지도 UI 제어 ====================
+
+/**
+ * 주소 검색 버튼 클릭 시 지도 섹션을 열고 초기화합니다.
+ */
+async function openMapSearch() {
+    const mapSection = document.getElementById('mapSearchSection');
+
+    // 지도 섹션 표시
+    mapSection.style.display = 'block';
+
+    // 지도가 아직 초기화되지 않았다면 초기화
+    if (window.map === undefined) {
+        try {
+            console.log('🗺️ 지도 초기화 시작...');
+            await initMapAsync();
+            console.log('✅ 지도 초기화 완료');
+        } catch (error) {
+            console.error('❌ 지도 초기화 실패:', error);
+            alert('지도를 불러오는데 실패했습니다. 페이지를 새로고침 후 다시 시도해주세요.');
+            mapSection.style.display = 'none';
+        }
+    } else {
+        // 이미 초기화된 지도가 있으면 크기 재조정
+        kakao.maps.event.trigger(window.map, 'resize');
+
+        // 현재 마커 위치로 지도 중심 이동
+        if (window.marker) {
+            const position = window.marker.getPosition();
+            window.map.setCenter(position);
+        }
+    }
+}
+
+/**
+ * 지도 닫기 버튼 클릭 시 지도 섹션을 숨깁니다.
+ */
+function closeMapSearch() {
+    const mapSection = document.getElementById('mapSearchSection');
+    mapSection.style.display = 'none';
+}
+
 // ==================== 지도 API 초기화 (Kakao Map) ====================
 
 /**
@@ -770,8 +802,6 @@ function initializeMap(mapContainer, resolve, reject) {
 
         console.log('✅ 카카오맵 초기화 완료');
 
-        // 초기 위치 로드
-        loadLocation();
         resolve();
     } catch (error) {
         console.error('❌ 카카오맵 초기화 오류:', error);
@@ -832,6 +862,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadQRBtn = document.getElementById('downloadQRBtn');
     if (downloadQRBtn) {
         downloadQRBtn.addEventListener('click', downloadQRCode);
+    }
+
+    const openMapBtn = document.getElementById('openMapBtn');
+    if (openMapBtn) {
+        openMapBtn.addEventListener('click', openMapSearch);
+    }
+
+    const closeMapBtn = document.getElementById('closeMapBtn');
+    if (closeMapBtn) {
+        closeMapBtn.addEventListener('click', closeMapSearch);
     }
 });
 
