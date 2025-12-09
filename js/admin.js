@@ -131,7 +131,7 @@ function requestGas(action, params = {}) {
  * @param {string} url - QR 코드로 변환할 URL (출석 페이지 URL)
  */
 function generateQRCode(url) {
-    const qrCodeContainer = document.getElementById('qr-code');
+    const qrCodeContainer = document.getElementById('qrcode');
     if (qrCodeContainer) {
         qrCodeContainer.innerHTML = '';
         new QRCode(qrCodeContainer, {
@@ -142,7 +142,6 @@ function generateQRCode(url) {
             colorLight : "#ffffff",
             correctLevel : QRCode.CorrectLevel.H
         });
-        document.getElementById('qr-link').href = url;
     }
 }
 
@@ -242,7 +241,7 @@ async function attemptAuth() {
  * 관리자 비밀번호 설정/변경/해제 처리
  */
 async function setAdminPassword() {
-    const newPassword = document.getElementById('new-password').value;
+    const newPassword = document.getElementById('newPassword').value;
     
     // 비밀번호 해제
     if (newPassword === "") {
@@ -259,9 +258,7 @@ async function setAdminPassword() {
 
         if (response.success) {
             alert(newPassword === "" ? '비밀번호가 해제되었습니다.' : '비밀번호가 설정/변경되었습니다.');
-            document.getElementById('adminAuthModal').style.display = 'none';
-            // 상태 재확인 (새로운 상태에 맞춰 페이지 로드)
-            await checkAdminStatus(); 
+            document.getElementById('newPassword').value = '';
         } else {
             alert('비밀번호 설정에 실패했습니다.');
         }
@@ -575,6 +572,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 3. 기타 이벤트 리스너 연결
+    const setPasswordBtn = document.getElementById('setPasswordBtn');
+    if (setPasswordBtn) {
+        setPasswordBtn.addEventListener('click', setAdminPassword);
+    }
+
     const saveLocationBtn = document.getElementById('saveLocationBtn');
     if (saveLocationBtn) {
         saveLocationBtn.addEventListener('click', saveLocation);
