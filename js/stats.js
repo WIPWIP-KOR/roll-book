@@ -65,6 +65,79 @@ function requestGas(action, params = {}) {
     });
 }
 
+// ==================== 로딩 스피너 관리 ====================
+
+/**
+ * 로딩 스피너 표시
+ */
+function showLoadingSpinner(message = '데이터를 불러오는 중...') {
+    const loadingDiv = document.getElementById('stats-display');
+    loadingDiv.innerHTML = `
+        <div class="alert alert-info" style="text-align: center;">
+            <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px;"></div>
+            <div>${message}</div>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+}
+
+/**
+ * 로딩 메시지 업데이트
+ */
+function updateLoadingSpinner(message) {
+    const loadingDiv = document.getElementById('stats-display');
+    const messageDiv = loadingDiv.querySelector('div.alert > div:last-child');
+    if (messageDiv) {
+        messageDiv.textContent = message;
+    }
+}
+
+/**
+ * 로딩 스피너 숨기기
+ */
+function hideLoadingSpinner() {
+    document.getElementById('stats-display').innerHTML = '';
+}
+
+/**
+ * 백그라운드에서 다른 연도들의 데이터를 미리 로드
+ */
+async function preloadOtherYears(years) {
+    console.log('🚀 백그라운드 프리로딩 시작:', years);
+
+    for (const year of years) {
+        try {
+            // 이미 캐시된 경우 스킵
+            if (allStats[year]) {
+                console.log(`✅ ${year}년 데이터는 이미 캐시됨`);
+                continue;
+            }
+
+            console.log(`📥 ${year}년 데이터 로딩 중...`);
+            const response = await requestGas('getStats', { year: year });
+            const stats = response.stats;
+
+            // 캐시에 저장
+            allStats[year] = stats;
+            console.log(`✅ ${year}년 데이터 캐시 완료`);
+
+            // 너무 빠르게 연속 요청하지 않도록 짧은 딜레이
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+        } catch (error) {
+            console.error(`❌ ${year}년 데이터 프리로딩 실패:`, error);
+            // 에러가 나도 계속 진행
+        }
+    }
+
+    console.log('✅ 모든 연도 데이터 프리로딩 완료');
+}
+
 // ==================== 연도 및 데이터 로드 관리 ====================
 
 /**
@@ -72,18 +145,18 @@ function requestGas(action, params = {}) {
  */
 async function initStatsPage() {
     try {
-        // 로딩 메시지 표시
-        document.getElementById('stats-display').innerHTML = 
-            '<div class="alert alert-info">통계 데이터를 로드하는 중입니다...</div>';
-        
+        // 로딩 스피너 표시
+        showLoadingSpinner('연도 목록을 불러오는 중...');
+
         // 데이터 로드가 성공하면 컨텐츠 Wrapper를 숨김 상태로 시작
         document.getElementById('stats-content-wrapper').style.display = 'none';
 
         const response = await requestGas('getAvailableYears');
         const availableYears = response.availableYears;
-        
+
         if (!Array.isArray(availableYears) || availableYears.length === 0) {
-            document.getElementById('stats-display').innerHTML = 
+            hideLoadingSpinner();
+            document.getElementById('stats-display').innerHTML =
                 '<p class="alert alert-warning">출석 기록이 있는 연도가 없습니다. (시트 이름이 출석기록_YYYY 형식인지 확인하세요)</p>';
             return;
         }
@@ -96,15 +169,22 @@ async function initStatsPage() {
         // 2. 카테고리 탭 초기화 및 이벤트 연결
         initCategoryTabs();
 
-        // 3. 데이터 로드 (가장 최근 연도)
+        // 3. 현재 연도 데이터 먼저 로드 (빠른 표시)
+        updateLoadingSpinner(`${currentYear}년 데이터를 불러오는 중...`);
         await loadStats(currentYear);
 
         // 4. 로딩 메시지 제거 및 컨텐츠 표시
-        document.getElementById('stats-display').innerHTML = '';
+        hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
 
+        // 5. 🚀 백그라운드에서 다른 연도 데이터 미리 로드
+        if (availableYears.length > 1) {
+            preloadOtherYears(availableYears.slice(1));
+        }
+
     } catch (error) {
-        document.getElementById('stats-display').innerHTML = 
+        hideLoadingSpinner();
+        document.getElementById('stats-display').innerHTML =
             `<p class="alert alert-danger">연도 정보 로딩에 실패했습니다. (GAS URL 또는 서버 함수 오류): ${error}</p>`;
         console.error("Available Years Load Error:", error);
     }
@@ -131,30 +211,34 @@ async function handleYearChange(year) {
  * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다.
  */
 async function loadStats(year) {
-    const loadingDiv = document.getElementById('stats-display');
-    loadingDiv.innerHTML = '<div class="alert alert-info">통계 데이터를 불러오는 중...</div>';
-    document.getElementById('stats-content-wrapper').style.display = 'none';
-    
     // 1. 캐시된 데이터 확인
     if (allStats[year]) {
+        console.log(`✅ ${year}년 데이터 캐시에서 로드`);
         displayStats(allStats[year]);
+        hideLoadingSpinner();
+        document.getElementById('stats-content-wrapper').style.display = 'block';
         return;
     }
 
     // 2. 서버에 요청
     try {
+        showLoadingSpinner(`${year}년 통계 데이터를 불러오는 중...`);
+        document.getElementById('stats-content-wrapper').style.display = 'none';
+
         const response = await requestGas('getStats', { year: year });
         const stats = response.stats;
-        
+
         // 데이터 캐시 저장 및 표시
         allStats[year] = stats;
         displayStats(stats);
-        
-        loadingDiv.innerHTML = '';
+
+        hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
 
     } catch (error) {
-        loadingDiv.innerHTML = `<p class="alert alert-danger">통계 데이터 로드 실패 (${year}년): ${error}</p>`;
+        hideLoadingSpinner();
+        document.getElementById('stats-display').innerHTML =
+            `<p class="alert alert-danger">통계 데이터 로드 실패 (${year}년): ${error}</p>`;
         document.getElementById('stats-content-wrapper').style.display = 'none';
         console.error(`Stats Load Error (${year}):`, error);
     }
