@@ -8,11 +8,14 @@
  */
 
 // Google Apps Script 배포 URL로 변경해야 합니다.
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec'; 
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec';
+
+// 인증 토큰 유효 시간 (30분)
+const AUTH_TOKEN_DURATION = 30 * 60 * 1000;
 
 // ==================== 전역 데이터 및 유틸리티 ====================
 
-let currentYear = null; 
+let currentYear = null;
 let allStats = {}; // { 2025: {personal: [...], ...}, 2026: {...} }
 
 /**
@@ -65,6 +68,207 @@ function requestGas(action, params = {}) {
     });
 }
 
+// ==================== 인증 토큰 관리 ====================
+
+/**
+ * 인증 토큰을 sessionStorage에 저장
+ */
+function setAuthToken() {
+    const tokenData = {
+        timestamp: Date.now()
+    };
+    sessionStorage.setItem('adminAuthToken', JSON.stringify(tokenData));
+    console.log('✅ 인증 토큰 저장됨');
+}
+
+/**
+ * 인증 토큰이 유효한지 확인
+ */
+function isAuthTokenValid() {
+    const tokenStr = sessionStorage.getItem('adminAuthToken');
+    if (!tokenStr) {
+        return false;
+    }
+
+    try {
+        const tokenData = JSON.parse(tokenStr);
+        const elapsed = Date.now() - tokenData.timestamp;
+
+        if (elapsed > AUTH_TOKEN_DURATION) {
+            sessionStorage.removeItem('adminAuthToken');
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        sessionStorage.removeItem('adminAuthToken');
+        return false;
+    }
+}
+
+// ==================== 관리자 인증 ====================
+
+/**
+ * 관리자 링크 클릭 시 인증 확인
+ */
+async function handleAdminLinkClick(e) {
+    e.preventDefault();
+
+    // 1. 토큰이 유효하면 바로 이동
+    if (isAuthTokenValid()) {
+        console.log('✅ 유효한 토큰 - 바로 이동');
+        window.location.href = 'admin.html';
+        return;
+    }
+
+    // 2. 토큰이 없거나 만료됨 - 비밀번호 확인
+    console.log('🔑 인증 필요 - 모달 표시');
+    showAdminAuthModal();
+}
+
+/**
+ * 관리자 인증 모달 표시
+ */
+function showAdminAuthModal() {
+    const modal = document.getElementById('adminAuthModal');
+    modal.style.display = 'flex';
+    document.getElementById('adminPassword').focus();
+}
+
+/**
+ * 관리자 인증 모달 숨기기
+ */
+function hideAdminAuthModal() {
+    const modal = document.getElementById('adminAuthModal');
+    modal.style.display = 'none';
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('adminAuthMessage').textContent = '';
+}
+
+/**
+ * 관리자 비밀번호 인증 시도
+ */
+async function attemptAdminAuth() {
+    const password = document.getElementById('adminPassword').value.trim();
+    const messageEl = document.getElementById('adminAuthMessage');
+
+    if (!password) {
+        messageEl.textContent = '비밀번호를 입력해주세요.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    if (password.length !== 4 || isNaN(password)) {
+        messageEl.textContent = '비밀번호는 4자리 숫자입니다.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    try {
+        messageEl.textContent = '인증 중...';
+        messageEl.className = 'message-area';
+
+        const response = await requestGas('authenticateAdmin', { password: password });
+
+        if (response.isAuthenticated) {
+            console.log('✅ 인증 성공');
+            messageEl.textContent = '인증 성공! 이동 중...';
+            messageEl.className = 'message-area success';
+
+            // 토큰 저장
+            setAuthToken();
+
+            // 관리자 페이지로 이동
+            setTimeout(() => {
+                window.location.href = 'admin.html';
+            }, 500);
+        } else {
+            console.log('❌ 인증 실패');
+            messageEl.textContent = '비밀번호가 일치하지 않습니다.';
+            messageEl.className = 'message-area error';
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('adminPassword').focus();
+        }
+    } catch (error) {
+        console.error('❌ 인증 오류:', error);
+        messageEl.textContent = '인증 중 오류가 발생했습니다: ' + error;
+        messageEl.className = 'message-area error';
+    }
+}
+
+// ==================== 로딩 스피너 관리 ====================
+
+/**
+ * 로딩 스피너 표시
+ */
+function showLoadingSpinner(message = '데이터를 불러오는 중...') {
+    const loadingDiv = document.getElementById('stats-display');
+    loadingDiv.innerHTML = `
+        <div class="alert alert-info" style="text-align: center;">
+            <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px;"></div>
+            <div>${message}</div>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+}
+
+/**
+ * 로딩 메시지 업데이트
+ */
+function updateLoadingSpinner(message) {
+    const loadingDiv = document.getElementById('stats-display');
+    const messageDiv = loadingDiv.querySelector('div.alert > div:last-child');
+    if (messageDiv) {
+        messageDiv.textContent = message;
+    }
+}
+
+/**
+ * 로딩 스피너 숨기기
+ */
+function hideLoadingSpinner() {
+    document.getElementById('stats-display').innerHTML = '';
+}
+
+/**
+ * 백그라운드에서 다른 연도들의 데이터를 미리 로드
+ */
+async function preloadOtherYears(years) {
+    console.log('🚀 백그라운드 프리로딩 시작:', years);
+
+    for (const year of years) {
+        try {
+            // 이미 캐시된 경우 스킵
+            if (allStats[year]) {
+                console.log(`✅ ${year}년 데이터는 이미 캐시됨`);
+                continue;
+            }
+
+            console.log(`📥 ${year}년 데이터 로딩 중...`);
+            const response = await requestGas('getStats', { year: year });
+            const stats = response.stats;
+
+            // 캐시에 저장
+            allStats[year] = stats;
+            console.log(`✅ ${year}년 데이터 캐시 완료`);
+
+            // 너무 빠르게 연속 요청하지 않도록 짧은 딜레이
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+        } catch (error) {
+            console.error(`❌ ${year}년 데이터 프리로딩 실패:`, error);
+            // 에러가 나도 계속 진행
+        }
+    }
+
+    console.log('✅ 모든 연도 데이터 프리로딩 완료');
+}
+
 // ==================== 연도 및 데이터 로드 관리 ====================
 
 /**
@@ -72,18 +276,18 @@ function requestGas(action, params = {}) {
  */
 async function initStatsPage() {
     try {
-        // 로딩 메시지 표시
-        document.getElementById('stats-display').innerHTML = 
-            '<div class="alert alert-info">통계 데이터를 로드하는 중입니다...</div>';
-        
+        // 로딩 스피너 표시
+        showLoadingSpinner('연도 목록을 불러오는 중...');
+
         // 데이터 로드가 성공하면 컨텐츠 Wrapper를 숨김 상태로 시작
         document.getElementById('stats-content-wrapper').style.display = 'none';
 
         const response = await requestGas('getAvailableYears');
         const availableYears = response.availableYears;
-        
+
         if (!Array.isArray(availableYears) || availableYears.length === 0) {
-            document.getElementById('stats-display').innerHTML = 
+            hideLoadingSpinner();
+            document.getElementById('stats-display').innerHTML =
                 '<p class="alert alert-warning">출석 기록이 있는 연도가 없습니다. (시트 이름이 출석기록_YYYY 형식인지 확인하세요)</p>';
             return;
         }
@@ -96,15 +300,22 @@ async function initStatsPage() {
         // 2. 카테고리 탭 초기화 및 이벤트 연결
         initCategoryTabs();
 
-        // 3. 데이터 로드 (가장 최근 연도)
+        // 3. 현재 연도 데이터 먼저 로드 (빠른 표시)
+        updateLoadingSpinner(`${currentYear}년 데이터를 불러오는 중...`);
         await loadStats(currentYear);
 
         // 4. 로딩 메시지 제거 및 컨텐츠 표시
-        document.getElementById('stats-display').innerHTML = '';
+        hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
 
+        // 5. 🚀 백그라운드에서 다른 연도 데이터 미리 로드
+        if (availableYears.length > 1) {
+            preloadOtherYears(availableYears.slice(1));
+        }
+
     } catch (error) {
-        document.getElementById('stats-display').innerHTML = 
+        hideLoadingSpinner();
+        document.getElementById('stats-display').innerHTML =
             `<p class="alert alert-danger">연도 정보 로딩에 실패했습니다. (GAS URL 또는 서버 함수 오류): ${error}</p>`;
         console.error("Available Years Load Error:", error);
     }
@@ -131,30 +342,34 @@ async function handleYearChange(year) {
  * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다.
  */
 async function loadStats(year) {
-    const loadingDiv = document.getElementById('stats-display');
-    loadingDiv.innerHTML = '<div class="alert alert-info">통계 데이터를 불러오는 중...</div>';
-    document.getElementById('stats-content-wrapper').style.display = 'none';
-    
     // 1. 캐시된 데이터 확인
     if (allStats[year]) {
+        console.log(`✅ ${year}년 데이터 캐시에서 로드`);
         displayStats(allStats[year]);
+        hideLoadingSpinner();
+        document.getElementById('stats-content-wrapper').style.display = 'block';
         return;
     }
 
     // 2. 서버에 요청
     try {
+        showLoadingSpinner(`${year}년 통계 데이터를 불러오는 중...`);
+        document.getElementById('stats-content-wrapper').style.display = 'none';
+
         const response = await requestGas('getStats', { year: year });
         const stats = response.stats;
-        
+
         // 데이터 캐시 저장 및 표시
         allStats[year] = stats;
         displayStats(stats);
-        
-        loadingDiv.innerHTML = '';
+
+        hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
 
     } catch (error) {
-        loadingDiv.innerHTML = `<p class="alert alert-danger">통계 데이터 로드 실패 (${year}년): ${error}</p>`;
+        hideLoadingSpinner();
+        document.getElementById('stats-display').innerHTML =
+            `<p class="alert alert-danger">통계 데이터 로드 실패 (${year}년): ${error}</p>`;
         document.getElementById('stats-content-wrapper').style.display = 'none';
         console.error(`Stats Load Error (${year}):`, error);
     }
@@ -526,9 +741,26 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
 
 // ==================== 초기 실행 ====================
 
-document.addEventListener('DOMContentLoaded', initStatsPage);
-document.getElementById('refreshStatsBtn').addEventListener('click', () => {
-    // 캐시된 데이터를 지우고 새로 로드
-    allStats = {}; 
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. 통계 페이지 초기화
     initStatsPage();
+
+    // 2. 관리자 링크 클릭 이벤트
+    document.getElementById('adminLink').addEventListener('click', handleAdminLinkClick);
+
+    // 3. 관리자 인증 모달 이벤트
+    document.getElementById('adminAuthSubmit').addEventListener('click', attemptAdminAuth);
+    document.getElementById('adminAuthCancel').addEventListener('click', hideAdminAuthModal);
+    document.getElementById('adminPassword').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            attemptAdminAuth();
+        }
+    });
+
+    // 4. 새로고침 버튼
+    document.getElementById('refreshStatsBtn').addEventListener('click', () => {
+        // 캐시된 데이터를 지우고 새로 로드
+        allStats = {};
+        initStatsPage();
+    });
 });
