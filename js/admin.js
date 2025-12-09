@@ -33,7 +33,6 @@ const membersList = document.getElementById('membersList');
 const setPasswordBtn = document.getElementById('setPasswordBtn');
 const newPasswordInput = document.getElementById('newPassword');
 const passwordMessage = document.getElementById('passwordMessage');
-const adminContent = document.getElementById('adminContent');
 
 
 // =================================================================
@@ -47,14 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // 1. 관리자 인증 상태 확인 (초기 진입 로직)
-    if (adminContent) {
-        adminContent.style.display = 'none';
-    }
-    
-    // ✨✨✨ JSONP를 사용하여 checkAdminStatus 호출 ✨✨✨
-    checkAdminStatus(); 
-    
     // 이벤트 리스너 연결 (페이지 로드 후)
     saveLocationBtn.addEventListener('click', saveLocation);
     getMyLocationBtn.addEventListener('click', getMyLocation);
@@ -67,99 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setPasswordBtn.addEventListener('click', handleSetPassword);
     }
 });
-
-
-/**
- * 💥 JSONP: 관리자 비밀번호 설정 상태를 확인하는 함수 (Code.gs의 checkAdminStatus 호출)
- */
-function checkAdminStatus() {
-    $.ajax({
-        url: `${CONFIG.GAS_URL}?action=checkAdminStatus`,
-        dataType: 'jsonp',
-        success: function(response) {
-            if (response.success && response.isSet !== undefined) {
-                handleAdminStatus(response);
-            } else {
-                showError({message: "인증 상태를 불러오지 못했습니다."});
-            }
-        },
-        error: function() {
-            showError({message: "Apps Script 통신 오류 (checkAdminStatus)"});
-        }
-    });
-}
-
-/**
- * 관리자 인증 상태에 따라 페이지 로드 방식을 결정합니다.
- * @param {{isSet: boolean}} result - 비밀번호 설정 여부
- */
-function handleAdminStatus(result) {
-    console.log("Admin Status Check Result:", result);
-
-    if (result.isSet === false) {
-        // 💥 비밀번호가 미설정 상태: 팝업 없이 바로 관리자 페이지를 초기화합니다.
-        initializeAdminPage();
-    } else {
-        // 비밀번호가 설정되어 있음: 팝업을 띄워 인증을 시도합니다.
-        showPasswordPrompt();
-    }
-}
-
-/**
- * 비밀번호가 설정되어 있을 때 팝업을 띄우고 인증을 시도합니다.
- */
-function showPasswordPrompt() {
-    const password = prompt("관리자 비밀번호를 입력하세요.");
-
-    if (password !== null) {
-        // ✨✨✨ JSONP: authenticateAdmin 호출 ✨✨✨
-        authenticateAdmin(password); 
-    } else {
-        alert("관리자 권한이 필요합니다.");
-    }
-}
-
-/**
- * 💥 JSONP: 사용자 입력 비밀번호를 서버로 보내 인증 시도 (Code.gs의 authenticateAdmin 호출)
- */
-function authenticateAdmin(password) {
-    const encodedPassword = encodeURIComponent(password);
-    const gasUrl = `${CONFIG.GAS_URL}?action=authenticateAdmin&password=${encodedPassword}`;
-    
-    $.ajax({
-        url: gasUrl,
-        dataType: 'jsonp',
-        success: function(response) {
-            if (response.success && response.isAuthenticated) {
-                initializeAdminPage(); // 인증 성공
-            } else {
-                alert("비밀번호가 일치하지 않습니다.");
-                showPasswordPrompt(); // 재시도
-            }
-        },
-        error: function() {
-             showError({message: "Apps Script 통신 오류 (authenticateAdmin)"});
-             showPasswordPrompt(); // 통신 오류 시 재시도
-        }
-    });
-}
-
-
-/**
- * 비밀번호가 없거나 인증에 성공했을 때 관리자 페이지 초기화
- */
-function initializeAdminPage() {
-    console.log("관리자 페이지 로드 시작.");
-    if (adminContent) {
-        adminContent.style.display = 'block'; 
-    }
-
-    attendanceUrlInput.value = CONFIG.ATTENDANCE_URL;
-    initKakaoMap();
-    loadCurrentLocation();
-    loadTodayAttendance();
-    loadMembers();
-}
 
 /**
  * 일반적인 오류 핸들러
