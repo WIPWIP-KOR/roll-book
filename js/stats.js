@@ -8,11 +8,14 @@
  */
 
 // Google Apps Script 배포 URL로 변경해야 합니다.
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec'; 
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec';
+
+// 인증 토큰 유효 시간 (30분)
+const AUTH_TOKEN_DURATION = 30 * 60 * 1000;
 
 // ==================== 전역 데이터 및 유틸리티 ====================
 
-let currentYear = null; 
+let currentYear = null;
 let allStats = {}; // { 2025: {personal: [...], ...}, 2026: {...} }
 
 /**
@@ -63,6 +66,134 @@ function requestGas(action, params = {}) {
             delete window[callbackName];
         };
     });
+}
+
+// ==================== 인증 토큰 관리 ====================
+
+/**
+ * 인증 토큰을 sessionStorage에 저장
+ */
+function setAuthToken() {
+    const tokenData = {
+        timestamp: Date.now()
+    };
+    sessionStorage.setItem('adminAuthToken', JSON.stringify(tokenData));
+    console.log('✅ 인증 토큰 저장됨');
+}
+
+/**
+ * 인증 토큰이 유효한지 확인
+ */
+function isAuthTokenValid() {
+    const tokenStr = sessionStorage.getItem('adminAuthToken');
+    if (!tokenStr) {
+        return false;
+    }
+
+    try {
+        const tokenData = JSON.parse(tokenStr);
+        const elapsed = Date.now() - tokenData.timestamp;
+
+        if (elapsed > AUTH_TOKEN_DURATION) {
+            sessionStorage.removeItem('adminAuthToken');
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        sessionStorage.removeItem('adminAuthToken');
+        return false;
+    }
+}
+
+// ==================== 관리자 인증 ====================
+
+/**
+ * 관리자 링크 클릭 시 인증 확인
+ */
+async function handleAdminLinkClick(e) {
+    e.preventDefault();
+
+    // 1. 토큰이 유효하면 바로 이동
+    if (isAuthTokenValid()) {
+        console.log('✅ 유효한 토큰 - 바로 이동');
+        window.location.href = 'admin.html';
+        return;
+    }
+
+    // 2. 토큰이 없거나 만료됨 - 비밀번호 확인
+    console.log('🔑 인증 필요 - 모달 표시');
+    showAdminAuthModal();
+}
+
+/**
+ * 관리자 인증 모달 표시
+ */
+function showAdminAuthModal() {
+    const modal = document.getElementById('adminAuthModal');
+    modal.style.display = 'flex';
+    document.getElementById('adminPassword').focus();
+}
+
+/**
+ * 관리자 인증 모달 숨기기
+ */
+function hideAdminAuthModal() {
+    const modal = document.getElementById('adminAuthModal');
+    modal.style.display = 'none';
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('adminAuthMessage').textContent = '';
+}
+
+/**
+ * 관리자 비밀번호 인증 시도
+ */
+async function attemptAdminAuth() {
+    const password = document.getElementById('adminPassword').value.trim();
+    const messageEl = document.getElementById('adminAuthMessage');
+
+    if (!password) {
+        messageEl.textContent = '비밀번호를 입력해주세요.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    if (password.length !== 4 || isNaN(password)) {
+        messageEl.textContent = '비밀번호는 4자리 숫자입니다.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    try {
+        messageEl.textContent = '인증 중...';
+        messageEl.className = 'message-area';
+
+        const response = await requestGas('authenticateAdmin', { password: password });
+
+        if (response.isAuthenticated) {
+            console.log('✅ 인증 성공');
+            messageEl.textContent = '인증 성공! 이동 중...';
+            messageEl.className = 'message-area success';
+
+            // 토큰 저장
+            setAuthToken();
+
+            // 관리자 페이지로 이동
+            setTimeout(() => {
+                window.location.href = 'admin.html';
+            }, 500);
+        } else {
+            console.log('❌ 인증 실패');
+            messageEl.textContent = '비밀번호가 일치하지 않습니다.';
+            messageEl.className = 'message-area error';
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('adminPassword').focus();
+        }
+    } catch (error) {
+        console.error('❌ 인증 오류:', error);
+        messageEl.textContent = '인증 중 오류가 발생했습니다: ' + error;
+        messageEl.className = 'message-area error';
+    }
 }
 
 // ==================== 로딩 스피너 관리 ====================
@@ -610,9 +741,26 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
 
 // ==================== 초기 실행 ====================
 
-document.addEventListener('DOMContentLoaded', initStatsPage);
-document.getElementById('refreshStatsBtn').addEventListener('click', () => {
-    // 캐시된 데이터를 지우고 새로 로드
-    allStats = {}; 
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. 통계 페이지 초기화
     initStatsPage();
+
+    // 2. 관리자 링크 클릭 이벤트
+    document.getElementById('adminLink').addEventListener('click', handleAdminLinkClick);
+
+    // 3. 관리자 인증 모달 이벤트
+    document.getElementById('adminAuthSubmit').addEventListener('click', attemptAdminAuth);
+    document.getElementById('adminAuthCancel').addEventListener('click', hideAdminAuthModal);
+    document.getElementById('adminPassword').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            attemptAdminAuth();
+        }
+    });
+
+    // 4. 새로고침 버튼
+    document.getElementById('refreshStatsBtn').addEventListener('click', () => {
+        // 캐시된 데이터를 지우고 새로 로드
+        allStats = {};
+        initStatsPage();
+    });
 });
