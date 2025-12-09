@@ -11,7 +11,23 @@
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ba33aab3a17f53b23105c96b7618df35&libraries=services"></script>
 </head>
 <body>
-    <div class="container">
+    <!-- 비밀번호 인증 모달 -->
+    <div id="adminAuthModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2 id="admin-auth-title">관리자 인증</h2>
+            <div id="current-password-group" class="form-group">
+                <label for="current-password">비밀번호 (4자리)</label>
+                <input type="password" id="current-password" maxlength="4" placeholder="4자리 비밀번호" pattern="[0-9]{4}">
+            </div>
+            <div id="new-password-group" class="form-group" style="display: none;">
+                <label for="new-password">새 비밀번호 (4자리)</label>
+                <input type="password" id="new-password" maxlength="4" placeholder="4자리 숫자" pattern="[0-9]{4}">
+            </div>
+            <button id="password-action" class="btn-primary">인증</button>
+        </div>
+    </div>
+
+    <div class="container" id="admin-container" style="display: none;">
         <div class="header">
             <h1>⚽ 관리자 페이지</h1>
         </div>
