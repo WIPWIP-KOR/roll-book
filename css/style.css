@@ -234,35 +234,53 @@ body {
     }
 }
 
-/* 메시지 */
+/* 메시지 - 상단 고정 토스트 알림 */
 .message {
-    margin-top: 20px;
-    padding: 15px;
-    border-radius: 10px;
+    position: fixed;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 300px;
+    max-width: 90%;
+    padding: 18px 24px;
+    border-radius: 12px;
     text-align: center;
-    display: none;
+    font-weight: 600;
+    font-size: 1.05em;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    transition: top 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    opacity: 0;
 }
 
 .message.show {
-    display: block;
+    top: 20px;
+    opacity: 1;
+}
+
+/* 모바일에서 안전 영역 고려 */
+@supports (padding: max(0px)) {
+    .message.show {
+        top: max(20px, env(safe-area-inset-top));
+    }
 }
 
 .message.success {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border: 1px solid #81c784;
+    background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+    color: white;
+    border: 2px solid #2e7d32;
 }
 
 .message.error {
-    background: #ffebee;
-    color: #c62828;
-    border: 1px solid #e57373;
+    background: linear-gradient(135deg, #ef5350 0%, #e53935 100%);
+    color: white;
+    border: 2px solid #c62828;
 }
 
 .message.info {
-    background: #e3f2fd;
-    color: #1565c0;
-    border: 1px solid #64b5f6;
+    background: linear-gradient(135deg, #42a5f5 0%, #1e88e5 100%);
+    color: white;
+    border: 2px solid #1565c0;
 }
 
 /* 푸터 */
