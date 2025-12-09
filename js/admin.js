@@ -758,6 +758,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. 인증 모달 이벤트 리스너
     document.getElementById('adminAuthSubmit').addEventListener('click', attemptAuth);
+    document.getElementById('adminAuthCancel').addEventListener('click', () => {
+        // 취소 시 통계 페이지로 이동
+        window.location.href = 'stats.html';
+    });
     document.getElementById('adminPassword').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             attemptAuth();
