@@ -8,15 +8,17 @@ const SHEET_NAMES = {
   ATTENDANCE: '출석기록',
   MEMBERS: '회원목록',
   LOCATION: '위치설정',
-  SATURDAYS: '토요일일정'
+  SATURDAYS: '토요일일정',
+  SETTINGS: '설정' // ✨ 추가: 설정 시트 이름
 };
 
+const PASSWORD_CELL = 'B1'; // ✨ 추가: 설정 시트에서 비밀번호를 저장할 셀
 const REQUIRED_RADIUS = 50; // 50미터
 
 // ==================== 메인 함수 ====================
 
 /**
- * GET 요청 처리
+ * GET 요청 처리 (GitHub Pages와 통신을 위해 모든 액션을 처리)
  */
 function doGet(e) {
   // 💡💡💡 디버깅용 로그 추가 💡💡💡
@@ -28,6 +30,20 @@ function doGet(e) {
 
   try {
     switch(action) {
+      
+      // ✨ 관리자 인증 기능 (stats.js에서 호출)
+      case 'checkAdminPassword':
+          const passwordToCheck = e.parameter.password || "";
+          const isAuthenticated = checkAdminPassword(passwordToCheck);
+          return createResponse(true, null, { isAuthenticated: isAuthenticated }, callback);
+
+      // ✨ 관리자 비밀번호 설정 기능 (admin.js에서 호출)
+      case 'setAdminPassword':
+          const newPassword = e.parameter.newPassword || "";
+          // 클라이언트에서 빈 문자열이 오면 해제(미등록) 처리
+          const success = setAdminPassword(newPassword);
+          return createResponse(true, null, { success: success }, callback);
+          
       case 'getMembers':
         return getMembers(callback);
       case 'getLocation':
@@ -56,7 +72,7 @@ function doGet(e) {
 }
 
 /**
- * POST 요청 처리
+ * POST 요청 처리 (doPost는 GitHub Pages에서 JSONP 사용이 어려워 현재는 대부분 doGet으로 통합됨)
  */
 function doPost(e) {
   let callback = e.parameter.callback;
@@ -77,6 +93,68 @@ function doPost(e) {
     return createResponse(false, error.toString(), null, callback);
   }
 }
+
+// ==================== 관리자 비밀번호 관리 ====================
+
+/**
+ * 관리자 비밀번호를 확인하는 함수 
+ * @param {string} inputPassword - 사용자가 입력한 비밀번호 (빈 문자열일 수 있음)
+ * @returns {boolean} - 인증 성공 여부 (true/false)
+ */
+function checkAdminPassword(inputPassword) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS); // 설정 시트 가져오기
+    
+    // 시트에 저장된 실제 비밀번호를 가져와 문자열로 변환하고 공백을 제거합니다.
+    const storedValue = sheet.getRange(PASSWORD_CELL).getValue();
+    const storedPassword = String(storedValue || '').trim(); 
+    
+    // 1. 비밀번호가 등록되지 않은 경우 (셀이 비어있는 경우)
+    if (storedPassword === "") {
+      Logger.log('No admin password registered. Access granted.');
+      return true; // 등록된 비밀번호가 없으면 바로 이동 허용
+    }
+    
+    // 2. 등록된 비밀번호가 있는 경우: 입력된 비밀번호와 비교
+    const isAuthenticated = (inputPassword === storedPassword);
+    
+    Logger.log(`Password registered. Input: ${inputPassword}, Stored: ${storedPassword}, Result: ${isAuthenticated}`);
+    
+    return isAuthenticated;
+
+  } catch (e) {
+    Logger.log('Error in checkAdminPassword: ' + e.toString());
+    return false; 
+  }
+}
+
+/**
+ * 관리자 페이지에서 비밀번호를 설정/변경하는 함수
+ * @param {string} newPassword - 새로 설정할 4자리 비밀번호 (빈 문자열 가능)
+ * @returns {boolean} - 저장 성공 여부 (true/false)
+ */
+function setAdminPassword(newPassword) {
+    // 빈 문자열("")은 비밀번호 해제를 의미하므로 허용합니다.
+    if (newPassword !== "" && (typeof newPassword !== 'string' || newPassword.length !== 4 || isNaN(newPassword))) {
+        Logger.log('Invalid new password format.');
+        return false;
+    }
+  
+    try {
+        const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+        
+        // B1 셀에 비밀번호를 저장합니다.
+        sheet.getRange(PASSWORD_CELL).setValue(newPassword);
+        
+        Logger.log(`Admin password updated to: "${newPassword}"`);
+        return true;
+    } catch (e) {
+        Logger.log('Error in setAdminPassword: ' + e.toString());
+        return false;
+    }
+}
+
 
 // ==================== 출석 처리 ====================
 
@@ -486,12 +564,15 @@ function getDayOfWeek(date) {
  * 시트 가져오기 또는 생성
  */
 function getOrCreateSheet(sheetName) {
-// ... (기존 코드와 동일)
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(sheetName);
 
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
+    // ✨ 설정 시트가 새로 생성될 때 기본 헤더 추가 (getOrCreateSheet에서 처리)
+    if (sheetName === SHEET_NAMES.SETTINGS && sheet.getLastRow() === 0) {
+        sheet.appendRow(['항목', '값']);
+    }
   }
 
   return sheet;
@@ -501,7 +582,6 @@ function getOrCreateSheet(sheetName) {
  * 두 좌표 간 거리 계산 (Haversine 공식)
  */
 function calculateDistance(lat1, lon1, lat2, lon2) {
-// ... (기존 코드와 동일)
   const R = 6371e3; // 지구 반지름 (미터)
   const φ1 = lat1 * Math.PI / 180;
   const φ2 = lat2 * Math.PI / 180;
@@ -520,7 +600,6 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
  * 클라이언트 IP 주소 추출
  */
 function getClientIP(e) {
-// ... (기존 코드와 동일)
   try {
     const headers = JSON.stringify(e);
     return Utilities.computeDigest(
@@ -537,7 +616,6 @@ function getClientIP(e) {
  * JSON 응답 생성 (JSONP 방식으로 CORS 문제 해결)
  */
 function createResponse(success, message, data, callback) {
-// ... (기존 코드와 동일)
   const response = {
     success: success,
     message: message || (success ? 'Success' : 'Error')

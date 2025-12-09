@@ -172,3 +172,52 @@ function displayWeeklyStats(weeklyStats) {
 function showMessage(text, type) {
     console.log(`[${type.toUpperCase()}] ${text}`);
 }
+
+// =================================================================
+// ✨ 관리자 페이지 접근 인증 로직 (AJAX / JSONP 방식으로 변경)
+// =================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    const adminLink = document.querySelector('a[href="admin.html"]');
+
+    if (adminLink) {
+        adminLink.addEventListener('click', function(e) {
+            e.preventDefault(); // 기본 링크 이동 방지
+
+            // 팝업 메시지를 수정하여 미등록 시 안내를 추가합니다.
+            const password = prompt("관리자 페이지로 이동하려면 4자리 비밀번호를 입력하세요.\n(비밀번호 미등록 시 비워두고 '확인')");
+
+            if (password === null) {
+                alert("비밀번호 입력이 취소되었습니다.");
+                return;
+            }
+            
+            const trimmedPassword = password.trim();
+
+            // 비어있지 않은 입력값에 대해서만 4자리 숫자 여부를 검사합니다.
+            if (trimmedPassword !== "" && (trimmedPassword.length !== 4 || isNaN(trimmedPassword))) {
+                alert("비밀번호는 4자리 숫자여야 합니다.");
+                return;
+            }
+
+            // Apps Script의 doGet을 호출하여 비밀번호를 인증합니다.
+            // checkAdminPassword 함수를 doGet 내부에서 호출하도록 Apps Script도 수정해야 합니다.
+            $.ajax({
+                url: `${CONFIG.GAS_URL}?action=checkAdminPassword&password=${trimmedPassword}`,
+                dataType: 'jsonp', // JSONP 사용 (CORS 우회)
+                success: function(data) {
+                    if (data.success && data.isAuthenticated) {
+                        // 인증 성공 시 (비밀번호 일치 또는 비밀번호 미등록 상태) 관리자 페이지로 이동
+                        window.location.href = "admin.html";
+                    } else {
+                        // 인증 실패 시 (비밀번호 불일치) 경고 메시지 표시
+                        alert("비밀번호가 일치하지 않습니다. 다시 시도해 주세요.");
+                    }
+                },
+                error: function() {
+                    alert("인증 시스템 오류: 서버와 통신할 수 없습니다.");
+                }
+            });
+        });
+    }
+});

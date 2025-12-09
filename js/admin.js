@@ -25,6 +25,12 @@ const todayAttendance = document.getElementById('todayAttendance');
 const refreshMembersBtn = document.getElementById('refreshMembersBtn');
 const membersList = document.getElementById('membersList');
 
+// ✨ 비밀번호 관리 DOM 요소 추가
+const setPasswordBtn = document.getElementById('setPasswordBtn');
+const newPasswordInput = document.getElementById('newPassword');
+const passwordMessage = document.getElementById('passwordMessage');
+
+
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
     // 💡 jQuery 로드 여부 확인 (admin.html에 <script src=".../jquery.min.js"></script> 필요)
@@ -55,6 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadQRBtn.addEventListener('click', downloadQRCode);
     refreshTodayBtn.addEventListener('click', loadTodayAttendance);
     refreshMembersBtn.addEventListener('click', loadMembers);
+    
+    // ✨ 비밀번호 설정 이벤트 리스너 추가
+    if (setPasswordBtn) {
+        setPasswordBtn.addEventListener('click', handleSetPassword);
+    }
 });
 
 // 현재 설정된 위치 불러오기 (GET 요청, $.ajax 사용)
@@ -82,8 +93,6 @@ function loadCurrentLocation() {
     });
 }
 
-// admin.js 파일 (수정된 saveLocation 함수)
-
 // 위치 저장 (JSONP 요청, $.ajax 사용)
 function saveLocation() {
     const lat = parseFloat(latitudeInput.value);
@@ -104,19 +113,19 @@ function saveLocation() {
     saveLocationBtn.disabled = true;
     saveLocationBtn.textContent = '저장 중...';
 
-    // 💡 수정된 부분: POST 관련 설정을 제거하고 일반 data 객체를 사용합니다.
+    // 💡 GitHub Pages에서는 GET 방식(JSONP)으로 데이터를 URL 파라미터로 전송합니다.
     const dataToSend = {
-        action: 'saveLocation', // 이 action 파라미터가 URL에 포함되어 서버(Code.gs)로 전달됩니다.
+        action: 'saveLocation', 
         latitude: lat,
         longitude: lng,
         name: name
     };
+    
+    // URL에 파라미터를 추가하여 GET 요청을 만듭니다.
+    const urlWithParams = `${CONFIG.GAS_URL}?action=saveLocation&latitude=${lat}&longitude=${lng}&name=${encodeURIComponent(name)}`;
 
     $.ajax({
-        url: CONFIG.GAS_URL,
-        // type: 'POST',             // ❌ 제거
-        data: dataToSend,           // ✅ 일반 객체로 데이터 전달
-        // contentType: 'application/json', // ❌ 제거
+        url: urlWithParams,
         dataType: 'jsonp',          // ✅ JSONP (GET 방식) 사용
         success: function(data) {
             if (data.success) {
@@ -141,6 +150,7 @@ function saveLocation() {
         }
     });
 }
+
 // 내 현재 위치 가져오기 (기존 코드 유지)
 function getMyLocation() {
     if (!navigator.geolocation) {
@@ -491,7 +501,7 @@ function setLocation(lat, lng, name) {
     }
 
     // 새 마커 생성
-    const position = new kakao.maps.LatLng(lat, lng);
+    const position = new kakao.maps.maps.LatLng(lat, lng);
     marker = new kakao.maps.Marker({
         position: position,
         map: map
@@ -506,3 +516,71 @@ function setLocation(lat, lng, name) {
 
 // 전역 함수로 노출 (HTML에서 호출)
 window.searchPlaces = searchPlaces
+
+
+// =================================================================
+// ✨ 관리자 비밀번호 설정 기능 (AJAX / JSONP)
+// =================================================================
+
+/**
+ * 비밀번호 설정 버튼 클릭 처리 함수 (AJAX/JSONP 방식)
+ */
+function handleSetPassword() {
+    // CONFIG 객체가 정의되어 있는지 재확인 
+    if (typeof CONFIG === 'undefined' || !CONFIG.GAS_URL) {
+        passwordMessage.textContent = "❌ CONFIG.GAS_URL이 정의되지 않았습니다. 관리자에게 문의하세요.";
+        passwordMessage.style.color = 'red';
+        return;
+    }
+
+    const newPassword = newPasswordInput.value.trim();
+    passwordMessage.textContent = ''; // 메시지 초기화
+    setPasswordBtn.disabled = true;
+
+    // 1. 입력값 검증 (4자리 숫자 또는 빈 문자열 허용)
+    if (newPassword === "") {
+        // 비밀번호를 비우고 저장하면 '미등록 상태'로 돌아갑니다.
+        const confirmClear = confirm("비밀번호를 공백으로 저장하면 관리자 인증이 해제됩니다. 계속하시겠습니까?");
+        if (!confirmClear) {
+            setPasswordBtn.disabled = false;
+            return;
+        }
+    } else if (newPassword.length !== 4 || isNaN(newPassword)) {
+        passwordMessage.textContent = '🚨 비밀번호는 정확히 4자리 숫자여야 합니다.';
+        passwordMessage.style.color = 'red';
+        setPasswordBtn.disabled = false;
+        return;
+    }
+
+    // 2. Apps Script 호출 (doGet의 setAdminPassword 액션 호출)
+    // URL 인코딩을 통해 newPassword 값을 안전하게 전달합니다.
+    const encodedPassword = encodeURIComponent(newPassword);
+    const gasUrl = `${CONFIG.GAS_URL}?action=setAdminPassword&newPassword=${encodedPassword}`;
+    
+    $.ajax({
+        url: gasUrl,
+        dataType: 'jsonp', // JSONP 사용
+        success: function(data) {
+            // Apps Script의 응답 구조 확인 (data.success가 true고, data.success.success가 true인지 확인)
+            // Code.gs의 createResponse 구조에 따라 data.success: true, data.success: { success: true } 일 수 있음
+            if (data.success && (data.success === true || data.success.success === true)) { 
+                const msg = (newPassword === "") 
+                    ? '✅ 관리자 비밀번호가 해제(미등록)되었습니다.'
+                    : '✅ 관리자 비밀번호가 성공적으로 갱신되었습니다.';
+                passwordMessage.textContent = msg;
+                passwordMessage.style.color = 'green';
+                newPasswordInput.value = ''; // 입력 필드 초기화
+            } else {
+                passwordMessage.textContent = '❌ 비밀번호 저장에 실패했습니다. (스크립트 오류 또는 유효하지 않은 비밀번호)';
+                passwordMessage.style.color = 'red';
+            }
+        },
+        error: function() {
+            passwordMessage.textContent = '⚠️ 통신 오류: 비밀번호 저장에 실패했습니다. 네트워크를 확인하세요.';
+            passwordMessage.style.color = 'red';
+        },
+        complete: function() {
+            setPasswordBtn.disabled = false;
+        }
+    });
+}
