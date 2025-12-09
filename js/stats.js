@@ -503,11 +503,11 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
             <tbody>
     `;
 
-    filteredStats.forEach(stat => {
+    filteredStats.forEach((stat, index) => {
         html += `
             <tr>
                 <td>${stat.date}</td>
-                <td>${stat.week}주차</td>
+                <td>${index + 1}주차</td>
                 <td><span class="badge bg-dark">${stat.count}명</span></td>
                 <td class="text-center">${stat.teamCounts.A}</td>
                 <td class="text-center">${stat.teamCounts.B}</td>
