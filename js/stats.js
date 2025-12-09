@@ -2,7 +2,7 @@
 // stats.js (클라이언트 측 JavaScript) - JSONP 인증 로직 적용 버전
 // ====================================================================
 
-Const CONFIG = {
+const CONFIG = {
     // ⚠️⚠️⚠️ 여기를 실제 Google Apps Script 배포 URL로 변경하세요 ⚠️⚠️⚠️
     GAS_URL: 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec', // 나중에 변경 필요
 };
