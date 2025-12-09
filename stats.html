@@ -9,48 +9,266 @@
     <title>출석률 통계 - 청라FS</title>
     <link rel="stylesheet" href="css/style.css"> 
     <style>
-        /* 탭 구조를 위한 기본 스타일 (style.css에 추가 권장) */
-        .tab-container {
-            display: flex;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #ccc;
-            overflow-x: auto;
-            white-space: nowrap;
+        /* 연도 탭 스타일 */
+        .tab-container.level-1 {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            margin: 0;
+            border-bottom: none;
+            gap: 10px;
+            justify-content: center;
         }
-        .tab-btn {
-            background: none;
-            border: none;
-            padding: 10px 15px;
-            cursor: pointer;
-            font-size: 1em;
-            color: #555;
-            transition: color 0.3s, border-bottom 0.3s;
-            flex-shrink: 0;
+        .tab-container.level-1 .tab-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 20px;
+            padding: 10px 20px;
+            font-weight: 600;
+            transition: all 0.3s;
         }
-        .tab-btn.active {
+        .tab-container.level-1 .tab-btn.active {
+            background: white;
             color: #667eea;
-            font-weight: bold;
-            border-bottom: 2px solid #667eea;
+            border-bottom: none;
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
-        .level-3 .tab-btn {
-            padding: 8px 12px;
+
+        /* 카테고리 탭 스타일 */
+        .tab-container.level-2 {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 20px;
+            margin: 0;
+            border-bottom: 2px solid #f0f0f0;
+            background: #fafafa;
+        }
+        .tab-container.level-2 .tab-btn {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            padding: 12px 24px;
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+        .tab-container.level-2 .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+            border-bottom: 2px solid transparent;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* 월별 탭 스타일 */
+        .tab-container.level-3 {
+            margin: 20px;
+            margin-bottom: 10px;
+            border-bottom: none;
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 8px;
+            gap: 6px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+        }
+        .tab-container.level-3 .tab-btn {
+            padding: 8px 16px;
             font-size: 0.9em;
+            border-radius: 8px;
+            color: #666;
+            font-weight: 500;
+            transition: all 0.2s;
         }
-        /* JS에서 display: block/none으로 제어할 영역 */
+        .tab-container.level-3 .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom: none;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+            font-weight: 600;
+        }
+
+        /* 콘텐츠 영역 */
         .stats-content-area {
-            padding-top: 10px;
+            padding: 20px;
+            animation: fadeIn 0.3s ease-in;
         }
-        /* 기존 필터 그룹은 개인 통계 Div 안에 유지 */
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 필터 옵션 */
         .filter-options {
             display: flex;
             flex-direction: column;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        .filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
             gap: 10px;
+        }
+        .filter-group label {
+            font-weight: 600;
+            color: #444;
+            min-width: 80px;
+        }
+
+        /* 통계 제목 */
+        .stats-content-area h4 {
+            color: #333;
+            font-size: 1.3em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            display: inline-block;
+        }
+
+        /* 테이블 스타일 개선 */
+        .table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        .table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .table thead th {
+            color: white;
+            font-weight: 600;
+            padding: 15px 12px;
+            text-align: left;
+            font-size: 0.95em;
+        }
+        .table tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.2s;
+        }
+        .table tbody tr:hover {
+            background: #f8f9ff;
+            transform: scale(1.01);
+        }
+        .table tbody tr:last-child {
+            border-bottom: none;
+        }
+        .table tbody td {
+            padding: 14px 12px;
+            color: #555;
+        }
+        .table .text-end {
+            text-align: right;
+        }
+
+        /* 뱃지 스타일 */
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .badge.bg-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .badge.bg-dark {
+            background: #333;
+            color: white;
+            padding: 6px 14px;
+            font-size: 0.95em;
+        }
+
+        /* 팀 카드 개선 */
+        .card {
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+            border: none;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        .card-body {
+            padding: 25px;
+        }
+        .card-title {
+            font-size: 1.4em;
+            font-weight: 700;
             margin-bottom: 15px;
         }
+        .card-text.fs-3 {
+            font-size: 2.5em;
+            font-weight: 800;
+            margin: 15px 0;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .card-text.small {
+            font-size: 0.95em;
+            opacity: 0.9;
+        }
+
+        /* 로딩 및 알림 */
+        .alert {
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin: 20px;
+            font-weight: 500;
+        }
+        .alert-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #90caf9;
+        }
+        .alert-warning {
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ffb74d;
+        }
+
         /* 초기 로드 시 통계 데이터 영역을 숨김 */
         #stats-content-wrapper {
-             /* stats.js에서 데이터를 로드한 후 block으로 변경 */
-            display: none; 
+            display: none;
+        }
+
+        /* 반응형 */
+        @media (max-width: 600px) {
+            .tab-container.level-2 {
+                flex-direction: column;
+                gap: 8px;
+                padding: 15px;
+            }
+            .tab-container.level-2 .tab-btn {
+                width: 100%;
+            }
+            .filter-options {
+                padding: 15px;
+            }
+            .stats-content-area {
+                padding: 15px;
+            }
+            .table {
+                font-size: 0.9em;
+            }
+            .table thead th,
+            .table tbody td {
+                padding: 10px 8px;
+            }
         }
     </style>
 </head>
