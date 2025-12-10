@@ -234,7 +234,9 @@ function hideLoadingSpinner() {
 
 /**
  * 백그라운드에서 다른 연도들의 데이터를 미리 로드
+ * ⚠️ 드롭다운 방식으로 변경되어 더 이상 사용하지 않음 (온디맨드 로딩)
  */
+/*
 async function preloadOtherYears(years) {
     console.log('🚀 백그라운드 프리로딩 시작:', years);
 
@@ -265,6 +267,7 @@ async function preloadOtherYears(years) {
 
     console.log('✅ 모든 연도 데이터 프리로딩 완료');
 }
+*/
 
 // ==================== 연도 및 데이터 로드 관리 ====================
 
@@ -299,23 +302,21 @@ async function initStatsPage() {
             return;
         }
 
-        // 1. 연도 탭 생성 및 초기 선택
-        initYearTabs(availableYears);
-        currentYear = availableYears[0];
-        document.getElementById(`year-tab-${currentYear}`).classList.add('active');
+        // 1. 올해 연도 설정 (현재 연도가 목록에 있으면 사용, 없으면 첫 번째 연도)
+        const today = new Date();
+        const thisYear = today.getFullYear();
+        currentYear = availableYears.includes(thisYear) ? thisYear : availableYears[0];
 
-        // 2. 현재 연도 데이터 먼저 로드 (빠른 표시)
+        // 2. 연도 드롭다운 생성 및 초기 선택
+        initYearDropdown(availableYears, currentYear);
+
+        // 3. 올해 데이터만 로드 (백그라운드 프리로드 제거)
         updateLoadingSpinner(`${currentYear}년 데이터를 불러오는 중...`);
         await loadStats(currentYear);
 
-        // 3. 로딩 메시지 제거 및 컨텐츠 표시
+        // 4. 로딩 메시지 제거 및 컨텐츠 표시
         hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
-
-        // 4. 🚀 백그라운드에서 다른 연도 데이터 미리 로드
-        if (availableYears.length > 1) {
-            preloadOtherYears(availableYears.slice(1));
-        }
 
     } catch (error) {
         updateLoadingSpinner(`❌ 연도 정보 로딩에 실패했습니다. 페이지를 새로고침하세요.`);
@@ -324,20 +325,21 @@ async function initStatsPage() {
 }
 
 /**
- * 연도 탭 클릭 시 이벤트 핸들러
+ * 연도 드롭다운 변경 시 이벤트 핸들러
  */
 async function handleYearChange(year) {
     if (year === currentYear) return;
 
-    // UI 변경
-    if (currentYear) {
-        document.getElementById(`year-tab-${currentYear}`).classList.remove('active');
-    }
-    document.getElementById(`year-tab-${year}`).classList.add('active');
     currentYear = year;
+
+    // 로딩 표시
+    showLoadingSpinner(`${year}년 데이터를 불러오는 중...`);
 
     // 데이터 로드
     await loadStats(year);
+
+    // 로딩 숨김
+    hideLoadingSpinner();
 }
 
 /**
@@ -618,17 +620,27 @@ function displayTeamStats(teamStats) {
     container.innerHTML = html;
 }
 
-function initYearTabs(years) {
-    const yearTabsContainer = document.getElementById('yearTabs');
-    yearTabsContainer.innerHTML = ''; 
+/**
+ * 연도 드롭다운을 초기화합니다 (탭 대신 드롭다운 사용)
+ */
+function initYearDropdown(years, selectedYear) {
+    const yearSelect = document.getElementById('yearSelect');
+    yearSelect.innerHTML = '';
 
     years.forEach(year => {
-        const button = document.createElement('button');
-        button.className = 'tab-btn year-tab';
-        button.id = `year-tab-${year}`;
-        button.textContent = year;
-        button.onclick = () => handleYearChange(year);
-        yearTabsContainer.appendChild(button);
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        if (year === selectedYear) {
+            option.selected = true;
+        }
+        yearSelect.appendChild(option);
+    });
+
+    // 드롭다운 변경 이벤트 리스너
+    yearSelect.addEventListener('change', async (e) => {
+        const newYear = parseInt(e.target.value);
+        await handleYearChange(newYear);
     });
 }
 

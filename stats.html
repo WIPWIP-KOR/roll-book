@@ -304,16 +304,13 @@
         <div class="header">
             <h1>📊 출석률 통계</h1>
             <p class="period">데이터를 불러오는 중...</p>
-        </div>
-
-        <!-- 네비게이션 버튼 -->
-        <div style="padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; display: flex; gap: 10px;">
-            <a href="index.html" class="btn-secondary" style="text-decoration: none; text-align: center; flex: 1;">📝 출석하기</a>
-            <a href="#" id="adminLink" class="btn-secondary" style="text-decoration: none; text-align: center; flex: 1;">⚙️ 관리자</a>
-        </div>
-
-        <div id="yearTabs" class="tab-container level-1">
+            <div class="year-selector" style="margin-top: 15px; display: flex; justify-content: center; align-items: center; gap: 10px;">
+                <label for="yearSelect" style="color: white; font-weight: 600;">연도:</label>
+                <select id="yearSelect" class="year-dropdown" style="padding: 8px 16px; border-radius: 8px; border: 2px solid white; background: rgba(255, 255, 255, 0.2); color: white; font-weight: 600; font-size: 1em; cursor: pointer;">
+                    <!-- 옵션은 JavaScript로 동적 생성 -->
+                </select>
             </div>
+        </div>
 
         <!-- 오버레이 로딩 -->
         <div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 9999; justify-content: center; align-items: center;">
@@ -375,6 +372,22 @@
             </div>
         </div>
     </div>
+
+    <!-- 하단 네비게이션 -->
+    <nav class="bottom-nav">
+        <a href="index.html" class="nav-item">
+            <span class="nav-icon">📝</span>
+            <span class="nav-label">출석</span>
+        </a>
+        <a href="stats.html" class="nav-item active">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">통계</span>
+        </a>
+        <a href="admin.html" class="nav-item">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">관리</span>
+        </a>
+    </nav>
 
     <!-- 관리자 인증 모달 -->
     <div id="adminAuthModal" class="modal" style="display: none;">

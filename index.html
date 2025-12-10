@@ -16,11 +16,6 @@
             <h2>출석 체크</h2>
         </div>
 
-        <!-- 출석률 보기 버튼 -->
-        <div style="padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0;">
-            <a href="stats.html" class="btn-secondary" style="text-decoration: none; text-align: center;">📈 출석률 보기</a>
-        </div>
-
         <!-- 탭 네비게이션 -->
         <div class="tab-container">
             <button class="tab-btn active" data-tab="attend">📝 출석하기</button>
@@ -73,6 +68,22 @@
             <p>매주 토요일 출석 체크</p>
         </div>
     </div>
+
+    <!-- 하단 네비게이션 -->
+    <nav class="bottom-nav">
+        <a href="index.html" class="nav-item active">
+            <span class="nav-icon">📝</span>
+            <span class="nav-label">출석</span>
+        </a>
+        <a href="stats.html" class="nav-item">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">통계</span>
+        </a>
+        <a href="admin.html" class="nav-item">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">관리</span>
+        </a>
+    </nav>
 
     <!-- 상단 고정 토스트 메시지 -->
     <div id="message" class="message"></div>
