@@ -378,6 +378,13 @@ async function loadStats(year) {
  * 카테고리 탭 이벤트 리스너 설정 (한 번만 호출)
  */
 function setupCategoryTabListeners() {
+    // 카테고리 탭 이벤트 리스너 연결
+    document.querySelectorAll('.category-tab').forEach(button => {
+        button.addEventListener('click', function() {
+            handleCategoryChange(this.dataset.category);
+        });
+    });
+
     // 개인별 통계 필터 및 정렬 이벤트 연결
     document.querySelectorAll('.filter-btn').forEach(button => {
         button.addEventListener('click', function() {
@@ -390,6 +397,52 @@ function setupCategoryTabListeners() {
     });
 }
 
+/**
+ * 카테고리 탭 클릭 시 화면 전환
+ */
+function handleCategoryChange(category) {
+    // UI 활성화/비활성화
+    document.querySelectorAll('.category-tab').forEach(button => {
+        if (button.dataset.category === category) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
+
+    // 콘텐츠 영역 표시/숨김
+    document.getElementById('teamStats').style.display = 'none';
+    document.getElementById('personalStats').style.display = 'none';
+    document.getElementById('weeklyStats').style.display = 'none';
+    document.getElementById('monthTabs').style.display = 'none';
+
+    switch (category) {
+        case 'team':
+            document.getElementById('teamStats').style.display = 'block';
+            break;
+        case 'personal':
+            document.getElementById('personalStats').style.display = 'block';
+            if (allStats[currentYear]) {
+                const teamFilter = document.querySelector('.filter-btn.active').dataset.team;
+                const sortOption = document.getElementById('sortOption').value;
+                displayPersonalStats(allStats[currentYear].personalStats, teamFilter, sortOption);
+            }
+            break;
+        case 'monthly':
+            document.getElementById('weeklyStats').style.display = 'block';
+            document.getElementById('monthTabs').style.display = 'flex';
+            if (allStats[currentYear]) {
+                const activeMonthTab = document.querySelector('.month-tab.active');
+                if (!activeMonthTab) {
+                    const initialMonth = getCurrentMonthFromStats(allStats[currentYear].weeklyStats);
+                    if (initialMonth) {
+                        document.getElementById(`month-tab-${initialMonth}`)?.click();
+                    }
+                }
+            }
+            break;
+    }
+}
 
 /**
  * 개인별 통계 필터/정렬 변경 핸들러
@@ -423,30 +476,21 @@ function displayStats(stats) {
     const teamFilter = document.querySelector('.filter-btn.active')?.dataset.team || 'all';
     const sortOption = document.getElementById('sortOption')?.value || 'rate-desc';
 
-    // 모든 통계 표시
+    // 팀별 통계 표시
     displayTeamStats(stats.teamStats);
     displayPersonalStats(stats.personalStats, teamFilter, sortOption);
-
-    // 월별 통계 - 가장 최근 월 자동 선택
-    if (stats.weeklyStats && stats.weeklyStats.length > 0) {
-        const initialMonth = getCurrentMonthFromStats(stats.weeklyStats);
-        if (initialMonth) {
-            filterWeeklyStatsByMonth(initialMonth, stats.weeklyStats);
-            // 해당 월 탭 활성화
-            document.querySelectorAll('.month-tab').forEach(btn => btn.classList.remove('active'));
-            const monthBtn = document.getElementById(`month-tab-${initialMonth}`);
-            if (monthBtn) monthBtn.classList.add('active');
-        }
-    }
 
     // 기간 정보 업데이트
     const periodElement = document.querySelector('.period');
     if (periodElement) {
         periodElement.textContent = `${stats.targetYear}년 통계 (${stats.totalSaturdays}주 기준)`;
     }
-    
+
+    // 초기 탭 상태: 팀별 통계 활성화
+    handleCategoryChange('team');
+
     // 통계 내용 전체 Wrapper 표시
-    document.getElementById('stats-content-wrapper').style.display = 'block'; 
+    document.getElementById('stats-content-wrapper').style.display = 'block';
 }
 
 function displayPersonalStats(personalStats, teamFilter, sortOption) {
@@ -483,7 +527,7 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
         html += `<p class="text-secondary">필터링 조건에 맞는 기록이 없습니다.</p>`;
     } else {
         html += `
-            <p style="margin-bottom: 15px; color: #666;">${targetYear}년 개인 출석 통계 (${totalSaturdays}주 기준)</p>
+            <h4 style="margin: 20px 0 15px 0; color: #333;">👤 ${targetYear}년 개인 출석 통계 (${totalSaturdays}주 기준)</h4>
             <table class="table table-striped table-hover">
                 <thead>
                     <tr>
@@ -525,8 +569,8 @@ function displayTeamStats(teamStats) {
     const targetYear = allStats[currentYear].targetYear;
     const teams = Object.keys(teamStats).sort();
 
-    let html = `<p style="margin-bottom: 15px; color: #666;">${targetYear}년 팀별 평균 출석률</p>`;
-    html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">';
+    let html = `<h4 style="margin: 20px 0 15px 0; color: #333;">🏆 ${targetYear}년 팀별 평균 출석률</h4>`;
+    html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; padding: 0 20px 20px 20px;">';
 
     teams.forEach(team => {
         const stats = teamStats[team];
@@ -621,7 +665,7 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
     }
 
     let html = `
-        <p style="margin-bottom: 15px; color: #666;">${month}월 주차별 출석 현황</p>
+        <h4 style="margin: 20px 0 15px 0; color: #333;">📅 ${month}월 주차별 출석 현황</h4>
         <table class="table">
             <thead>
                 <tr>
