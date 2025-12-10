@@ -344,12 +344,25 @@ function openPasswordManagementModal() {
 // ==================== 지도 및 위치 관리 ====================
 
 /**
- * 저장된 출석 위치를 불러와 지도에 표시하고, 위치 설정 정보를 업데이트합니다.
+ * 저장된 출석 위치를 불러와 지도에 표시하고, 위치 설정 정보를 업데이트합니다. - 캐싱 적용
  */
 async function loadLocation() {
     try {
-        const response = await requestGas('getLocation');
-        const location = response.location;
+        // 1. 캐시 확인
+        let location = CacheManager.get(CacheManager.KEYS.LOCATION);
+
+        if (!location) {
+            console.log('📡 위치 정보 서버에서 로드 중...');
+            const response = await requestGas('getLocation');
+            location = response.location;
+
+            // 캐시에 저장 (1시간 TTL)
+            if (location) {
+                CacheManager.set(CacheManager.KEYS.LOCATION, location);
+            }
+        } else {
+            console.log('✅ 위치 정보 캐시에서 로드');
+        }
 
         if (location) {
             const lat = location.latitude;
@@ -410,6 +423,9 @@ async function saveLocation() {
         });
 
         if (response.success) {
+            // 캐시 무효화
+            CacheManager.remove(CacheManager.KEYS.LOCATION);
+
             alert('출석 위치가 성공적으로 저장되었습니다!');
             loadLocation(); // 저장 후 새로고침
         } else {
@@ -494,15 +510,26 @@ async function loadMembersTab(forceReload = false) {
 }
 
 /**
- * 전체 회원 목록을 서버에서 불러와 테이블에 표시합니다.
+ * 전체 회원 목록을 서버에서 불러와 테이블에 표시합니다. - 캐싱 적용
  */
 async function loadMembers() {
     const container = document.getElementById('membersList');
 
     try {
-        // 💡 GAS에서 캐싱된 회원 목록을 사용하므로, 속도가 빠릅니다.
-        const response = await requestGas('getMembers');
-        const members = response.members;
+        // 1. 캐시 확인
+        let members = CacheManager.get(CacheManager.KEYS.MEMBERS);
+
+        if (!members) {
+            console.log('📡 회원 목록 서버에서 로드 중...');
+            // 💡 GAS에서 캐싱된 회원 목록을 사용하므로, 속도가 빠릅니다.
+            const response = await requestGas('getMembers');
+            members = response.members;
+
+            // 캐시에 저장 (10분 TTL)
+            CacheManager.set(CacheManager.KEYS.MEMBERS, members);
+        } else {
+            console.log('✅ 회원 목록 캐시에서 로드');
+        }
 
         if (members.length === 0) {
             container.innerHTML = '<p class="text-secondary">등록된 회원 목록이 없습니다.</p>';
