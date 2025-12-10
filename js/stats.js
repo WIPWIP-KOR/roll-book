@@ -199,40 +199,37 @@ async function attemptAdminAuth() {
 // ==================== 로딩 스피너 관리 ====================
 
 /**
- * 로딩 스피너 표시
+ * 로딩 오버레이 표시
  */
 function showLoadingSpinner(message = '데이터를 불러오는 중...') {
-    const loadingDiv = document.getElementById('stats-display');
-    loadingDiv.innerHTML = `
-        <div class="alert alert-info" style="text-align: center;">
-            <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px;"></div>
-            <div>${message}</div>
-        </div>
-        <style>
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        </style>
-    `;
+    const overlay = document.getElementById('loadingOverlay');
+    const messageEl = document.getElementById('loadingMessage');
+    if (messageEl) {
+        messageEl.textContent = message;
+    }
+    if (overlay) {
+        overlay.style.display = 'flex';
+    }
 }
 
 /**
  * 로딩 메시지 업데이트
  */
 function updateLoadingSpinner(message) {
-    const loadingDiv = document.getElementById('stats-display');
-    const messageDiv = loadingDiv.querySelector('div.alert > div:last-child');
-    if (messageDiv) {
-        messageDiv.textContent = message;
+    const messageEl = document.getElementById('loadingMessage');
+    if (messageEl) {
+        messageEl.textContent = message;
     }
 }
 
 /**
- * 로딩 스피너 숨기기
+ * 로딩 오버레이 숨기기
  */
 function hideLoadingSpinner() {
-    document.getElementById('stats-display').innerHTML = '';
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
 }
 
 /**
@@ -381,14 +378,14 @@ async function loadStats(year) {
  * 카테고리 탭 이벤트 리스너 설정 (한 번만 호출)
  */
 function setupCategoryTabListeners() {
-    // 1. 카테고리 탭 이벤트 리스너 연결
+    // 카테고리 탭 이벤트 리스너 연결
     document.querySelectorAll('.category-tab').forEach(button => {
         button.addEventListener('click', function() {
             handleCategoryChange(this.dataset.category);
         });
     });
 
-    // 2. 개인별 통계 필터 및 정렬 이벤트 연결
+    // 개인별 통계 필터 및 정렬 이벤트 연결
     document.querySelectorAll('.filter-btn').forEach(button => {
         button.addEventListener('click', function() {
             handlePersonalFilterChange('team', this.dataset.team);
@@ -401,17 +398,9 @@ function setupCategoryTabListeners() {
 }
 
 /**
- * 카테고리 탭 초기 상태 설정
- */
-function initCategoryTabs() {
-    // 초기 상태 설정: 팀별 통계 활성화
-    handleCategoryChange('team', true);
-}
-
-/**
  * 카테고리 탭 클릭 시 화면 전환
  */
-function handleCategoryChange(category, isInit = false) {
+function handleCategoryChange(category) {
     // UI 활성화/비활성화
     document.querySelectorAll('.category-tab').forEach(button => {
         if (button.dataset.category === category) {
@@ -426,14 +415,13 @@ function handleCategoryChange(category, isInit = false) {
     document.getElementById('personalStats').style.display = 'none';
     document.getElementById('weeklyStats').style.display = 'none';
     document.getElementById('monthTabs').style.display = 'none';
-    
+
     switch (category) {
         case 'team':
             document.getElementById('teamStats').style.display = 'block';
             break;
         case 'personal':
             document.getElementById('personalStats').style.display = 'block';
-            // 개인별 통계 표시 시, 필터/정렬 상태에 따라 테이블 다시 그리기
             if (allStats[currentYear]) {
                 const teamFilter = document.querySelector('.filter-btn.active').dataset.team;
                 const sortOption = document.getElementById('sortOption').value;
@@ -443,18 +431,13 @@ function handleCategoryChange(category, isInit = false) {
         case 'monthly':
             document.getElementById('weeklyStats').style.display = 'block';
             document.getElementById('monthTabs').style.display = 'flex';
-            
-            // 월별 탭이 클릭되지 않은 상태라면, 가장 최근 월을 강제 클릭
             if (allStats[currentYear]) {
                 const activeMonthTab = document.querySelector('.month-tab.active');
-                if (!activeMonthTab || isInit) {
+                if (!activeMonthTab) {
                     const initialMonth = getCurrentMonthFromStats(allStats[currentYear].weeklyStats);
                     if (initialMonth) {
-                        // 엘리먼트가 존재하는지 확인 후 클릭
-                        document.getElementById(`month-tab-${initialMonth}`)?.click(); 
+                        document.getElementById(`month-tab-${initialMonth}`)?.click();
                     }
-                } else if (!isInit) {
-                    activeMonthTab.click(); 
                 }
             }
             break;
@@ -486,26 +469,16 @@ function handlePersonalFilterChange(type, value) {
  * 불러온 데이터를 바탕으로 통계를 표시합니다. (HTML ID 불일치 오류 수정 완료)
  */
 function displayStats(stats) {
-    // 탭 및 초기 표시 설정
+    // 월별 탭 초기화
     initMonthTabs(stats.weeklyStats);
-    
-    // 개인별 통계 필터 초기값 설정 (필요 시)
+
+    // 개인별 통계 필터 초기값 설정
     const teamFilter = document.querySelector('.filter-btn.active')?.dataset.team || 'all';
     const sortOption = document.getElementById('sortOption')?.value || 'rate-desc';
-    
-    // 🚨 수정됨: HTML ID에 맞게 초기화 (personalStats, teamStats, weeklyStats 사용)
-    document.getElementById('personalStats').innerHTML = ''; 
-    document.getElementById('teamStats').innerHTML = '';     
-    document.getElementById('weeklyStats').innerHTML = '';   
-
-    // 개인별 통계 표시 (이 함수 내에서 personalStats 컨테이너에 내용 채움)
-    displayPersonalStats(stats.personalStats, teamFilter, sortOption); 
 
     // 팀별 통계 표시
     displayTeamStats(stats.teamStats);
-    
-    // 초기 로드 시 팀별 통계 탭이 활성화되도록 설정
-    handleCategoryChange('team', true);
+    displayPersonalStats(stats.personalStats, teamFilter, sortOption);
 
     // 기간 정보 업데이트
     const periodElement = document.querySelector('.period');
@@ -513,22 +486,23 @@ function displayStats(stats) {
         periodElement.textContent = `${stats.targetYear}년 통계 (${stats.totalSaturdays}주 기준)`;
     }
 
-    // HTML 내의 stats-display 영역 초기화 (로딩 메시지 제거)
-    document.getElementById('stats-display').innerHTML = '';
-    
+    // 초기 탭 상태: 팀별 통계 활성화
+    handleCategoryChange('team');
+
     // 통계 내용 전체 Wrapper 표시
-    document.getElementById('stats-content-wrapper').style.display = 'block'; 
+    document.getElementById('stats-content-wrapper').style.display = 'block';
 }
 
 function displayPersonalStats(personalStats, teamFilter, sortOption) {
-    const container = document.getElementById('personalStats');
-    
+    const container = document.getElementById('personalStatsContent');
+    if (!container) return;
+
     // 1. 필터링
     let filteredStats = personalStats;
     if (teamFilter !== 'all') {
         filteredStats = personalStats.filter(p => p.team === teamFilter);
     }
-    
+
     // 2. 정렬
     filteredStats.sort((a, b) => {
         switch (sortOption) {
@@ -547,14 +521,13 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
     const targetYear = allStats[currentYear].targetYear;
     const totalSaturdays = allStats[currentYear].totalSaturdays;
 
-    let html = `
-        <h4>👤 ${targetYear}년 개인 출석 통계 (${totalSaturdays}주 기준)</h4>
-    `;
-    
+    let html = '';
+
     if (filteredStats.length === 0) {
         html += `<p class="text-secondary">필터링 조건에 맞는 기록이 없습니다.</p>`;
     } else {
         html += `
+            <h4 style="margin: 20px 0 15px 0; color: #333;">👤 ${targetYear}년 개인 출석 통계 (${totalSaturdays}주 기준)</h4>
             <table class="table table-striped table-hover">
                 <thead>
                     <tr>
@@ -584,29 +557,20 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
         });
         html += '</tbody></table>';
     }
-    
-    // 기존 필터 그룹 DIV를 찾습니다.
-    const filterGroupDiv = container.querySelector('.filter-options');
-    
-    // 컨테이너 전체를 새 내용으로 덮어씁니다.
+
     container.innerHTML = html;
-    
-    // 필터 그룹이 존재하면, 새 내용의 맨 위에 다시 넣어줍니다.
-    if (filterGroupDiv) {
-        container.prepend(filterGroupDiv);
-    }
 }
 
 
 function displayTeamStats(teamStats) {
-    const container = document.getElementById('teamStats');
+    const container = document.getElementById('teamStatsContent');
+    if (!container) return;
+
     const targetYear = allStats[currentYear].targetYear;
-
-    container.innerHTML = `<h4>🏆 ${targetYear}년 팀별 평균 출석률</h4>`;
-
     const teams = Object.keys(teamStats).sort();
 
-    let cardsHtml = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px;">';
+    let html = `<h4 style="margin: 20px 0 15px 0; color: #333;">🏆 ${targetYear}년 팀별 평균 출석률</h4>`;
+    html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; padding: 0 20px 20px 20px;">';
 
     teams.forEach(team => {
         const stats = teamStats[team];
@@ -618,7 +582,7 @@ function displayTeamStats(teamStats) {
         else if (team === 'B') bgColor = 'bg-info';
         else if (team === 'C') bgColor = 'bg-warning';
 
-        cardsHtml += `
+        html += `
             <div class="card text-white ${bgColor}">
                 <div class="card-body">
                     <h5 class="card-title">팀 ${team}</h5>
@@ -629,8 +593,8 @@ function displayTeamStats(teamStats) {
         `;
     });
 
-    cardsHtml += '</div>';
-    container.innerHTML += cardsHtml;
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 function initYearTabs(years) {
@@ -686,36 +650,22 @@ function getCurrentMonthFromStats(weeklyStats) {
 }
 
 function filterWeeklyStatsByMonth(month, weeklyStats) {
-    const container = document.getElementById('weeklyStats');
-    
-    // 월별 헤더 업데이트 또는 생성
-    let header = container.querySelector('h4');
-    if (!header) {
-        header = document.createElement('h4');
-        container.prepend(header);
-    }
-    header.textContent = `📅 ${month}월 주차별 출석 현황`;
-    
-    // 테이블 내용을 담을 컨테이너
-    let tableContent = container.querySelector('#weekly-table-content');
-    if (!tableContent) {
-        tableContent = document.createElement('div');
-        tableContent.id = 'weekly-table-content';
-        container.appendChild(tableContent);
-    }
-    
+    const container = document.getElementById('weeklyStatsContent');
+    if (!container) return;
+
     const monthStr = month.toString().padStart(2, '0');
-    
+
     const filteredStats = weeklyStats.filter(stat => {
         return stat.fullDate.substring(5, 7) === monthStr;
     });
 
     if (filteredStats.length === 0) {
-        tableContent.innerHTML = `<p class="text-secondary">${month}월의 출석 기록이 없습니다.</p>`;
+        container.innerHTML = `<p class="text-secondary">${month}월의 출석 기록이 없습니다.</p>`;
         return;
     }
 
     let html = `
+        <h4 style="margin: 20px 0 15px 0; color: #333;">📅 ${month}월 주차별 출석 현황</h4>
         <table class="table">
             <thead>
                 <tr>
@@ -744,7 +694,7 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
     });
 
     html += '</tbody></table>';
-    tableContent.innerHTML = html;
+    container.innerHTML = html;
 }
 
 // ==================== 초기 실행 ====================

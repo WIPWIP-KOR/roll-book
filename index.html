@@ -42,9 +42,11 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="nameInput">이름</label>
-                        <input type="text" id="nameInput" list="nameList" placeholder="이름을 입력하거나 선택하세요" autocomplete="off">
-                        <datalist id="nameList"></datalist>
+                        <label for="nameSelect">이름</label>
+                        <select id="nameSelect">
+                            <option value="">이름을 선택하세요</option>
+                        </select>
+                        <input type="text" id="nameInput" placeholder="이름을 입력하세요" autocomplete="off" style="display: none;">
                     </div>
 
                     <div class="location-status" id="locationStatus">

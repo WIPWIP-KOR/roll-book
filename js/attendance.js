@@ -6,13 +6,13 @@ const CONFIG = {
 };
 
 // DOM 요소
+const nameSelect = document.getElementById('nameSelect');
 const nameInput = document.getElementById('nameInput');
 const teamSelect = document.getElementById('teamSelect');
 const attendBtn = document.getElementById('attendBtn');
 const messageDiv = document.getElementById('message');
 const locationStatus = document.getElementById('locationStatus');
 const locationText = document.getElementById('locationText');
-const nameList = document.getElementById('nameList');
 
 let userPosition = null;
 let membersList = [];
@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 이벤트 리스너
     attendBtn.addEventListener('click', processAttendance);
     teamSelect.addEventListener('change', filterMembersByTeam);
+    nameSelect.addEventListener('change', handleNameSelectChange);
 
     // 탭 전환 이벤트 리스너
     initializeTabs();
@@ -95,7 +96,7 @@ function loadMembers() {
         success: function(data) {
             if (data.success && data.members) {
                 membersList = data.members;
-                renderDatalist(membersList);
+                renderNameSelect(membersList);
             } else {
                 console.error('회원 목록 로딩 실패:', data.message || '데이터 없음');
             }
@@ -106,41 +107,65 @@ function loadMembers() {
     });
 }
 
-// Datalist에 회원 이름 렌더링
-function renderDatalist(members) {
-    nameList.innerHTML = '';
+// Select에 회원 이름 렌더링
+function renderNameSelect(members) {
+    nameSelect.innerHTML = '<option value="">이름을 선택하세요</option>';
     members.forEach(member => {
         const option = document.createElement('option');
         option.value = member.name;
-        nameList.appendChild(option);
+        option.textContent = member.name;
+        nameSelect.appendChild(option);
     });
+
+    // 맨 밑에 "직접 입력" 옵션 추가
+    const directInputOption = document.createElement('option');
+    directInputOption.value = '__DIRECT_INPUT__';
+    directInputOption.textContent = '직접 입력';
+    nameSelect.appendChild(directInputOption);
 }
 
 // 팀 선택 시 해당 팀원만 필터링하여 표시
 function filterMembersByTeam() {
     const selectedTeam = teamSelect.value;
 
+    // select 표시, input 숨김 (팀 변경 시 항상 select 모드로)
+    nameSelect.style.display = '';
+    nameInput.style.display = 'none';
+    nameInput.value = '';
+
     // 팀이 선택되지 않았으면 전체 목록 표시
     if (!selectedTeam) {
-        renderDatalist(membersList);
+        renderNameSelect(membersList);
         return;
     }
 
     // 선택된 팀의 회원만 필터링
     const filteredMembers = membersList.filter(member => member.team === selectedTeam);
-    renderDatalist(filteredMembers);
+    renderNameSelect(filteredMembers);
 
-    // 이름 입력 필드 초기화 (다른 팀으로 변경 시)
-    nameInput.value = '';
+    // 이름 선택 초기화
+    nameSelect.value = '';
+}
+
+// 이름 선택 변경 시 처리
+function handleNameSelectChange() {
+    if (nameSelect.value === '__DIRECT_INPUT__') {
+        // 직접 입력 모드로 전환
+        nameSelect.style.display = 'none';
+        nameInput.style.display = '';
+        nameInput.focus();
+    }
 }
 
 
 // 출석 처리
 function processAttendance() {
-    const name = nameInput.value.trim();
+    // 직접 입력 모드인지 확인
+    const isDirectInput = nameInput.style.display !== 'none';
+    const name = isDirectInput ? nameInput.value.trim() : nameSelect.value;
     const team = teamSelect.value;
 
-    if (!name || !team) {
+    if (!name || !team || name === '__DIRECT_INPUT__') {
         showMessage('이름과 팀을 모두 선택/입력해주세요.', 'error');
         return;
     }
