@@ -88,8 +88,19 @@ function getLocation() {
     );
 }
 
-// 기존 회원 목록 로드 (GET 요청, $.ajax 사용)
+// 기존 회원 목록 로드 (GET 요청, $.ajax 사용) - 캐싱 적용
 function loadMembers() {
+    // 1. 캐시에서 먼저 시도
+    const cached = CacheManager.get(CacheManager.KEYS.MEMBERS);
+    if (cached) {
+        console.log('✅ 회원 목록 캐시에서 로드');
+        membersList = cached;
+        renderNameSelect(membersList);
+        return;
+    }
+
+    // 2. 캐시 없으면 서버에서 로드
+    console.log('📡 회원 목록 서버에서 로드 중...');
     $.ajax({
         url: `${CONFIG.GAS_URL}?action=getMembers`,
         dataType: 'jsonp', // CORS 우회
@@ -97,6 +108,9 @@ function loadMembers() {
             if (data.success && data.members) {
                 membersList = data.members;
                 renderNameSelect(membersList);
+
+                // 캐시에 저장 (10분 TTL)
+                CacheManager.set(CacheManager.KEYS.MEMBERS, data.members);
             } else {
                 console.error('회원 목록 로딩 실패:', data.message || '데이터 없음');
             }
@@ -212,6 +226,11 @@ function processAttendance() {
         complete: function() {
             attendBtn.disabled = false;
             attendBtn.textContent = '출석하기';
+
+            // 출석 후 캐시 무효화
+            CacheManager.remove(CacheManager.KEYS.MEMBERS);
+            CacheManager.remove(CacheManager.KEYS.TODAY_ATTENDANCE);
+
             loadMembers(); // 출석 후 목록 새로고침 (총 출석수 업데이트)
         }
     });
@@ -271,10 +290,24 @@ function switchTab(tabName) {
 }
 
 /**
- * 오늘 출석 현황을 서버에서 불러와 표시합니다.
+ * 오늘 출석 현황을 서버에서 불러와 표시합니다. - 캐싱 적용
  */
 function loadTodayStatus(forceReload = false) {
     const container = document.getElementById('todayStatus');
+
+    // 1. 강제 새로고침이 아니면 캐시 확인
+    if (!forceReload) {
+        const cached = CacheManager.get(CacheManager.KEYS.TODAY_ATTENDANCE);
+        if (cached) {
+            console.log('✅ 오늘 출석 현황 캐시에서 로드');
+            displayTodayStatus(cached);
+            statusLoaded = true;
+            return;
+        }
+    }
+
+    // 2. 캐시 없거나 강제 새로고침 시 서버에서 로드
+    console.log('📡 오늘 출석 현황 서버에서 로드 중...');
 
     // 로딩 중 표시
     container.innerHTML = `
@@ -296,6 +329,10 @@ function loadTodayStatus(forceReload = false) {
         success: function(data) {
             if (data.success && data.attendance) {
                 displayTodayStatus(data.attendance);
+
+                // 캐시에 저장 (2분 TTL)
+                CacheManager.set(CacheManager.KEYS.TODAY_ATTENDANCE, data.attendance);
+
                 if (!forceReload) {
                     statusLoaded = true;
                 }

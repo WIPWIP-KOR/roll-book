@@ -269,7 +269,7 @@ async function preloadOtherYears(years) {
 // ==================== 연도 및 데이터 로드 관리 ====================
 
 /**
- * 페이지 로드 시 실행: 사용 가능한 모든 연도를 가져와 탭을 초기화합니다.
+ * 페이지 로드 시 실행: 사용 가능한 모든 연도를 가져와 탭을 초기화합니다. - 캐싱 적용
  */
 async function initStatsPage() {
     try {
@@ -279,8 +279,19 @@ async function initStatsPage() {
         // 데이터 로드가 성공하면 컨텐츠 Wrapper를 숨김 상태로 시작
         document.getElementById('stats-content-wrapper').style.display = 'none';
 
-        const response = await requestGas('getAvailableYears');
-        const availableYears = response.availableYears;
+        // 1. 캐시에서 연도 목록 확인
+        let availableYears = CacheManager.get(CacheManager.KEYS.AVAILABLE_YEARS);
+
+        if (!availableYears) {
+            console.log('📡 연도 목록 서버에서 로드 중...');
+            const response = await requestGas('getAvailableYears');
+            availableYears = response.availableYears;
+
+            // 캐시에 저장 (1시간 TTL)
+            CacheManager.set(CacheManager.KEYS.AVAILABLE_YEARS, availableYears);
+        } else {
+            console.log('✅ 연도 목록 캐시에서 로드');
+        }
 
         if (!Array.isArray(availableYears) || availableYears.length === 0) {
             hideLoadingSpinner();
@@ -336,28 +347,46 @@ async function handleYearChange(year) {
 }
 
 /**
- * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다.
+ * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다. - 개선된 캐싱
  */
 async function loadStats(year) {
-    // 1. 캐시된 데이터 확인
+    // 1. 메모리 캐시 확인 (allStats)
     if (allStats[year]) {
-        console.log(`✅ ${year}년 데이터 캐시에서 로드`);
+        console.log(`✅ ${year}년 데이터 메모리 캐시에서 로드`);
         displayStats(allStats[year]);
         hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
         return;
     }
 
-    // 2. 서버에 요청
+    // 2. localStorage 캐시 확인
+    const cacheKey = `${CacheManager.KEYS.STATS}_${year}`;
+    const cached = CacheManager.get(cacheKey);
+
+    if (cached) {
+        console.log(`✅ ${year}년 데이터 localStorage에서 로드`);
+        allStats[year] = cached;
+        displayStats(cached);
+        hideLoadingSpinner();
+        document.getElementById('stats-content-wrapper').style.display = 'block';
+        return;
+    }
+
+    // 3. 서버에 요청
     try {
         showLoadingSpinner(`${year}년 통계 데이터를 불러오는 중...`);
         document.getElementById('stats-content-wrapper').style.display = 'none';
 
+        console.log(`📡 ${year}년 데이터 서버에서 로드 중...`);
         const response = await requestGas('getStats', { year: year });
         const stats = response.stats;
 
-        // 데이터 캐시 저장 및 표시
+        // 메모리 캐시 저장
         allStats[year] = stats;
+
+        // localStorage 캐시 저장 (30분 TTL)
+        CacheManager.set(cacheKey, stats);
+
         displayStats(stats);
 
         hideLoadingSpinner();
@@ -720,8 +749,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 5. 새로고침 버튼
     document.getElementById('refreshStatsBtn').addEventListener('click', () => {
-        // 캐시된 데이터를 지우고 새로 로드
+        // 메모리 캐시 초기화
         allStats = {};
+
+        // localStorage 캐시 초기화 (통계 관련만)
+        const availableYears = CacheManager.get(CacheManager.KEYS.AVAILABLE_YEARS);
+        if (availableYears) {
+            availableYears.forEach(year => {
+                CacheManager.remove(`${CacheManager.KEYS.STATS}_${year}`);
+            });
+        }
+        CacheManager.remove(CacheManager.KEYS.AVAILABLE_YEARS);
+
+        console.log('🔄 통계 캐시 초기화 완료');
+
+        // 새로고침
         initStatsPage();
     });
 });
