@@ -442,7 +442,22 @@ function getStats(callback, year, season) {
   // season: 'all', 'firstHalf', 'secondHalf'
   const seasonFilter = season || 'all';
 
-  const saturdays = generateSaturdays(targetYear);
+  // 전체 연도의 토요일 생성
+  let saturdays = generateSaturdays(targetYear);
+
+  // 시즌에 따라 토요일 필터링
+  if (seasonFilter === 'firstHalf') {
+    saturdays = saturdays.filter(sat => {
+      const month = sat.getMonth() + 1; // 1~12
+      return month >= 1 && month <= 6;
+    });
+  } else if (seasonFilter === 'secondHalf') {
+    saturdays = saturdays.filter(sat => {
+      const month = sat.getMonth() + 1; // 1~12
+      return month >= 7 && month <= 12;
+    });
+  }
+
   const totalSaturdays = saturdays.length;
 
   // 💡 해당 연도의 출석 기록 시트만 사용
