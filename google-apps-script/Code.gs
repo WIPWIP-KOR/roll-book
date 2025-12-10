@@ -465,12 +465,37 @@ function getStats(callback, year, season) {
   let attendanceData = (attendanceSheet && attendanceSheet.getLastRow() > 1) ?
     attendanceSheet.getDataRange().getValues().slice(1) : [];
 
-  // 시즌 필터링 적용
+  // 시즌 필터링 적용 (기존 데이터 호환성 고려)
   if (seasonFilter === 'firstHalf') {
-    attendanceData = attendanceData.filter(row => row[4] === '상반기');
+    attendanceData = attendanceData.filter(row => {
+      const recordSeason = row[4]; // 시즌 컬럼
+      // 시즌 정보가 있으면 그것을 사용, 없으면 날짜로 판단
+      if (recordSeason && recordSeason !== '') {
+        return recordSeason === '상반기';
+      } else {
+        // 시즌 정보가 없는 기존 데이터는 날짜로 판단
+        const date = row[0];
+        if (!date) return false;
+        const month = new Date(date).getMonth() + 1; // 1~12
+        return month >= 1 && month <= 6;
+      }
+    });
   } else if (seasonFilter === 'secondHalf') {
-    attendanceData = attendanceData.filter(row => row[4] === '하반기');
+    attendanceData = attendanceData.filter(row => {
+      const recordSeason = row[4]; // 시즌 컬럼
+      // 시즌 정보가 있으면 그것을 사용, 없으면 날짜로 판단
+      if (recordSeason && recordSeason !== '') {
+        return recordSeason === '하반기';
+      } else {
+        // 시즌 정보가 없는 기존 데이터는 날짜로 판단
+        const date = row[0];
+        if (!date) return false;
+        const month = new Date(date).getMonth() + 1; // 1~12
+        return month >= 7 && month <= 12;
+      }
+    });
   }
+  // 'all'인 경우 필터링하지 않음
 
   // 💡 캐시된 회원 목록 사용 (성능 최적화)
   const members = getMembers(null);
