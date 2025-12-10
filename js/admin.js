@@ -975,13 +975,6 @@ document.addEventListener('DOMContentLoaded', () => {
         saveLocationBtn.addEventListener('click', saveLocation);
     }
 
-    const refreshMembersBtn = document.getElementById('refreshMembersBtn');
-    if (refreshMembersBtn) {
-        refreshMembersBtn.addEventListener('click', () => {
-            loadMembersTab(true);
-        });
-    }
-
     const getMyLocationBtn = document.getElementById('getMyLocationBtn');
     if (getMyLocationBtn) {
         getMyLocationBtn.addEventListener('click', getMyLocation);

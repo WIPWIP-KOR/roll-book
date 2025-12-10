@@ -294,9 +294,8 @@ async function initStatsPage() {
         }
 
         if (!Array.isArray(availableYears) || availableYears.length === 0) {
-            hideLoadingSpinner();
-            document.getElementById('stats-display').innerHTML =
-                '<p class="alert alert-warning">출석 기록이 있는 연도가 없습니다. (시트 이름이 출석기록_YYYY 형식인지 확인하세요)</p>';
+            updateLoadingSpinner('⚠️ 출석 기록이 있는 연도가 없습니다. (시트 이름이 출석기록_YYYY 형식인지 확인하세요)');
+            console.warn('사용 가능한 연도가 없습니다.');
             return;
         }
 
@@ -322,9 +321,7 @@ async function initStatsPage() {
         }
 
     } catch (error) {
-        hideLoadingSpinner();
-        document.getElementById('stats-display').innerHTML =
-            `<p class="alert alert-danger">연도 정보 로딩에 실패했습니다. (GAS URL 또는 서버 함수 오류): ${error}</p>`;
+        updateLoadingSpinner(`❌ 연도 정보 로딩에 실패했습니다. 페이지를 새로고침하세요.`);
         console.error("Available Years Load Error:", error);
     }
 }
@@ -393,9 +390,7 @@ async function loadStats(year) {
         document.getElementById('stats-content-wrapper').style.display = 'block';
 
     } catch (error) {
-        hideLoadingSpinner();
-        document.getElementById('stats-display').innerHTML =
-            `<p class="alert alert-danger">통계 데이터 로드 실패 (${year}년): ${error}</p>`;
+        updateLoadingSpinner(`❌ ${year}년 통계 데이터 로드 실패. 페이지를 새로고침하세요.`);
         document.getElementById('stats-content-wrapper').style.display = 'none';
         console.error(`Stats Load Error (${year}):`, error);
     }
@@ -747,23 +742,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 5. 새로고침 버튼
-    document.getElementById('refreshStatsBtn').addEventListener('click', () => {
-        // 메모리 캐시 초기화
-        allStats = {};
-
-        // localStorage 캐시 초기화 (통계 관련만)
-        const availableYears = CacheManager.get(CacheManager.KEYS.AVAILABLE_YEARS);
-        if (availableYears) {
-            availableYears.forEach(year => {
-                CacheManager.remove(`${CacheManager.KEYS.STATS}_${year}`);
-            });
-        }
-        CacheManager.remove(CacheManager.KEYS.AVAILABLE_YEARS);
-
-        console.log('🔄 통계 캐시 초기화 완료');
-
-        // 새로고침
-        initStatsPage();
-    });
 });
