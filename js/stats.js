@@ -616,7 +616,9 @@ function displayTeamStats(teamStats) {
     const container = document.getElementById('teamStatsContent');
     if (!container) return;
 
-    const targetYear = allStats[currentYear].targetYear;
+    // 현재 연도+시즌 조합으로 캐시 키 생성
+    const cacheKeyStr = `${currentYear}_${currentSeason}`;
+    const targetYear = allStats[cacheKeyStr] ? allStats[cacheKeyStr].targetYear : currentYear;
     const teams = Object.keys(teamStats).sort();
 
     let html = `<h4 style="margin: 20px 0 15px 0; color: #333;">🏆 ${targetYear}년 팀별 평균 출석률</h4>`;
@@ -779,16 +781,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. 통계 페이지 초기화
     initStatsPage();
 
-    // 3. 관리자 링크 클릭 이벤트
-    document.getElementById('adminLink').addEventListener('click', handleAdminLinkClick);
+    // 3. 관리자 링크 클릭 이벤트 (존재하는 경우에만)
+    const adminLink = document.getElementById('adminLink');
+    if (adminLink) {
+        adminLink.addEventListener('click', handleAdminLinkClick);
+    }
 
-    // 4. 관리자 인증 모달 이벤트
-    document.getElementById('adminAuthSubmit').addEventListener('click', attemptAdminAuth);
-    document.getElementById('adminAuthCancel').addEventListener('click', hideAdminAuthModal);
-    document.getElementById('adminPassword').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            attemptAdminAuth();
-        }
-    });
+    // 4. 관리자 인증 모달 이벤트 (존재하는 경우에만)
+    const adminAuthSubmit = document.getElementById('adminAuthSubmit');
+    const adminAuthCancel = document.getElementById('adminAuthCancel');
+    const adminPassword = document.getElementById('adminPassword');
+
+    if (adminAuthSubmit) {
+        adminAuthSubmit.addEventListener('click', attemptAdminAuth);
+    }
+    if (adminAuthCancel) {
+        adminAuthCancel.addEventListener('click', hideAdminAuthModal);
+    }
+    if (adminPassword) {
+        adminPassword.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                attemptAdminAuth();
+            }
+        });
+    }
 
 });
