@@ -304,11 +304,21 @@
         <div class="header">
             <h1>📊 출석률 통계</h1>
             <p class="period">데이터를 불러오는 중...</p>
-            <div class="year-selector" style="margin-top: 15px; display: flex; justify-content: center; align-items: center; gap: 10px;">
-                <label for="yearSelect" style="color: white; font-weight: 600;">연도:</label>
-                <select id="yearSelect" class="year-dropdown" style="padding: 8px 16px; border-radius: 8px; border: 2px solid white; background: rgba(255, 255, 255, 0.2); color: white; font-weight: 600; font-size: 1em; cursor: pointer;">
-                    <!-- 옵션은 JavaScript로 동적 생성 -->
-                </select>
+            <div class="year-selector" style="margin-top: 15px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 15px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label for="yearSelect" style="color: white; font-weight: 600;">연도:</label>
+                    <select id="yearSelect" class="year-dropdown" style="padding: 8px 16px; border-radius: 8px; border: 2px solid white; background: rgba(255, 255, 255, 0.2); color: white; font-weight: 600; font-size: 1em; cursor: pointer;">
+                        <!-- 옵션은 JavaScript로 동적 생성 -->
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label for="seasonSelect" style="color: white; font-weight: 600;">시즌:</label>
+                    <select id="seasonSelect" class="year-dropdown" style="padding: 8px 16px; border-radius: 8px; border: 2px solid white; background: rgba(255, 255, 255, 0.2); color: white; font-weight: 600; font-size: 1em; cursor: pointer;">
+                        <option value="all">전체</option>
+                        <option value="firstHalf">상반기</option>
+                        <option value="secondHalf">하반기</option>
+                    </select>
+                </div>
             </div>
         </div>
 

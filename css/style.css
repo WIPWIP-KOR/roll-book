@@ -85,6 +85,27 @@ body {
     margin-top: 5px;
 }
 
+/* 시즌 배지 */
+.season-badge {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 20px;
+    font-size: 0.9em;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+}
+
+.season-icon {
+    margin-right: 5px;
+}
+
+.season-text {
+    letter-spacing: 0.5px;
+}
+
 /* 출석 폼 */
 .attendance-form {
     padding: 30px 20px;
