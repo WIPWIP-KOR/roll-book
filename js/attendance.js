@@ -17,6 +17,30 @@ const locationText = document.getElementById('locationText');
 let userPosition = null;
 let membersList = [];
 let statusLoaded = false; // 출석현황 로딩 여부
+let currentSeason = null; // 현재 시즌 정보
+
+// 현재 시즌 판단 함수
+function getCurrentSeason() {
+    const today = new Date();
+    const month = today.getMonth() + 1; // 1~12
+    const year = today.getFullYear();
+
+    if (month >= 1 && month <= 6) {
+        return {
+            season: '상반기',
+            seasonKey: 'firstHalf',
+            teamKey: 'firstHalfTeam',
+            displayText: `${year} 상반기 리그`
+        };
+    } else {
+        return {
+            season: '하반기',
+            seasonKey: 'secondHalf',
+            teamKey: 'secondHalfTeam',
+            displayText: `${year} 하반기 리그`
+        };
+    }
+}
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
@@ -24,6 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof jQuery === 'undefined') {
         showMessage('오류: jQuery 라이브러리가 로드되지 않았습니다.', 'error');
         return;
+    }
+
+    // 현재 시즌 설정 및 표시
+    currentSeason = getCurrentSeason();
+    const seasonTextEl = document.getElementById('seasonText');
+    if (seasonTextEl) {
+        seasonTextEl.textContent = currentSeason.displayText;
     }
 
     // 위치 정보 가져오기 시작
@@ -146,8 +177,11 @@ function filterMembersByTeam() {
         return;
     }
 
-    // 선택된 팀의 회원만 필터링
-    const filteredMembers = membersList.filter(member => member.team === selectedTeam);
+    // 현재 시즌의 팀으로 필터링
+    const filteredMembers = membersList.filter(member => {
+        const memberTeam = member[currentSeason.teamKey]; // firstHalfTeam 또는 secondHalfTeam
+        return memberTeam === selectedTeam;
+    });
     renderNameSelect(filteredMembers);
 
     // 이름 선택 초기화
@@ -191,6 +225,7 @@ function processAttendance() {
         action: 'attend', // 이 파라미터가 서버(Code.gs)로 정상 전달되어야 합니다.
         name: name,
         team: team,
+        season: currentSeason.season, // 상반기 또는 하반기
         latitude: userPosition.latitude,
         longitude: userPosition.longitude,
         userAgent: navigator.userAgent // IP 대체를 위한 정보

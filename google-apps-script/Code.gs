@@ -52,8 +52,9 @@ function doGet(e) {
         
       // 💡 연도별 통계 조회 (성능 최적화 적용)
       case 'getStats':
-        const targetYear = e.parameter.year; 
-        return getStats(callback, targetYear);
+        const targetYear = e.parameter.year;
+        const season = e.parameter.season || 'all'; // 전체/상반기/하반기
+        return getStats(callback, targetYear, season);
         
       // 💡 통계 페이지 초기 로드 시 필요한 연도 목록 조회
       case 'getAvailableYears':
@@ -146,14 +147,18 @@ function setAdminPassword(newPassword) {
 // ==================== 출석 처리 (연도별 시트 적용) ====================
 
 function processAttendance(data, e, callback) {
-  const { name, team, latitude, longitude, userAgent } = data;
+  const { name, team, season, latitude, longitude, userAgent } = data;
 
-  if (!name || !team || !latitude || !longitude) {
+  if (!name || !team || !season || !latitude || !longitude) {
     return createResponse(false, '필수 정보가 누락되었습니다.', null, callback);
   }
 
   if (!['A', 'B', 'C'].includes(team)) {
     return createResponse(false, '올바른 팀을 선택해주세요.', null, callback);
+  }
+
+  if (!['상반기', '하반기'].includes(season)) {
+    return createResponse(false, '올바른 시즌 정보가 아닙니다.', null, callback);
   }
 
   const targetLocation = getTargetLocation();
@@ -177,9 +182,9 @@ function processAttendance(data, e, callback) {
     return createResponse(false, '이미 오늘 출석하셨습니다.', null, callback);
   }
 
-  // 💡 현재 연도 시트에 기록
-  saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distance);
-  updateMember(name, team);
+  // 💡 현재 연도 시트에 기록 (시즌 정보 포함)
+  saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance);
+  updateMember(name, team, season);
 
   return createResponse(true, '출석이 완료되었습니다!', null, callback);
 }
@@ -198,8 +203,8 @@ function isDuplicateAttendance(name, ipAddress) {
 
   for (let i = 1; i < data.length; i++) {
     const rowDate = data[i][0];
-    const rowName = data[i][2]; 
-    const rowIP = data[i][7];   
+    const rowName = data[i][2];
+    const rowIP = data[i][8];   // IP주소 컬럼 (시즌 컬럼 추가로 인해 8번째 인덱스)
 
     if (!rowDate) continue;
 
@@ -215,9 +220,9 @@ function isDuplicateAttendance(name, ipAddress) {
 }
 
 /**
- * 출석 기록 저장 (현재 연도 시트에 저장)
+ * 출석 기록 저장 (현재 연도 시트에 저장, 시즌 정보 포함)
  */
-function saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distance) {
+function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance) {
   const currentYear = new Date().getFullYear();
   let sheet = getAttendanceSheet(currentYear);
 
@@ -229,19 +234,20 @@ function saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distan
   }
 
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['날짜', '요일', '이름', '팀', '출석시간', '위도', '경도', 'IP주소', '거리(m)']);
+    sheet.appendRow(['날짜', '요일', '이름', '팀', '시즌', '출석시간', '위도', '경도', 'IP주소', '거리(m)']);
   }
 
   const now = new Date();
   const date = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   const time = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss');
-  const dayOfWeek = getDayOfWeek(now); 
+  const dayOfWeek = getDayOfWeek(now);
 
   sheet.appendRow([
     date,
-    dayOfWeek, 
+    dayOfWeek,
     name,
     team,
+    season,  // 시즌 정보 추가 (상반기/하반기)
     time,
     latitude,
     longitude,
@@ -251,13 +257,13 @@ function saveAttendanceRecord(name, team, latitude, longitude, ipAddress, distan
 }
 
 /**
- * 회원 정보 업데이트 (총 출석수 누적)
+ * 회원 정보 업데이트 (총 출석수 누적, 시즌별 팀 관리)
  */
-function updateMember(name, team) {
+function updateMember(name, team, season) {
   const sheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
 
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['이름', '팀', '최초등록일', '총출석수']);
+    sheet.appendRow(['이름', '상반기팀', '하반기팀', '최초등록일', '총출석수']);
   }
 
   const data = sheet.getDataRange().getValues();
@@ -265,12 +271,19 @@ function updateMember(name, team) {
 
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === name) {
-      const currentCount = data[i][3] || 0;
-      sheet.getRange(i + 1, 4).setValue(currentCount + 1);
-      
+      const currentCount = data[i][4] || 0;
+      sheet.getRange(i + 1, 5).setValue(currentCount + 1);
+
+      // 해당 시즌의 팀 정보 업데이트 (빈 값인 경우에만)
+      if (season === '상반기' && !data[i][1]) {
+        sheet.getRange(i + 1, 2).setValue(team);
+      } else if (season === '하반기' && !data[i][2]) {
+        sheet.getRange(i + 1, 3).setValue(team);
+      }
+
       // 💡 캐시 무효화: 회원 정보가 변경되었으므로 캐시를 지웁니다.
       CacheService.getScriptCache().remove('ALL_MEMBERS_DATA');
-      
+
       found = true;
       break;
     }
@@ -279,8 +292,13 @@ function updateMember(name, team) {
   if (!found) {
     const now = new Date();
     const date = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    sheet.appendRow([name, team, date, 1]);
-    
+
+    // 새 회원 추가 시 현재 시즌에 맞는 팀 정보만 입력
+    const firstHalfTeam = (season === '상반기') ? team : '';
+    const secondHalfTeam = (season === '하반기') ? team : '';
+
+    sheet.appendRow([name, firstHalfTeam, secondHalfTeam, date, 1]);
+
     // 💡 캐시 무효화
     CacheService.getScriptCache().remove('ALL_MEMBERS_DATA');
   }
@@ -361,9 +379,10 @@ function getMembers(callback) {
     if (data[i][0]) {
       members.push({
         name: data[i][0],
-        team: data[i][1],
-        firstDate: data[i][2],
-        attendanceCountTotal: data[i][3] || 0 // 총 출석수
+        firstHalfTeam: data[i][1],   // 상반기 팀
+        secondHalfTeam: data[i][2],  // 하반기 팀
+        firstDate: data[i][3],
+        attendanceCountTotal: data[i][4] || 0 // 총 출석수
       });
     }
   }
@@ -401,9 +420,10 @@ function getTodayAttendance(callback) {
 
     if (rowDateStr === todayStr) {
       attendance.push({
-        name: data[i][2], 
-        team: data[i][3], 
-        time: data[i][4]  
+        name: data[i][2],
+        team: data[i][3],
+        season: data[i][4],
+        time: data[i][5]
       });
     }
   }
@@ -411,29 +431,39 @@ function getTodayAttendance(callback) {
 }
 
 /**
- * 전체 통계 (요청된 연도에 대한 데이터만 처리)
+ * 전체 통계 (요청된 연도에 대한 데이터만 처리, 시즌 필터링 지원)
  */
-function getStats(callback, year) {
+function getStats(callback, year, season) {
   const targetYear = parseInt(year);
   if (isNaN(targetYear)) {
       return createResponse(false, '유효한 연도가 지정되지 않았습니다.', null, callback);
   }
+
+  // season: 'all', 'firstHalf', 'secondHalf'
+  const seasonFilter = season || 'all';
 
   const saturdays = generateSaturdays(targetYear);
   const totalSaturdays = saturdays.length;
 
   // 💡 해당 연도의 출석 기록 시트만 사용
   const attendanceSheet = getAttendanceSheet(targetYear);
-  const attendanceData = (attendanceSheet && attendanceSheet.getLastRow() > 1) ?
+  let attendanceData = (attendanceSheet && attendanceSheet.getLastRow() > 1) ?
     attendanceSheet.getDataRange().getValues().slice(1) : [];
 
+  // 시즌 필터링 적용
+  if (seasonFilter === 'firstHalf') {
+    attendanceData = attendanceData.filter(row => row[4] === '상반기');
+  } else if (seasonFilter === 'secondHalf') {
+    attendanceData = attendanceData.filter(row => row[4] === '하반기');
+  }
+
   // 💡 캐시된 회원 목록 사용 (성능 최적화)
-  const members = getMembers(null); 
-  
+  const members = getMembers(null);
+
   // 1. 개인별 통계 계산을 위한 해당 연도 출석 횟수 집계
   const attendanceCountMap = {};
   members.forEach(m => attendanceCountMap[m.name] = 0);
-  
+
   // 출석 기록 시트 스캔 (해당 연도 데이터만 있으므로 빠름)
   attendanceData.forEach(row => {
     const rowName = row[2];
@@ -447,11 +477,24 @@ function getStats(callback, year) {
     const attendanceCountInYear = attendanceCountMap[member.name] || 0;
     const rate = totalSaturdays > 0 ? (attendanceCountInYear / totalSaturdays) * 100 : 0;
 
+    // 시즌에 따라 팀 정보 결정
+    let teamForSeason;
+    if (seasonFilter === 'firstHalf') {
+      teamForSeason = member.firstHalfTeam;
+    } else if (seasonFilter === 'secondHalf') {
+      teamForSeason = member.secondHalfTeam;
+    } else {
+      // 'all'인 경우 현재 시즌의 팀 사용
+      const currentMonth = new Date().getMonth() + 1;
+      teamForSeason = (currentMonth >= 1 && currentMonth <= 6) ?
+        member.firstHalfTeam : member.secondHalfTeam;
+    }
+
     personalStats.push({
       name: member.name,
-      team: member.team,
-      attendanceCount: attendanceCountInYear, 
-      attendanceCountTotal: member.attendanceCountTotal, 
+      team: teamForSeason,
+      attendanceCount: attendanceCountInYear,
+      attendanceCountTotal: member.attendanceCountTotal,
       totalSaturdays: totalSaturdays,
       rate: rate
     });
@@ -466,10 +509,10 @@ function getStats(callback, year) {
     Object.keys(teamStats).forEach(team => {
         const teamMembers = personalStats.filter(s => s.team === team);
         const teamMemberCount = teamMembers.length;
-        
+
         if (teamMemberCount > 0) {
             const totalAttendanceForTeam = teamMembers.reduce((sum, member) => sum + member.attendanceCount, 0);
-            
+
             teamStats[team].count = totalAttendanceForTeam / teamMemberCount;
             teamStats[team].total = totalSaturdays;
             teamStats[team].rate = (teamStats[team].count / teamStats[team].total) * 100;

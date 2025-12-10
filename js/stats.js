@@ -16,7 +16,8 @@ const AUTH_TOKEN_DURATION = 30 * 60 * 1000;
 // ==================== 전역 데이터 및 유틸리티 ====================
 
 let currentYear = null;
-let allStats = {}; // { 2025: {personal: [...], ...}, 2026: {...} }
+let currentSeason = 'all'; // 'all', 'firstHalf', 'secondHalf'
+let allStats = {}; // { '2025_all': {personal: [...], ...}, '2025_firstHalf': {...}, ... }
 
 /**
  * GAS 서버에 JSONP 요청을 보내는 범용 함수
@@ -310,9 +311,12 @@ async function initStatsPage() {
         // 2. 연도 드롭다운 생성 및 초기 선택
         initYearDropdown(availableYears, currentYear);
 
+        // 2-1. 시즌 드롭다운 초기화
+        initSeasonDropdown();
+
         // 3. 올해 데이터만 로드 (백그라운드 프리로드 제거)
         updateLoadingSpinner(`${currentYear}년 데이터를 불러오는 중...`);
-        await loadStats(currentYear);
+        await loadStats(currentYear, currentSeason);
 
         // 4. 로딩 메시지 제거 및 컨텐츠 표시
         hideLoadingSpinner();
@@ -333,10 +337,30 @@ async function handleYearChange(year) {
     currentYear = year;
 
     // 로딩 표시
-    showLoadingSpinner(`${year}년 데이터를 불러오는 중...`);
+    const seasonText = currentSeason === 'firstHalf' ? '상반기' : currentSeason === 'secondHalf' ? '하반기' : '전체';
+    showLoadingSpinner(`${year}년 ${seasonText} 데이터를 불러오는 중...`);
 
-    // 데이터 로드
-    await loadStats(year);
+    // 데이터 로드 (현재 시즌 유지)
+    await loadStats(year, currentSeason);
+
+    // 로딩 숨김
+    hideLoadingSpinner();
+}
+
+/**
+ * 시즌 드롭다운 변경 시 이벤트 핸들러
+ */
+async function handleSeasonChange(season) {
+    if (season === currentSeason) return;
+
+    currentSeason = season;
+
+    // 로딩 표시
+    const seasonText = season === 'firstHalf' ? '상반기' : season === 'secondHalf' ? '하반기' : '전체';
+    showLoadingSpinner(`${currentYear}년 ${seasonText} 데이터를 불러오는 중...`);
+
+    // 데이터 로드 (현재 연도 유지)
+    await loadStats(currentYear, season);
 
     // 로딩 숨김
     hideLoadingSpinner();
@@ -345,23 +369,25 @@ async function handleYearChange(year) {
 /**
  * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다. - 개선된 캐싱
  */
-async function loadStats(year) {
+async function loadStats(year, season = 'all') {
+    const cacheKeyStr = `${year}_${season}`;
+
     // 1. 메모리 캐시 확인 (allStats)
-    if (allStats[year]) {
-        console.log(`✅ ${year}년 데이터 메모리 캐시에서 로드`);
-        displayStats(allStats[year]);
+    if (allStats[cacheKeyStr]) {
+        console.log(`✅ ${year}년 ${season} 데이터 메모리 캐시에서 로드`);
+        displayStats(allStats[cacheKeyStr]);
         hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
         return;
     }
 
     // 2. localStorage 캐시 확인
-    const cacheKey = `${CacheManager.KEYS.STATS}_${year}`;
+    const cacheKey = `${CacheManager.KEYS.STATS}_${cacheKeyStr}`;
     const cached = CacheManager.get(cacheKey);
 
     if (cached) {
-        console.log(`✅ ${year}년 데이터 localStorage에서 로드`);
-        allStats[year] = cached;
+        console.log(`✅ ${year}년 ${season} 데이터 localStorage에서 로드`);
+        allStats[cacheKeyStr] = cached;
         displayStats(cached);
         hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
@@ -370,15 +396,16 @@ async function loadStats(year) {
 
     // 3. 서버에 요청
     try {
-        showLoadingSpinner(`${year}년 통계 데이터를 불러오는 중...`);
+        const seasonText = season === 'firstHalf' ? '상반기' : season === 'secondHalf' ? '하반기' : '전체';
+        showLoadingSpinner(`${year}년 ${seasonText} 통계 데이터를 불러오는 중...`);
         document.getElementById('stats-content-wrapper').style.display = 'none';
 
-        console.log(`📡 ${year}년 데이터 서버에서 로드 중...`);
-        const response = await requestGas('getStats', { year: year });
+        console.log(`📡 ${year}년 ${season} 데이터 서버에서 로드 중...`);
+        const response = await requestGas('getStats', { year: year, season: season });
         const stats = response.stats;
 
         // 메모리 캐시 저장
-        allStats[year] = stats;
+        allStats[cacheKeyStr] = stats;
 
         // localStorage 캐시 저장 (30분 TTL)
         CacheManager.set(cacheKey, stats);
@@ -391,7 +418,7 @@ async function loadStats(year) {
     } catch (error) {
         updateLoadingSpinner(`❌ ${year}년 통계 데이터 로드 실패. 페이지를 새로고침하세요.`);
         document.getElementById('stats-content-wrapper').style.display = 'none';
-        console.error(`Stats Load Error (${year}):`, error);
+        console.error(`Stats Load Error (${year}, ${season}):`, error);
     }
 }
 
@@ -641,6 +668,19 @@ function initYearDropdown(years, selectedYear) {
     yearSelect.addEventListener('change', async (e) => {
         const newYear = parseInt(e.target.value);
         await handleYearChange(newYear);
+    });
+}
+
+/**
+ * 시즌 드롭다운을 초기화합니다
+ */
+function initSeasonDropdown() {
+    const seasonSelect = document.getElementById('seasonSelect');
+
+    // 드롭다운 변경 이벤트 리스너
+    seasonSelect.addEventListener('change', async (e) => {
+        const newSeason = e.target.value;
+        await handleSeasonChange(newSeason);
     });
 }
 
