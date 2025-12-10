@@ -40,13 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 탭 전환 이벤트 리스너
     initializeTabs();
 
-    // 출석현황 새로고침 버튼
-    const refreshStatusBtn = document.getElementById('refreshStatusBtn');
-    if (refreshStatusBtn) {
-        refreshStatusBtn.addEventListener('click', () => {
-            loadTodayStatus(true);
-        });
-    }
 });
 
 // 위치 정보 가져오기
