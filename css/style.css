@@ -303,13 +303,17 @@ body {
 
 /* 관리자 페이지 */
 .admin-section {
-    padding: 20px;
+    padding: 25px;
     border-bottom: 1px solid #e0e0e0;
 }
 
 .admin-section h2 {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
     color: #333;
+    font-size: 1.3em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .info-box {
@@ -352,6 +356,49 @@ body {
 .attendance-item strong,
 .member-item strong {
     color: #667eea;
+}
+
+/* 테이블 스타일 */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.table td {
+    padding: 12px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.text-secondary {
+    color: #666;
+    text-align: center;
+    padding: 20px;
+}
+
+.text-danger {
+    color: #e53935;
+    text-align: center;
+    padding: 20px;
 }
 
 /* 통계 페이지 */
@@ -498,43 +545,91 @@ body {
     color: #666;
 }
 
-/* ==================== 통계 페이지 탭 구조 스타일 (추가됨) ==================== */
+/* ==================== 탭 구조 스타일 (통일된 디자인) ==================== */
 
 /* 탭 컨테이너 */
 .tab-container {
     display: flex;
-    margin: 15px 0 20px 0;
-    /* Level 2 탭만 하단 경계선 표시 */
-    border-bottom: 1px solid #e0e0e0; 
+    margin: 0;
+    border-bottom: 2px solid #e0e0e0;
     overflow-x: auto;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch; /* iOS 스크롤 부드럽게 */
-    padding: 0 5px; /* 스크롤 여백 */
+    scrollbar-width: none; /* Firefox 스크롤바 숨김 */
+    background: #f8f9fa;
+}
+
+.tab-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari 스크롤바 숨김 */
 }
 
 /* 탭 버튼 공통 스타일 */
 .tab-btn {
     background: none;
     border: none;
-    padding: 10px 15px;
+    padding: 16px 24px;
     cursor: pointer;
     font-size: 1em;
-    color: #555;
-    transition: color 0.3s, border-bottom 0.3s;
+    color: #666;
+    transition: all 0.3s ease;
     flex-shrink: 0;
-    margin-bottom: -1px; /* border-bottom과 겹치지 않도록 */
+    position: relative;
+    font-weight: 500;
+    user-select: none;
+}
+
+.tab-btn:hover {
+    color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
 }
 
 /* 활성화된 탭 버튼 */
 .tab-btn.active {
     color: #667eea;
     font-weight: 600;
-    border-bottom: 3px solid #667eea;
+    background: white;
 }
 
-/* 레벨 3 (월별) 탭 스타일 */
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    border-radius: 3px 3px 0 0;
+}
+
+/* 탭 콘텐츠 영역 */
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 탭 콘텐츠 패딩 */
+.tab-content-wrapper {
+    padding: 20px;
+}
+
+/* 레벨 3 (월별) 탭 스타일 - 통계 페이지용 */
 .tab-container.level-3 {
-    margin-top: 5px;
+    margin-top: 15px;
     margin-bottom: 15px;
     border-bottom: none;
     background: #f8f8f8;
@@ -544,27 +639,28 @@ body {
 }
 
 .tab-container.level-3 .tab-btn {
-    padding: 6px 10px;
+    padding: 8px 12px;
     font-size: 0.9em;
     border-radius: 6px;
     border: 1px solid transparent;
-    transition: all 0.2s;
 }
 
 .tab-container.level-3 .tab-btn.active {
     background: #667eea;
     color: white;
     border-color: #667eea;
-    border-bottom: 3px solid #667eea; /* 하단 border 제거 */
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-/* 탭 콘텐츠 영역 */
-.stats-content-area {
-    padding: 10px 0; /* 콘텐츠 상하 여백 */
+.tab-container.level-3 .tab-btn.active::after {
+    display: none;
 }
 
-/* 개인별 통계의 필터 그룹을 stats-content-area 안에 맞춥니다 */
+/* 통계 콘텐츠 영역 */
+.stats-content-area {
+    padding: 10px 0;
+}
+
 .stats-content-area .filter-group {
     margin: 10px 0;
 }

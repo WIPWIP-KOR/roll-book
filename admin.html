@@ -16,93 +16,110 @@
             <h1>⚽ 관리자 페이지</h1>
         </div>
 
-        <div class="admin-section">
-            <h2>📍 출석 위치 설정</h2>
+        <!-- 탭 네비게이션 -->
+        <div class="tab-container">
+            <button class="tab-btn active" data-tab="location">📍 위치설정</button>
+            <button class="tab-btn" data-tab="qrcode">📱 QR코드</button>
+            <button class="tab-btn" data-tab="members">👥 회원목록</button>
+            <button class="tab-btn" data-tab="settings">⚙️ 설정</button>
+        </div>
 
-            <div class="info-box">
-                <p><strong>현재 설정된 위치:</strong></p>
-                <p id="currentLocation">위치 정보를 불러오는 중...</p>
-            </div>
+        <!-- 위치설정 탭 -->
+        <div class="tab-content active" id="locationTab">
+            <div class="tab-content-wrapper">
+                <div class="info-box">
+                    <p><strong>현재 설정된 위치:</strong></p>
+                    <p id="currentLocation">위치 정보를 불러오는 중...</p>
+                </div>
 
-            <div class="form-group">
-                <label for="latitude">위도 (Latitude)</label>
-                <input type="number" id="latitude" step="0.000001" placeholder="예: 37.5665" readonly>
-            </div>
-            <div class="form-group">
-                <label for="longitude">경도 (Longitude)</label>
-                <input type="number" id="longitude" step="0.000001" placeholder="예: 126.9780" readonly>
-            </div>
-            <div class="form-group">
-                <label for="locationName">장소 이름</label>
-                <input type="text" id="locationName" placeholder="예: 서울 풋살장">
-            </div>
-
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <button id="openMapBtn" class="btn-secondary">🗺️ 주소 검색</button>
-                <button id="getMyLocationBtn" class="btn-secondary">📍 내 현재 위치</button>
-                <button id="saveLocationBtn" class="btn-primary">💾 위치 저장</button>
-            </div>
-
-            <div id="locationMessage" class="message"></div>
-
-            <!-- 지도 검색 섹션 (기본적으로 숨김) -->
-            <div id="mapSearchSection" class="map-search-section" style="display: none;">
-                <h3>🗺️ 지도에서 위치 검색</h3>
                 <div class="form-group">
-                    <label for="mapSearch">장소 검색</label>
-                    <div class="search-container">
-                        <input type="text" id="mapSearch" placeholder="예: 올림픽공원 풋살장" onkeypress="if(event.keyCode===13) searchPlaces();">
-                        <button id="searchBtn" class="btn-search" onclick="searchPlaces();">검색</button>
+                    <label for="latitude">위도 (Latitude)</label>
+                    <input type="number" id="latitude" step="0.000001" placeholder="예: 37.5665" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="longitude">경도 (Longitude)</label>
+                    <input type="number" id="longitude" step="0.000001" placeholder="예: 126.9780" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="locationName">장소 이름</label>
+                    <input type="text" id="locationName" placeholder="예: 서울 풋살장">
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="openMapBtn" class="btn-secondary">🗺️ 주소 검색</button>
+                    <button id="getMyLocationBtn" class="btn-secondary">📍 내 현재 위치</button>
+                    <button id="saveLocationBtn" class="btn-primary">💾 위치 저장</button>
+                </div>
+
+                <div id="locationMessage" class="message"></div>
+
+                <!-- 지도 검색 섹션 (기본적으로 숨김) -->
+                <div id="mapSearchSection" class="map-search-section" style="display: none;">
+                    <h3>🗺️ 지도에서 위치 검색</h3>
+                    <div class="form-group">
+                        <label for="mapSearch">장소 검색</label>
+                        <div class="search-container">
+                            <input type="text" id="mapSearch" placeholder="예: 올림픽공원 풋살장" onkeypress="if(event.keyCode===13) searchPlaces();">
+                            <button id="searchBtn" class="btn-search" onclick="searchPlaces();">검색</button>
+                        </div>
                     </div>
+
+                    <div id="map" class="kakao-map"></div>
+
+                    <div class="map-help">
+                        💡 지도를 클릭하거나 검색 결과를 클릭하면 위치가 자동으로 입력됩니다.
+                    </div>
+
+                    <div id="searchResults" class="search-results"></div>
+
+                    <button id="closeMapBtn" class="btn-secondary" style="margin-top: 15px;">지도 닫기</button>
                 </div>
+            </div>
+        </div>
 
-                <div id="map" class="kakao-map"></div>
-
-                <div class="map-help">
-                    💡 지도를 클릭하거나 검색 결과를 클릭하면 위치가 자동으로 입력됩니다.
+        <!-- QR코드 탭 -->
+        <div class="tab-content" id="qrcodeTab">
+            <div class="tab-content-wrapper">
+                <div class="form-group">
+                    <label for="attendanceUrl">출석 URL</label>
+                    <input type="text" id="attendanceUrl" readonly>
                 </div>
-
-                <div id="searchResults" class="search-results"></div>
-
-                <button id="closeMapBtn" class="btn-secondary" style="margin-top: 15px;">지도 닫기</button>
+                <button id="generateQRBtn" class="btn-primary">QR 코드 생성</button>
+                <div id="qrcode" class="qr-container"></div>
+                <button id="downloadQRBtn" class="btn-secondary" style="display:none;">QR 코드 다운로드</button>
             </div>
         </div>
 
-        <div class="admin-section">
-            <h2>📱 QR 코드 생성</h2>
-            <div class="form-group">
-                <label for="attendanceUrl">출석 URL</label>
-                <input type="text" id="attendanceUrl" readonly>
-            </div>
-            <button id="generateQRBtn" class="btn-primary">QR 코드 생성</button>
-            <div id="qrcode" class="qr-container"></div>
-            <button id="downloadQRBtn" class="btn-secondary" style="display:none;">QR 코드 다운로드</button>
-        </div>
-
-        <div class="admin-section">
-            <h2>📊 오늘 출석 현황</h2>
-            <button id="refreshTodayBtn" class="btn-secondary">새로고침</button>
-            <div id="todayAttendance" class="attendance-list">
-                <p>데이터를 불러오는 중...</p>
+        <!-- 회원목록 탭 -->
+        <div class="tab-content" id="membersTab">
+            <div class="tab-content-wrapper">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #333;">👥 전체 회원 목록</h3>
+                    <button id="refreshMembersBtn" class="btn-secondary" style="width: auto; padding: 10px 20px;">🔄 새로고침</button>
+                </div>
+                <div id="membersList" class="members-list">
+                    <p class="text-secondary">회원목록 탭을 클릭하면 데이터를 불러옵니다.</p>
+                </div>
             </div>
         </div>
 
-        <div class="admin-section">
-            <h2>👥 전체 회원 목록</h2>
-            <button id="refreshMembersBtn" class="btn-secondary">새로고침</button>
-            <div id="membersList" class="members-list">
-                <p>데이터를 불러오는 중...</p>
-            </div>
-        </div>
+        <!-- 설정 탭 -->
+        <div class="tab-content" id="settingsTab">
+            <div class="tab-content-wrapper">
+                <h3 style="margin-bottom: 20px; color: #333;">🔑 관리자 비밀번호 설정</h3>
+                <div class="form-group">
+                    <label for="newPassword">새 4자리 비밀번호:</label>
+                    <input type="password" id="newPassword" maxlength="4" placeholder="4자리 숫자" pattern="[0-9]{4}">
+                </div>
+                <button id="setPasswordBtn" class="btn-primary">비밀번호 저장</button>
+                <p id="passwordMessage" class="message-area"></p>
 
-        <div class="stats-section">
-            <h2>🔑 관리자 비밀번호 설정</h2>
-            <div class="password-group">
-                <label for="newPassword">새 4자리 비밀번호:</label>
-                <input type="password" id="newPassword" maxlength="4" placeholder="4자리 숫자" pattern="[0-9]{4}">
-                <button id="setPasswordBtn" class="btn-secondary">비밀번호 저장</button>
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                    <p style="color: #666; font-size: 0.9em;">
+                        💡 비밀번호를 비워두고 저장하면 비밀번호 인증이 해제됩니다.
+                    </p>
+                </div>
             </div>
-            <p id="passwordMessage" class="message-area"></p>
         </div>
 
         <div class="footer">

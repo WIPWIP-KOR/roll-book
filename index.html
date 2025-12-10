@@ -16,29 +16,53 @@
             <h2>출석 체크</h2>
         </div>
 
-        <div class="attendance-form" id="attendanceForm">
-            <div class="form-group">
-                <label for="nameInput">이름</label>
-                <input type="text" id="nameInput" list="nameList" placeholder="이름을 입력하거나 선택하세요" autocomplete="off">
-                <datalist id="nameList"></datalist>
-            </div>
+        <!-- 탭 네비게이션 -->
+        <div class="tab-container">
+            <button class="tab-btn active" data-tab="attend">📝 출석하기</button>
+            <button class="tab-btn" data-tab="status">📊 출석현황</button>
+        </div>
 
-            <div class="form-group">
-                <label for="teamSelect">팀</label>
-                <select id="teamSelect">
-                    <option value="">팀을 선택하세요</option>
-                    <option value="A">A팀</option>
-                    <option value="B">B팀</option>
-                    <option value="C">C팀</option>
-                </select>
-            </div>
+        <!-- 출석하기 탭 -->
+        <div class="tab-content active" id="attendTab">
+            <div class="tab-content-wrapper">
+                <div class="attendance-form" id="attendanceForm">
+                    <div class="form-group">
+                        <label for="nameInput">이름</label>
+                        <input type="text" id="nameInput" list="nameList" placeholder="이름을 입력하거나 선택하세요" autocomplete="off">
+                        <datalist id="nameList"></datalist>
+                    </div>
 
-            <div class="location-status" id="locationStatus">
-                <span class="status-icon">📍</span>
-                <span id="locationText">위치 정보 확인 중...</span>
-            </div>
+                    <div class="form-group">
+                        <label for="teamSelect">팀</label>
+                        <select id="teamSelect">
+                            <option value="">팀을 선택하세요</option>
+                            <option value="A">A팀</option>
+                            <option value="B">B팀</option>
+                            <option value="C">C팀</option>
+                        </select>
+                    </div>
 
-            <button id="attendBtn" class="btn-primary" disabled>출석하기</button>
+                    <div class="location-status" id="locationStatus">
+                        <span class="status-icon">📍</span>
+                        <span id="locationText">위치 정보 확인 중...</span>
+                    </div>
+
+                    <button id="attendBtn" class="btn-primary" disabled>출석하기</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 출석현황 탭 -->
+        <div class="tab-content" id="statusTab">
+            <div class="tab-content-wrapper">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #333;">📊 오늘 출석 현황</h3>
+                    <button id="refreshStatusBtn" class="btn-secondary" style="width: auto; padding: 10px 20px;">🔄 새로고침</button>
+                </div>
+                <div id="todayStatus" class="attendance-list">
+                    <p class="text-secondary">출석현황 탭을 클릭하면 데이터를 불러옵니다.</p>
+                </div>
+            </div>
         </div>
 
         <div class="footer">
