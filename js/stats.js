@@ -472,19 +472,21 @@ function handleCategoryChange(category) {
             break;
         case 'personal':
             document.getElementById('personalStats').style.display = 'block';
-            if (allStats[currentYear]) {
+            const cacheKeyStr1 = `${currentYear}_${currentSeason}`;
+            if (allStats[cacheKeyStr1]) {
                 const teamFilter = document.querySelector('.filter-btn.active').dataset.team;
                 const sortOption = document.getElementById('sortOption').value;
-                displayPersonalStats(allStats[currentYear].personalStats, teamFilter, sortOption);
+                displayPersonalStats(allStats[cacheKeyStr1].personalStats, teamFilter, sortOption);
             }
             break;
         case 'monthly':
             document.getElementById('weeklyStats').style.display = 'block';
             document.getElementById('monthTabs').style.display = 'flex';
-            if (allStats[currentYear]) {
+            const cacheKeyStr2 = `${currentYear}_${currentSeason}`;
+            if (allStats[cacheKeyStr2]) {
                 const activeMonthTab = document.querySelector('.month-tab.active');
                 if (!activeMonthTab) {
-                    const initialMonth = getCurrentMonthFromStats(allStats[currentYear].weeklyStats);
+                    const initialMonth = getCurrentMonthFromStats(allStats[cacheKeyStr2].weeklyStats);
                     if (initialMonth) {
                         document.getElementById(`month-tab-${initialMonth}`)?.click();
                     }
@@ -498,19 +500,20 @@ function handleCategoryChange(category) {
  * 개인별 통계 필터/정렬 변경 핸들러
  */
 function handlePersonalFilterChange(type, value) {
-    if (!allStats[currentYear]) return;
+    const cacheKeyStr = `${currentYear}_${currentSeason}`;
+    if (!allStats[cacheKeyStr]) return;
 
     if (type === 'team') {
         // 팀 필터 UI 변경
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelector(`.filter-btn[data-team="${value}"]`).classList.add('active');
     }
-    
+
     // 현재 필터/정렬 값 가져오기
     const teamFilter = document.querySelector('.filter-btn.active').dataset.team;
     const sortOption = document.getElementById('sortOption').value;
 
-    displayPersonalStats(allStats[currentYear].personalStats, teamFilter, sortOption);
+    displayPersonalStats(allStats[cacheKeyStr].personalStats, teamFilter, sortOption);
 }
 
 // ==================== 데이터 표시 및 가공 ====================
@@ -568,8 +571,10 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
         }
     });
 
-    const targetYear = allStats[currentYear].targetYear;
-    const totalSaturdays = allStats[currentYear].totalSaturdays;
+    const cacheKeyStr = `${currentYear}_${currentSeason}`;
+    const statsData = allStats[cacheKeyStr];
+    const targetYear = statsData ? statsData.targetYear : currentYear;
+    const totalSaturdays = statsData ? statsData.totalSaturdays : 0;
 
     let html = '';
 
@@ -712,7 +717,10 @@ function initMonthTabs(weeklyStats) {
         button.onclick = () => {
             document.querySelectorAll('.month-tab').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            filterWeeklyStatsByMonth(month, allStats[currentYear].weeklyStats);
+            const cacheKeyStr = `${currentYear}_${currentSeason}`;
+            if (allStats[cacheKeyStr]) {
+                filterWeeklyStatsByMonth(month, allStats[cacheKeyStr].weeklyStats);
+            }
         };
         monthTabsContainer.appendChild(button);
     });
