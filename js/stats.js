@@ -304,18 +304,15 @@ async function initStatsPage() {
         currentYear = availableYears[0];
         document.getElementById(`year-tab-${currentYear}`).classList.add('active');
 
-        // 2. 카테고리 탭 초기화 및 이벤트 연결
-        initCategoryTabs();
-
-        // 3. 현재 연도 데이터 먼저 로드 (빠른 표시)
+        // 2. 현재 연도 데이터 먼저 로드 (빠른 표시)
         updateLoadingSpinner(`${currentYear}년 데이터를 불러오는 중...`);
         await loadStats(currentYear);
 
-        // 4. 로딩 메시지 제거 및 컨텐츠 표시
+        // 3. 로딩 메시지 제거 및 컨텐츠 표시
         hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
 
-        // 5. 🚀 백그라운드에서 다른 연도 데이터 미리 로드
+        // 4. 🚀 백그라운드에서 다른 연도 데이터 미리 로드
         if (availableYears.length > 1) {
             preloadOtherYears(availableYears.slice(1));
         }
