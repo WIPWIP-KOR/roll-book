@@ -16,6 +16,7 @@ const nameList = document.getElementById('nameList');
 
 let userPosition = null;
 let membersList = [];
+let statusLoaded = false; // 출석현황 로딩 여부
 
 // 초기화
 document.addEventListener('DOMContentLoaded', () => {
@@ -34,6 +35,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // 이벤트 리스너
     attendBtn.addEventListener('click', processAttendance);
     nameInput.addEventListener('change', autoSelectTeam);
+
+    // 탭 전환 이벤트 리스너
+    initializeTabs();
+
+    // 출석현황 새로고침 버튼
+    const refreshStatusBtn = document.getElementById('refreshStatusBtn');
+    if (refreshStatusBtn) {
+        refreshStatusBtn.addEventListener('click', () => {
+            loadTodayStatus(true);
+        });
+    }
 });
 
 // 위치 정보 가져오기
@@ -181,4 +193,126 @@ function showMessage(text, type) {
     setTimeout(() => {
         messageDiv.classList.remove('show');
     }, 5000);
+}
+
+// ==================== 탭 관리 ====================
+
+/**
+ * 탭 초기화 및 이벤트 리스너 등록
+ */
+function initializeTabs() {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabName = btn.getAttribute('data-tab');
+            switchTab(tabName);
+        });
+    });
+}
+
+/**
+ * 탭 전환
+ */
+function switchTab(tabName) {
+    // 모든 탭 버튼과 콘텐츠 비활성화
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+
+    // 선택된 탭 활성화
+    const selectedBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    const selectedContent = document.getElementById(`${tabName}Tab`);
+
+    if (selectedBtn && selectedContent) {
+        selectedBtn.classList.add('active');
+        selectedContent.classList.add('active');
+    }
+
+    // 출석현황 탭이 선택되면 데이터 로드 (최초 1회만)
+    if (tabName === 'status' && !statusLoaded) {
+        loadTodayStatus();
+    }
+}
+
+/**
+ * 오늘 출석 현황을 서버에서 불러와 표시합니다.
+ */
+function loadTodayStatus(forceReload = false) {
+    const container = document.getElementById('todayStatus');
+
+    // 로딩 중 표시
+    container.innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="margin-top: 15px; color: #666;">출석 현황을 불러오는 중...</p>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+
+    $.ajax({
+        url: `${CONFIG.GAS_URL}?action=getTodayAttendance`,
+        dataType: 'jsonp',
+        success: function(data) {
+            if (data.success && data.attendance) {
+                displayTodayStatus(data.attendance);
+                if (!forceReload) {
+                    statusLoaded = true;
+                }
+            } else {
+                container.innerHTML = '<p class="text-danger">출석 현황을 불러오는데 실패했습니다.</p>';
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('출석 현황 로딩 에러:', textStatus, errorThrown);
+            container.innerHTML = '<p class="text-danger">네트워크 오류가 발생했습니다.</p>';
+        }
+    });
+}
+
+/**
+ * 출석 현황 데이터를 화면에 표시
+ */
+function displayTodayStatus(attendance) {
+    const container = document.getElementById('todayStatus');
+
+    if (attendance.length === 0) {
+        container.innerHTML = '<p class="text-secondary">오늘 출석 기록이 없습니다.</p>';
+        return;
+    }
+
+    let html = `
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>팀</th>
+                    <th>출석 시간</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    attendance.forEach(record => {
+        html += `
+            <tr>
+                <td><strong>${record.name}</strong></td>
+                <td>${record.team}팀</td>
+                <td>${record.time}</td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+    html += `<p style="text-align: center; color: #666; margin-top: 15px;">총 ${attendance.length}명 출석</p>`;
+
+    container.innerHTML = html;
 }

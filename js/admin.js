@@ -19,6 +19,16 @@ const AUTH_TOKEN_DURATION = 30 * 60 * 1000;
 // let marker; // 전역 변수 마커 객체 (HTML에서 초기화될 예정)
 
 
+// ==================== 탭 상태 관리 ====================
+
+// 각 탭의 로딩 상태 추적
+const tabLoadState = {
+    location: false,
+    qrcode: false,
+    members: false,
+    settings: false
+};
+
 // ==================== 인증 토큰 관리 ====================
 
 /**
@@ -414,90 +424,72 @@ async function saveLocation() {
 // ==================== 데이터 로드 및 표시 ====================
 
 /**
- * 관리자 페이지의 모든 데이터를 로드하고 표시합니다.
+ * 관리자 페이지의 초기 데이터를 로드합니다 (위치설정 탭만).
  */
 async function loadAdminData() {
     console.log('🚀 관리자 데이터 로딩 시작');
 
-    // 로딩 인디케이터 표시
-    document.getElementById('todayAttendance').innerHTML = `
-        <div style="text-align: center; padding: 20px;">
-            <div style="display: inline-block; width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-            <p style="margin-top: 10px;">출석 현황 로딩 중...</p>
-        </div>
-    `;
-    document.getElementById('membersList').innerHTML = `
-        <div style="text-align: center; padding: 20px;">
-            <div style="display: inline-block; width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-            <p style="margin-top: 10px;">회원 목록 로딩 중...</p>
-        </div>
-    `;
+    // 탭 초기화
+    initializeTabs();
 
-    // 1. 위치 정보만 로드 (지도는 사용자가 버튼 클릭 시 초기화)
+    // 1. 위치 정보 로드 (첫 번째 탭이므로 바로 로드)
+    await loadLocationTab();
+
+    console.log('✅ 초기 데이터 로딩 완료');
+}
+
+/**
+ * 위치설정 탭 데이터 로드
+ */
+async function loadLocationTab() {
+    if (tabLoadState.location) return;
+
     await loadLocation();
+    tabLoadState.location = true;
+}
 
-    // 2. 출석 페이지 URL 설정 및 표시
+/**
+ * QR코드 탭 데이터 로드
+ */
+function loadQRCodeTab() {
+    if (tabLoadState.qrcode) return;
+
+    // 출석 페이지 URL 설정 및 표시
     const attendanceUrl = window.location.origin + window.location.pathname.replace('admin.html', 'index.html');
     document.getElementById('attendanceUrl').value = attendanceUrl;
 
     // QR 코드 자동 생성
     generateQRCode();
 
-    // 🚀 2. 병렬로 데이터 로드 (성능 향상)
-    try {
-        await Promise.all([
-            loadTodayAttendance(),
-            loadMembers()
-        ]);
-        console.log('✅ 모든 관리자 데이터 로딩 완료');
-    } catch (error) {
-        console.error('❌ 데이터 로딩 중 오류 발생:', error);
-    }
+    tabLoadState.qrcode = true;
 }
 
 /**
- * 오늘 출석 현황을 서버에서 불러와 테이블에 표시합니다.
+ * 회원목록 탭 데이터 로드
  */
-async function loadTodayAttendance() {
-    const container = document.getElementById('todayAttendance');
+async function loadMembersTab(forceReload = false) {
+    if (tabLoadState.members && !forceReload) return;
 
-    try {
-        const response = await requestGas('getTodayAttendance');
-        const attendance = response.attendance;
+    const container = document.getElementById('membersList');
 
-        if (attendance.length === 0) {
-            container.innerHTML = '<p class="text-secondary">오늘 출석 기록이 없습니다.</p>';
-            return;
-        }
+    // 로딩 인디케이터 표시
+    container.innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="margin-top: 15px; color: #666;">회원 목록을 불러오는 중...</p>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
 
-        let html = `
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>이름</th>
-                        <th>팀</th>
-                        <th>출석 시간</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
+    await loadMembers();
 
-        attendance.forEach(record => {
-            html += `
-                <tr>
-                    <td>${record.name}</td>
-                    <td>${record.team}</td>
-                    <td>${record.time}</td>
-                </tr>
-            `;
-        });
-
-        html += '</tbody></table>';
-        container.innerHTML = html;
-
-    } catch (error) {
-        container.innerHTML = `<p class="text-danger">출석 현황 로드 실패: ${error}</p>`;
-        console.error('출석 현황 로드 오류:', error);
+    if (!forceReload) {
+        tabLoadState.members = true;
     }
 }
 
@@ -720,6 +712,60 @@ function getMyLocation() {
     }
 }
 
+// ==================== 탭 관리 ====================
+
+/**
+ * 탭 초기화 및 이벤트 리스너 등록
+ */
+function initializeTabs() {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabName = btn.getAttribute('data-tab');
+            switchTab(tabName);
+        });
+    });
+}
+
+/**
+ * 탭 전환
+ */
+function switchTab(tabName) {
+    // 모든 탭 버튼과 콘텐츠 비활성화
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+
+    // 선택된 탭 활성화
+    const selectedBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    const selectedContent = document.getElementById(`${tabName}Tab`);
+
+    if (selectedBtn && selectedContent) {
+        selectedBtn.classList.add('active');
+        selectedContent.classList.add('active');
+    }
+
+    // 탭 별 데이터 지연 로딩
+    switch(tabName) {
+        case 'location':
+            loadLocationTab();
+            break;
+        case 'qrcode':
+            loadQRCodeTab();
+            break;
+        case 'members':
+            loadMembersTab();
+            break;
+        case 'settings':
+            // 설정 탭은 별도 로딩 불필요
+            break;
+    }
+}
+
 // ==================== 지도 UI 제어 ====================
 
 /**
@@ -902,14 +948,11 @@ document.addEventListener('DOMContentLoaded', () => {
         saveLocationBtn.addEventListener('click', saveLocation);
     }
 
-    const refreshTodayBtn = document.getElementById('refreshTodayBtn');
-    if (refreshTodayBtn) {
-        refreshTodayBtn.addEventListener('click', loadTodayAttendance);
-    }
-
     const refreshMembersBtn = document.getElementById('refreshMembersBtn');
     if (refreshMembersBtn) {
-        refreshMembersBtn.addEventListener('click', loadMembers);
+        refreshMembersBtn.addEventListener('click', () => {
+            loadMembersTab(true);
+        });
     }
 
     const getMyLocationBtn = document.getElementById('getMyLocationBtn');
