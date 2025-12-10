@@ -249,12 +249,19 @@
         /* 반응형 */
         @media (max-width: 600px) {
             .tab-container.level-2 {
-                flex-direction: column;
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
                 gap: 8px;
                 padding: 15px;
             }
+            .tab-container.level-2::-webkit-scrollbar {
+                display: none;
+            }
             .tab-container.level-2 .tab-btn {
-                width: 100%;
+                flex-shrink: 0;
+                min-width: auto;
             }
             .filter-options {
                 padding: 15px;
@@ -276,7 +283,13 @@
     <div class="container">
         <div class="header">
             <h1>📊 출석률 통계</h1>
-            <p class="period">데이터를 불러오는 중...</p> 
+            <p class="period">데이터를 불러오는 중...</p>
+        </div>
+
+        <!-- 네비게이션 버튼 -->
+        <div style="padding: 15px 20px; background: white; border-bottom: 1px solid #e0e0e0; display: flex; gap: 10px;">
+            <a href="index.html" class="btn-secondary" style="text-decoration: none; text-align: center; flex: 1;">📝 출석하기</a>
+            <a href="#" id="adminLink" class="btn-secondary" style="text-decoration: none; text-align: center; flex: 1;">⚙️ 관리자</a>
         </div>
 
         <div id="yearTabs" class="tab-container level-1">
@@ -327,12 +340,9 @@
     
             <div id="weeklyStats" class="stats-content-area weekly-stats" style="display: none;">
                 </div>
-        </div> 
+        </div>
         <div class="footer">
             <button id="refreshStatsBtn" class="btn-primary">새로고침</button>
-            <br><br>
-            <a href="index.html" class="link">출석 페이지로</a> |
-            <a href="#" id="adminLink" class="link">관리자 페이지</a>
         </div>
     </div>
 

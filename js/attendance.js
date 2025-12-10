@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 이벤트 리스너
     attendBtn.addEventListener('click', processAttendance);
-    nameInput.addEventListener('change', autoSelectTeam);
+    teamSelect.addEventListener('change', filterMembersByTeam);
 
     // 탭 전환 이벤트 리스너
     initializeTabs();
@@ -116,17 +116,24 @@ function renderDatalist(members) {
     });
 }
 
-// 이름 입력 시 팀 자동 선택
-function autoSelectTeam() {
-    const selectedName = nameInput.value;
-    const member = membersList.find(m => m.name === selectedName);
+// 팀 선택 시 해당 팀원만 필터링하여 표시
+function filterMembersByTeam() {
+    const selectedTeam = teamSelect.value;
 
-    if (member) {
-        teamSelect.value = member.team;
-    } else {
-        teamSelect.value = '';
+    // 팀이 선택되지 않았으면 전체 목록 표시
+    if (!selectedTeam) {
+        renderDatalist(membersList);
+        return;
     }
+
+    // 선택된 팀의 회원만 필터링
+    const filteredMembers = membersList.filter(member => member.team === selectedTeam);
+    renderDatalist(filteredMembers);
+
+    // 이름 입력 필드 초기화 (다른 팀으로 변경 시)
+    nameInput.value = '';
 }
+
 
 // 출석 처리
 function processAttendance() {

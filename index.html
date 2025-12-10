@@ -16,6 +16,11 @@
             <h2>출석 체크</h2>
         </div>
 
+        <!-- 출석률 보기 버튼 -->
+        <div style="padding: 15px 20px; background: white; border-bottom: 1px solid #e0e0e0;">
+            <a href="stats.html" class="btn-secondary" style="text-decoration: none; text-align: center;">📈 출석률 보기</a>
+        </div>
+
         <!-- 탭 네비게이션 -->
         <div class="tab-container">
             <button class="tab-btn active" data-tab="attend">📝 출석하기</button>
@@ -27,12 +32,6 @@
             <div class="tab-content-wrapper">
                 <div class="attendance-form" id="attendanceForm">
                     <div class="form-group">
-                        <label for="nameInput">이름</label>
-                        <input type="text" id="nameInput" list="nameList" placeholder="이름을 입력하거나 선택하세요" autocomplete="off">
-                        <datalist id="nameList"></datalist>
-                    </div>
-
-                    <div class="form-group">
                         <label for="teamSelect">팀</label>
                         <select id="teamSelect">
                             <option value="">팀을 선택하세요</option>
@@ -40,6 +39,12 @@
                             <option value="B">B팀</option>
                             <option value="C">C팀</option>
                         </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="nameInput">이름</label>
+                        <input type="text" id="nameInput" list="nameList" placeholder="이름을 입력하거나 선택하세요" autocomplete="off">
+                        <datalist id="nameList"></datalist>
                     </div>
 
                     <div class="location-status" id="locationStatus">
