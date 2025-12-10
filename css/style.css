@@ -50,6 +50,7 @@ body {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     overflow: hidden;
     min-height: 100vh; /* 전체 높이 */
+    padding-bottom: 80px; /* 하단 네비게이션 공간 확보 */
 }
 
 /* 데스크톱에서만 둥근 모서리 */
@@ -90,26 +91,11 @@ body {
     padding-bottom: 100px; /* 하단 고정 버튼 공간 확보 */
 }
 
-/* 모바일에서 하단 고정 버튼 영역 */
+/* 출석 버튼 - 일반 배치로 변경 (하단 네비게이션과 충돌 방지) */
 .attendance-form #attendBtn {
     position: relative;
-}
-
-@media (max-width: 600px) {
-    .attendance-form {
-        padding-bottom: 120px;
-    }
-
-    .attendance-form #attendBtn {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        margin: 0;
-        border-radius: 0;
-        z-index: 1000;
-        box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.1);
-    }
+    width: 100%;
+    margin-top: 20px;
 }
 
 .form-group {
@@ -956,5 +942,100 @@ body {
 
     .search-result-item:hover {
         transform: translateX(0);
+    }
+}
+
+/* ==================== 하단 네비게이션 ==================== */
+
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    background: white;
+    border-top: 1px solid #e0e0e0;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+    z-index: 1100;
+    padding: 0;
+    height: 65px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* 데스크톱에서 컨테이너 너비에 맞춤 */
+@media (min-width: 601px) {
+    .bottom-nav {
+        border-radius: 0 0 20px 20px;
+    }
+}
+
+.nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 8px 4px;
+    text-decoration: none;
+    color: #888;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+/* 활성 상태 */
+.nav-item.active {
+    color: #667eea;
+}
+
+.nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 3px;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    border-radius: 0 0 3px 3px;
+}
+
+/* 호버 효과 (데스크톱) */
+@media (hover: hover) {
+    .nav-item:hover {
+        color: #667eea;
+        background: rgba(102, 126, 234, 0.05);
+    }
+}
+
+/* 터치 피드백 (모바일) */
+.nav-item:active {
+    transform: scale(0.95);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+/* 아이콘 */
+.nav-icon {
+    font-size: 1.5em;
+    margin-bottom: 4px;
+    line-height: 1;
+}
+
+/* 레이블 */
+.nav-label {
+    font-size: 0.7em;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+}
+
+/* 모바일 안전 영역 대응 (iPhone 노치) */
+@supports (padding: max(0px)) {
+    .bottom-nav {
+        padding-bottom: max(0px, env(safe-area-inset-bottom));
+        height: calc(65px + max(0px, env(safe-area-inset-bottom)));
+    }
+
+    .container {
+        padding-bottom: calc(80px + max(0px, env(safe-area-inset-bottom)));
     }
 }
