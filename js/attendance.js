@@ -376,6 +376,21 @@ function loadTodayStatus(forceReload = false) {
 }
 
 /**
+ * 시간을 HH:MM 형식으로 변환
+ */
+function formatTimeHHMM(timeStr) {
+    if (!timeStr) return '';
+
+    // "HH:MM:SS" 형식에서 HH:MM만 추출
+    const timeParts = timeStr.split(':');
+    if (timeParts.length >= 2) {
+        return `${timeParts[0]}:${timeParts[1]}`;
+    }
+
+    return timeStr; // 형식이 다르면 원본 반환
+}
+
+/**
  * 출석 현황 데이터를 화면에 표시
  */
 function displayTodayStatus(attendance) {
@@ -403,7 +418,7 @@ function displayTodayStatus(attendance) {
             <tr>
                 <td><strong>${record.name}</strong></td>
                 <td>${record.team}팀</td>
-                <td>${record.time}</td>
+                <td>${formatTimeHHMM(record.time)}</td>
             </tr>
         `;
     });
