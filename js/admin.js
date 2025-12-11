@@ -383,6 +383,63 @@ async function loadAttendanceTime() {
 }
 
 /**
+ * 출석 가능 요일 설정 저장
+ */
+async function saveAttendanceDays() {
+    const checkboxes = document.querySelectorAll('.attendance-day-checkbox:checked');
+    const selectedDays = Array.from(checkboxes).map(cb => cb.value);
+    const messageEl = document.getElementById('attendanceDaysMessage');
+
+    try {
+        const response = await requestGas('saveAttendanceDays', {
+            days: selectedDays.join(',')
+        });
+
+        if (response.success) {
+            messageEl.textContent = '✅ 출석 가능 요일 설정이 저장되었습니다.';
+            messageEl.className = 'message-area success';
+        } else {
+            messageEl.textContent = '❌ 저장에 실패했습니다: ' + (response.message || '알 수 없는 오류');
+            messageEl.className = 'message-area error';
+        }
+    } catch (error) {
+        messageEl.textContent = '❌ 저장 중 오류가 발생했습니다: ' + error;
+        messageEl.className = 'message-area error';
+    }
+}
+
+/**
+ * 출석 가능 요일 설정 불러오기
+ */
+async function loadAttendanceDays() {
+    try {
+        const response = await requestGas('getAttendanceDays');
+
+        if (response.success && response.attendanceDays) {
+            const daysString = response.attendanceDays;
+
+            // 모든 체크박스 초기화
+            document.querySelectorAll('.attendance-day-checkbox').forEach(cb => {
+                cb.checked = false;
+            });
+
+            // 저장된 요일 체크
+            if (daysString) {
+                const days = daysString.split(',').map(d => d.trim());
+                days.forEach(day => {
+                    const checkbox = document.querySelector(`.attendance-day-checkbox[value="${day}"]`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            }
+        }
+    } catch (error) {
+        console.error('출석 가능 요일 설정 로드 오류:', error);
+    }
+}
+
+/**
  * 비밀번호 관리 팝업 열기 (설정된 비밀번호를 변경/해제할 때 사용)
  */
 function openPasswordManagementModal() {
@@ -845,8 +902,9 @@ function switchTab(tabName) {
             loadMembersTab();
             break;
         case 'settings':
-            // 설정 탭: 출석 시간 설정 로드
+            // 설정 탭: 출석 시간 설정 및 요일 설정 로드
             loadAttendanceTime();
+            loadAttendanceDays();
             break;
     }
 }
@@ -1061,6 +1119,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveAttendanceTimeBtn = document.getElementById('saveAttendanceTimeBtn');
     if (saveAttendanceTimeBtn) {
         saveAttendanceTimeBtn.addEventListener('click', saveAttendanceTime);
+    }
+
+    const saveAttendanceDaysBtn = document.getElementById('saveAttendanceDaysBtn');
+    if (saveAttendanceDaysBtn) {
+        saveAttendanceDaysBtn.addEventListener('click', saveAttendanceDays);
     }
 });
 

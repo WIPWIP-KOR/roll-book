@@ -48,7 +48,13 @@ function doGet(e) {
           return createResponse(saveTimeSuccess, saveTimeSuccess ? null : 'Failed to save attendance time', null, callback);
       case 'getAttendanceTime':
           return getAttendanceTime(callback);
-          
+      case 'saveAttendanceDays':
+          const days = e.parameter.days;
+          const saveDaysSuccess = saveAttendanceDays(days);
+          return createResponse(saveDaysSuccess, saveDaysSuccess ? null : 'Failed to save attendance days', null, callback);
+      case 'getAttendanceDays':
+          return getAttendanceDays(callback);
+
       // 데이터/정보 조회
       case 'getMembers':
         return getMembers(callback);
@@ -223,6 +229,46 @@ function findSettingRow(sheet, itemName) {
     return null;
 }
 
+/**
+ * 출석 가능 요일 설정 저장
+ */
+function saveAttendanceDays(daysString) {
+    try {
+        const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+        let row = findSettingRow(sheet, '출석 가능 요일');
+
+        if (!row) {
+            sheet.appendRow(['출석 가능 요일', daysString]);
+        } else {
+            sheet.getRange(row, 2).setValue(daysString);
+        }
+
+        Logger.log(`Attendance days saved: ${daysString}`);
+        return true;
+    } catch (e) {
+        Logger.log('Error in saveAttendanceDays: ' + e.toString());
+        return false;
+    }
+}
+
+/**
+ * 출석 가능 요일 설정 불러오기
+ */
+function getAttendanceDays(callback) {
+    try {
+        const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+        const row = findSettingRow(sheet, '출석 가능 요일');
+        const days = row ? sheet.getRange(row, 2).getValue() : '';
+
+        return createResponse(true, null, {
+            attendanceDays: days
+        }, callback);
+    } catch (e) {
+        Logger.log('Error in getAttendanceDays: ' + e.toString());
+        return createResponse(false, e.toString(), null, callback);
+    }
+}
+
 // ==================== 출석 처리 (연도별 시트 적용) ====================
 
 function processAttendance(data, e, callback) {
@@ -259,6 +305,21 @@ function processAttendance(data, e, callback) {
   // 💡 현재 연도 시트만 확인하여 중복 체크
   if (isDuplicateAttendance(name, ipAddress)) {
     return createResponse(false, '이미 오늘 출석하셨습니다.', null, callback);
+  }
+
+  // 💡 요일 검증
+  const allowedDays = getAllowedDays();
+  if (allowedDays.length > 0) {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0~6
+
+    if (!allowedDays.includes(currentDay)) {
+      const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+      const allowedDayNames = allowedDays.map(d => dayNames[d]).join(', ');
+      return createResponse(false,
+        `출석은 ${allowedDayNames}만 가능합니다.`,
+        null, callback);
+    }
   }
 
   // 💡 지각 판정 로직
@@ -899,6 +960,26 @@ function getOrCreateSheet(sheetName) {
 function getDayOfWeek(date) {
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     return days[date.getDay()];
+}
+
+/**
+ * 출석 가능 요일 목록 가져오기
+ */
+function getAllowedDays() {
+    try {
+        const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+        const row = findSettingRow(sheet, '출석 가능 요일');
+
+        if (!row) return []; // 설정이 없으면 모든 요일 허용
+
+        const daysString = sheet.getRange(row, 2).getValue();
+        if (!daysString || daysString === '') return [];
+
+        return daysString.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d));
+    } catch (e) {
+        Logger.log('Error in getAllowedDays: ' + e.toString());
+        return []; // 오류 시 모든 요일 허용
+    }
 }
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
