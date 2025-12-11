@@ -41,6 +41,13 @@ function doGet(e) {
           const newPassword = e.parameter.newPassword || "";
           const success = setAdminPassword(newPassword);
           return createResponse(true, null, { success: success }, callback);
+      case 'saveAttendanceTime':
+          const startTime = e.parameter.startTime;
+          const lateTime = e.parameter.lateTime;
+          const saveTimeSuccess = saveAttendanceTime(startTime, lateTime);
+          return createResponse(saveTimeSuccess, saveTimeSuccess ? null : 'Failed to save attendance time', null, callback);
+      case 'getAttendanceTime':
+          return getAttendanceTime(callback);
           
       // 데이터/정보 조회
       case 'getMembers':
@@ -147,6 +154,75 @@ function setAdminPassword(newPassword) {
     }
 }
 
+/**
+ * 출석 시간 설정 저장
+ */
+function saveAttendanceTime(startTime, lateTime) {
+    try {
+        const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+
+        // 출석 시작 시간 저장
+        let startRow = findSettingRow(sheet, '출석 시작 시간');
+        if (!startRow) {
+            sheet.appendRow(['출석 시작 시간', startTime]);
+        } else {
+            sheet.getRange(startRow, 2).setValue(startTime);
+        }
+
+        // 지각 기준 시간 저장
+        let lateRow = findSettingRow(sheet, '지각 기준 시간');
+        if (!lateRow) {
+            sheet.appendRow(['지각 기준 시간', lateTime]);
+        } else {
+            sheet.getRange(lateRow, 2).setValue(lateTime);
+        }
+
+        Logger.log(`Attendance time saved: start=${startTime}, late=${lateTime}`);
+        return true;
+    } catch (e) {
+        Logger.log('Error in saveAttendanceTime: ' + e.toString());
+        return false;
+    }
+}
+
+/**
+ * 출석 시간 설정 불러오기
+ */
+function getAttendanceTime(callback) {
+    try {
+        const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+
+        const startRow = findSettingRow(sheet, '출석 시작 시간');
+        const lateRow = findSettingRow(sheet, '지각 기준 시간');
+
+        const startTime = startRow ? sheet.getRange(startRow, 2).getValue() : null;
+        const lateTime = lateRow ? sheet.getRange(lateRow, 2).getValue() : null;
+
+        return createResponse(true, null, {
+            attendanceTime: {
+                startTime: startTime,
+                lateTime: lateTime
+            }
+        }, callback);
+    } catch (e) {
+        Logger.log('Error in getAttendanceTime: ' + e.toString());
+        return createResponse(false, e.toString(), null, callback);
+    }
+}
+
+/**
+ * 설정 시트에서 특정 항목의 행 번호 찾기
+ */
+function findSettingRow(sheet, itemName) {
+    const data = sheet.getDataRange().getValues();
+    for (let i = 0; i < data.length; i++) {
+        if (data[i][0] === itemName) {
+            return i + 1; // 행 번호는 1부터 시작
+        }
+    }
+    return null;
+}
+
 // ==================== 출석 처리 (연도별 시트 적용) ====================
 
 function processAttendance(data, e, callback) {
@@ -185,11 +261,67 @@ function processAttendance(data, e, callback) {
     return createResponse(false, '이미 오늘 출석하셨습니다.', null, callback);
   }
 
-  // 💡 현재 연도 시트에 기록 (시즌 정보 포함)
-  saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance);
+  // 💡 지각 판정 로직
+  const lateStatus = checkLateStatus();
+
+  // 출석 시작 시간 이전이면 출석 불가
+  if (lateStatus.beforeStart) {
+    return createResponse(false, `출석 시간이 아닙니다. ${lateStatus.startTime} 이후에 출석해주세요.`, null, callback);
+  }
+
+  // 💡 현재 연도 시트에 기록 (시즌 정보 및 지각 여부 포함)
+  saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance, lateStatus.isLate);
   updateMember(name, team, season);
 
-  return createResponse(true, '출석이 완료되었습니다!', null, callback);
+  // 지각 여부에 따라 다른 메시지 반환
+  if (lateStatus.isLate) {
+    const funnyMessages = [
+      '⏰ 어머나! 늦었네요! 뛰어오셨어요? 😅',
+      '🐢 지각! 천천히 오셨군요~ 다음엔 더 일찍!',
+      '😅 지각이에요! 시간 확인 필수!',
+      '🕐 늦었어요! 하지만 출석은 인정!',
+      '⏱️ 지각! 다음엔 알람 맞춰두세요~ ⏰',
+      '🏃 조금만 더 일찍 오셨으면...! 지각이에요!'
+    ];
+    const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+    return createResponse(true, randomMessage, { isLate: true }, callback);
+  }
+
+  return createResponse(true, '✅ 출석이 완료되었습니다!', { isLate: false }, callback);
+}
+
+/**
+ * 지각 여부 판정
+ */
+function checkLateStatus() {
+  const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+  const startRow = findSettingRow(sheet, '출석 시작 시간');
+  const lateRow = findSettingRow(sheet, '지각 기준 시간');
+
+  // 설정이 없으면 지각 판정 안 함
+  if (!startRow || !lateRow) {
+    return { isLate: false, beforeStart: false, startTime: null };
+  }
+
+  const startTime = sheet.getRange(startRow, 2).getValue();
+  const lateTime = sheet.getRange(lateRow, 2).getValue();
+
+  if (!startTime || !lateTime) {
+    return { isLate: false, beforeStart: false, startTime: null };
+  }
+
+  const now = new Date();
+  const currentTime = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm');
+
+  // 출석 시작 시간 이전인지 확인
+  if (currentTime < startTime) {
+    return { isLate: false, beforeStart: true, startTime: startTime };
+  }
+
+  // 지각 기준 시간 이후인지 확인
+  const isLate = currentTime >= lateTime;
+
+  return { isLate: isLate, beforeStart: false, startTime: startTime };
 }
 
 /**
@@ -223,9 +355,9 @@ function isDuplicateAttendance(name, ipAddress) {
 }
 
 /**
- * 출석 기록 저장 (현재 연도 시트에 저장, 시즌 정보 포함)
+ * 출석 기록 저장 (현재 연도 시트에 저장, 시즌 정보 및 지각 여부 포함)
  */
-function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance) {
+function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance, isLate) {
   const currentYear = new Date().getFullYear();
   let sheet = getAttendanceSheet(currentYear);
 
@@ -237,7 +369,7 @@ function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress
   }
 
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['날짜', '요일', '이름', '팀', '시즌', '출석시간', '위도', '경도', 'IP주소', '거리(m)']);
+    sheet.appendRow(['날짜', '요일', '이름', '팀', '시즌', '출석시간', '지각여부', '위도', '경도', 'IP주소', '거리(m)']);
   }
 
   const now = new Date();
@@ -252,6 +384,7 @@ function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress
     team,
     season,  // 시즌 정보 추가 (상반기/하반기)
     time,
+    isLate ? '지각' : '정상',  // 지각 여부
     latitude,
     longitude,
     ipAddress,
@@ -426,7 +559,8 @@ function getTodayAttendance(callback) {
         name: data[i][2],
         team: data[i][3],
         season: data[i][4],
-        time: data[i][5]
+        time: data[i][5],
+        isLate: data[i][6] === '지각' // 지각 여부 추가
       });
     }
   }
@@ -464,7 +598,8 @@ function getAttendanceDetailByDate(callback, dateParam) {
         name: data[i][2],
         team: data[i][3],
         season: data[i][4],
-        time: data[i][5]
+        time: data[i][5],
+        isLate: data[i][6] === '지각' // 지각 여부 추가
       });
     }
   }
@@ -542,22 +677,33 @@ function getStats(callback, year, season) {
   // 💡 캐시된 회원 목록 사용 (성능 최적화)
   const members = getMembers(null);
 
-  // 1. 개인별 통계 계산을 위한 해당 연도 출석 횟수 집계
+  // 1. 개인별 통계 계산을 위한 해당 연도 출석 횟수 및 지각 횟수 집계
   const attendanceCountMap = {};
-  members.forEach(m => attendanceCountMap[m.name] = 0);
+  const lateCountMap = {};
+  members.forEach(m => {
+    attendanceCountMap[m.name] = 0;
+    lateCountMap[m.name] = 0;
+  });
 
   // 출석 기록 시트 스캔 (해당 연도 데이터만 있으므로 빠름)
   attendanceData.forEach(row => {
     const rowName = row[2];
+    const isLate = row[6] === '지각'; // 지각 여부 컬럼
+
     if (attendanceCountMap[rowName] !== undefined) {
         attendanceCountMap[rowName]++;
+        if (isLate) {
+            lateCountMap[rowName]++;
+        }
     }
   });
 
   const personalStats = [];
   members.forEach(member => {
     const attendanceCountInYear = attendanceCountMap[member.name] || 0;
+    const lateCountInYear = lateCountMap[member.name] || 0;
     const rate = totalSaturdays > 0 ? (attendanceCountInYear / totalSaturdays) * 100 : 0;
+    const lateRate = attendanceCountInYear > 0 ? (lateCountInYear / attendanceCountInYear) * 100 : 0;
 
     // 시즌에 따라 팀 정보 결정
     let teamForSeason;
@@ -577,16 +723,18 @@ function getStats(callback, year, season) {
       team: teamForSeason,
       attendanceCount: attendanceCountInYear,
       attendanceCountTotal: member.attendanceCountTotal,
+      lateCount: lateCountInYear,
       totalSaturdays: totalSaturdays,
-      rate: rate
+      rate: rate,
+      lateRate: lateRate
     });
   });
 
   // 2. 팀별 통계 계산
   const teamStats = {
-    A: { count: 0, total: 0, rate: 0 },
-    B: { count: 0, total: 0, rate: 0 },
-    C: { count: 0, total: 0, rate: 0 }
+    A: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 },
+    B: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 },
+    C: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 }
   };
     Object.keys(teamStats).forEach(team => {
         const teamMembers = personalStats.filter(s => s.team === team);
@@ -594,14 +742,19 @@ function getStats(callback, year, season) {
 
         if (teamMemberCount > 0) {
             const totalAttendanceForTeam = teamMembers.reduce((sum, member) => sum + member.attendanceCount, 0);
+            const totalLateForTeam = teamMembers.reduce((sum, member) => sum + member.lateCount, 0);
 
             teamStats[team].count = totalAttendanceForTeam / teamMemberCount;
             teamStats[team].total = totalSaturdays;
             teamStats[team].rate = (teamStats[team].count / teamStats[team].total) * 100;
+            teamStats[team].lateCount = totalLateForTeam / teamMemberCount;
+            teamStats[team].lateRate = totalAttendanceForTeam > 0 ? (totalLateForTeam / totalAttendanceForTeam) * 100 : 0;
         } else {
             teamStats[team].count = 0;
             teamStats[team].total = totalSaturdays;
             teamStats[team].rate = 0;
+            teamStats[team].lateCount = 0;
+            teamStats[team].lateRate = 0;
         }
     });
 

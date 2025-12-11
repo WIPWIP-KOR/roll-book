@@ -630,7 +630,9 @@ function displayTeamStats(teamStats) {
         team: team,
         rate: teamStats[team].rate,
         count: teamStats[team].count,
-        total: teamStats[team].total
+        total: teamStats[team].total,
+        lateRate: teamStats[team].lateRate || 0,
+        lateCount: teamStats[team].lateCount || 0
     })).sort((a, b) => b.rate - a.rate); // 출석률 높은 순
 
     let html = `<h4 style="margin: 20px 0 15px 0; color: #333;">🏆 ${targetYear}년 팀 출석 순위</h4>`;
@@ -643,6 +645,7 @@ function displayTeamStats(teamStats) {
                     <th>팀</th>
                     <th class="text-end">평균 출석률</th>
                     <th class="text-end">평균 출석 횟수</th>
+                    <th class="text-end">평균 지각률</th>
                 </tr>
             </thead>
             <tbody>
@@ -653,6 +656,7 @@ function displayTeamStats(teamStats) {
         const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
         const rateDisplay = teamData.rate.toFixed(1);
         const countDisplay = teamData.count.toFixed(1);
+        const lateRateDisplay = teamData.lateRate.toFixed(1);
 
         html += `
             <tr>
@@ -660,6 +664,7 @@ function displayTeamStats(teamStats) {
                 <td><strong>팀 ${teamData.team}</strong></td>
                 <td class="text-end"><span class="fw-bold">${rateDisplay}%</span></td>
                 <td class="text-end">${countDisplay}회 / ${teamData.total}회</td>
+                <td class="text-end"><span style="color: #ff9800; font-weight: 600;">⏰ ${lateRateDisplay}%</span></td>
             </tr>
         `;
     });
@@ -875,6 +880,7 @@ function displayAttendanceDetailList(attendance) {
                     <th style="width: 50px;">순서</th>
                     <th>이름</th>
                     <th>팀</th>
+                    <th>상태</th>
                     <th class="text-end">출석 시간</th>
                 </tr>
             </thead>
@@ -882,11 +888,16 @@ function displayAttendanceDetailList(attendance) {
     `;
 
     attendance.forEach((record, index) => {
+        const lateStatus = record.isLate ?
+            '<span style="color: #ff9800; font-weight: 600;">⏰</span>' :
+            '<span style="color: #4caf50; font-weight: 600;">✅</span>';
+
         html += `
             <tr>
                 <td>${index + 1}</td>
                 <td><strong>${record.name}</strong></td>
                 <td><span class="badge bg-primary">${record.team}팀</span></td>
+                <td style="text-align: center;">${lateStatus}</td>
                 <td class="text-end">${formatTimeHHMM(record.time)}</td>
             </tr>
         `;

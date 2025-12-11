@@ -116,6 +116,27 @@
                         💡 비밀번호를 비워두고 저장하면 비밀번호 인증이 해제됩니다.
                     </p>
                 </div>
+
+                <!-- 출석 시간 설정 -->
+                <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
+                    <h3 style="margin-bottom: 20px; color: #333;">⏰ 출석 시간 설정</h3>
+                    <div class="form-group">
+                        <label for="attendanceStartTime">출석 시작 시간:</label>
+                        <input type="time" id="attendanceStartTime" placeholder="14:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="lateThresholdTime">지각 기준 시간:</label>
+                        <input type="time" id="lateThresholdTime" placeholder="14:30">
+                    </div>
+                    <button id="saveAttendanceTimeBtn" class="btn-primary">시간 설정 저장</button>
+                    <p id="attendanceTimeMessage" class="message-area"></p>
+
+                    <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <p style="color: #666; font-size: 0.9em; margin: 0;">
+                            💡 출석 시작 시간 이전에는 출석이 불가능하고, 지각 기준 시간 이후에 출석하면 지각으로 기록됩니다.
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
