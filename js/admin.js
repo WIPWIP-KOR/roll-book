@@ -633,6 +633,19 @@ async function loadMembersTab(forceReload = false) {
 }
 
 /**
+ * 설정 탭 데이터 로드
+ */
+async function loadSettingsTab() {
+    // 출석 시간 설정 및 요일 설정 항상 로드 (최신 데이터 표시)
+    await Promise.all([
+        loadAttendanceTime(),
+        loadAttendanceDays()
+    ]);
+
+    console.log('✅ 설정 탭 데이터 로드 완료');
+}
+
+/**
  * 전체 회원 목록을 서버에서 불러와 테이블에 표시합니다. - 캐싱 적용
  */
 async function loadMembers() {
@@ -912,8 +925,7 @@ function switchTab(tabName) {
             break;
         case 'settings':
             // 설정 탭: 출석 시간 설정 및 요일 설정 로드
-            loadAttendanceTime();
-            loadAttendanceDays();
+            loadSettingsTab();
             break;
     }
 }
@@ -1135,19 +1147,8 @@ document.addEventListener('DOMContentLoaded', () => {
         saveAttendanceDaysBtn.addEventListener('click', saveAttendanceDays);
     }
 
-    // 출석 가능 요일 체크박스 - span 클릭 시 체크박스 토글
-    document.querySelectorAll('.day-checkbox-custom').forEach(span => {
-        span.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            const label = this.parentElement;
-            const checkbox = label.querySelector('.attendance-day-checkbox');
-            if (checkbox) {
-                checkbox.checked = !checkbox.checked;
-                console.log('요일 선택:', checkbox.value, '선택됨:', checkbox.checked);
-            }
-        });
-    });
+    // 출석 가능 요일 체크박스 - label의 기본 동작 사용
+    // label을 클릭하면 자동으로 checkbox가 토글되므로 별도 핸들러 불필요
 });
 
 // 3. 카카오 지도 API가 로드되면 initMap 함수를 호출해야 합니다.
