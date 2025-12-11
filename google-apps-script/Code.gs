@@ -49,6 +49,9 @@ function doGet(e) {
         return getLocation(callback);
       case 'getTodayAttendance':
         return getTodayAttendance(callback);
+      case 'getAttendanceDetailByDate':
+        const dateParam = e.parameter.date;
+        return getAttendanceDetailByDate(callback, dateParam);
         
       // 💡 연도별 통계 조회 (성능 최적화 적용)
       case 'getStats':
@@ -427,6 +430,45 @@ function getTodayAttendance(callback) {
       });
     }
   }
+  return createResponse(true, null, { attendance: attendance }, callback);
+}
+
+/**
+ * 특정 날짜의 출석 상세 정보를 가져옵니다
+ * @param {string} callback - JSONP 콜백 함수명
+ * @param {string} dateParam - 조회할 날짜 (YYYY-MM-DD 형식)
+ */
+function getAttendanceDetailByDate(callback, dateParam) {
+  if (!dateParam) {
+    return createResponse(false, '날짜가 지정되지 않았습니다.', null, callback);
+  }
+
+  // 날짜 파라미터에서 연도 추출
+  const year = parseInt(dateParam.substring(0, 4));
+
+  const sheet = getAttendanceSheet(year);
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return createResponse(true, null, { attendance: [] }, callback);
+  }
+
+  const data = sheet.getDataRange().getValues();
+  const attendance = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const rowDate = data[i][0];
+    if (!rowDate) continue;
+    const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+    if (rowDateStr === dateParam) {
+      attendance.push({
+        name: data[i][2],
+        team: data[i][3],
+        season: data[i][4],
+        time: data[i][5]
+      });
+    }
+  }
+
   return createResponse(true, null, { attendance: attendance }, callback);
 }
 

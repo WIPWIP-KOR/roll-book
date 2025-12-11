@@ -624,33 +624,47 @@ function displayTeamStats(teamStats) {
     // 현재 연도+시즌 조합으로 캐시 키 생성
     const cacheKeyStr = `${currentYear}_${currentSeason}`;
     const targetYear = allStats[cacheKeyStr] ? allStats[cacheKeyStr].targetYear : currentYear;
-    const teams = Object.keys(teamStats).sort();
 
-    let html = `<h4 style="margin: 20px 0 15px 0; color: #333;">🏆 ${targetYear}년 팀별 평균 출석률</h4>`;
-    html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; padding: 0 20px 20px 20px;">';
+    // 팀별 통계를 배열로 변환하고 출석률 기준 정렬
+    const teamArray = Object.keys(teamStats).map(team => ({
+        team: team,
+        rate: teamStats[team].rate,
+        count: teamStats[team].count,
+        total: teamStats[team].total
+    })).sort((a, b) => b.rate - a.rate); // 출석률 높은 순
 
-    teams.forEach(team => {
-        const stats = teamStats[team];
-        const rateDisplay = stats.rate.toFixed(1);
-        const countDisplay = stats.count.toFixed(1);
+    let html = `<h4 style="margin: 20px 0 15px 0; color: #333;">🏆 ${targetYear}년 팀 출석 순위</h4>`;
+    html += '<div style="padding: 0 20px 20px 20px;">';
+    html += `
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">순위</th>
+                    <th>팀</th>
+                    <th class="text-end">평균 출석률</th>
+                    <th class="text-end">평균 출석 횟수</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
 
-        let bgColor = '';
-        if (team === 'A') bgColor = 'bg-success';
-        else if (team === 'B') bgColor = 'bg-info';
-        else if (team === 'C') bgColor = 'bg-warning';
+    teamArray.forEach((teamData, index) => {
+        const rank = index + 1;
+        const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+        const rateDisplay = teamData.rate.toFixed(1);
+        const countDisplay = teamData.count.toFixed(1);
 
         html += `
-            <div class="card text-white ${bgColor}">
-                <div class="card-body">
-                    <h5 class="card-title">팀 ${team}</h5>
-                    <p class="card-text fs-3">${rateDisplay}%</p>
-                    <p class="card-text small">평균 출석 횟수: ${countDisplay}회</p>
-                </div>
-            </div>
+            <tr>
+                <td style="font-size: 1.2em;">${rankEmoji}</td>
+                <td><strong>팀 ${teamData.team}</strong></td>
+                <td class="text-end"><span class="fw-bold">${rateDisplay}%</span></td>
+                <td class="text-end">${countDisplay}회 / ${teamData.total}회</td>
+            </tr>
         `;
     });
 
-    html += '</div>';
+    html += '</tbody></table></div>';
     container.innerHTML = html;
 }
 
@@ -768,7 +782,7 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
             <tr>
                 <td>${stat.date}</td>
                 <td>${index + 1}주차</td>
-                <td><span class="badge bg-dark">${stat.count}명</span></td>
+                <td><a href="#" class="attendance-detail-link" data-date="${stat.fullDate}" style="text-decoration: none;"><span class="badge bg-dark">${stat.count}명</span></a></td>
                 <td class="text-center">${stat.teamCounts.A}</td>
                 <td class="text-center">${stat.teamCounts.B}</td>
                 <td class="text-center">${stat.teamCounts.C}</td>
@@ -778,6 +792,118 @@ function filterWeeklyStatsByMonth(month, weeklyStats) {
 
     html += '</tbody></table>';
     container.innerHTML = html;
+
+    // 출석 인원 클릭 이벤트 리스너 추가
+    container.querySelectorAll('.attendance-detail-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const date = e.currentTarget.dataset.date;
+            showAttendanceDetail(date);
+        });
+    });
+}
+
+// ==================== 출석 상세 정보 모달 ====================
+
+/**
+ * 시간을 HH:MM 형식으로 변환
+ */
+function formatTimeHHMM(timeStr) {
+    if (!timeStr) return '';
+
+    // "HH:MM:SS" 형식에서 HH:MM만 추출
+    const timeParts = timeStr.split(':');
+    if (timeParts.length >= 2) {
+        return `${timeParts[0]}:${timeParts[1]}`;
+    }
+
+    return timeStr; // 형식이 다르면 원본 반환
+}
+
+/**
+ * 특정 날짜의 출석 상세 정보를 표시하는 모달을 엽니다
+ */
+async function showAttendanceDetail(date) {
+    const modal = document.getElementById('attendanceDetailModal');
+    const modalBody = document.getElementById('attendanceDetailBody');
+    const modalTitle = document.getElementById('attendanceDetailTitle');
+
+    // 모달 제목 설정
+    const dateDisplay = date.substring(5); // YYYY-MM-DD에서 MM-DD만 추출
+    modalTitle.textContent = `${dateDisplay} 출석 명단`;
+
+    // 로딩 표시
+    modalBody.innerHTML = '<p style="text-align: center; padding: 20px;">불러오는 중...</p>';
+    modal.style.display = 'flex';
+
+    try {
+        // 서버에서 해당 날짜의 출석 상세 정보 가져오기
+        const response = await requestGas('getAttendanceDetailByDate', { date: date });
+
+        if (response.success && response.attendance) {
+            displayAttendanceDetailList(response.attendance);
+        } else {
+            modalBody.innerHTML = '<p style="text-align: center; color: #999;">출석 기록이 없습니다.</p>';
+        }
+    } catch (error) {
+        console.error('출석 상세 정보 로드 실패:', error);
+        modalBody.innerHTML = '<p style="text-align: center; color: #c62828;">데이터를 불러오는데 실패했습니다.</p>';
+    }
+}
+
+/**
+ * 출석 상세 명단을 모달에 표시합니다 (출석 시간 순으로 정렬)
+ */
+function displayAttendanceDetailList(attendance) {
+    const modalBody = document.getElementById('attendanceDetailBody');
+
+    if (attendance.length === 0) {
+        modalBody.innerHTML = '<p style="text-align: center; color: #999;">출석 기록이 없습니다.</p>';
+        return;
+    }
+
+    // 출석 시간 순으로 정렬 (오름차순)
+    attendance.sort((a, b) => {
+        if (!a.time || !b.time) return 0;
+        return a.time.localeCompare(b.time);
+    });
+
+    let html = `
+        <table class="table table-hover" style="margin-bottom: 0;">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">순서</th>
+                    <th>이름</th>
+                    <th>팀</th>
+                    <th class="text-end">출석 시간</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    attendance.forEach((record, index) => {
+        html += `
+            <tr>
+                <td>${index + 1}</td>
+                <td><strong>${record.name}</strong></td>
+                <td><span class="badge bg-primary">${record.team}팀</span></td>
+                <td class="text-end">${formatTimeHHMM(record.time)}</td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+    html += `<p style="text-align: center; color: #666; margin-top: 15px; margin-bottom: 0;">총 ${attendance.length}명 출석</p>`;
+
+    modalBody.innerHTML = html;
+}
+
+/**
+ * 출석 상세 모달을 닫습니다
+ */
+function hideAttendanceDetailModal() {
+    const modal = document.getElementById('attendanceDetailModal');
+    modal.style.display = 'none';
 }
 
 // ==================== 초기 실행 ====================
@@ -812,6 +938,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 attemptAdminAuth();
             }
         });
+    }
+
+    // 5. 출석 상세 모달 이벤트 (존재하는 경우에만)
+    const attendanceDetailClose = document.getElementById('attendanceDetailClose');
+    if (attendanceDetailClose) {
+        attendanceDetailClose.addEventListener('click', hideAttendanceDetailModal);
     }
 
 });

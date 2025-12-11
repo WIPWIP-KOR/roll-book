@@ -307,13 +307,13 @@
             <div class="year-selector" style="margin-top: 15px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 15px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <label for="yearSelect" style="color: white; font-weight: 600;">연도:</label>
-                    <select id="yearSelect" class="year-dropdown" style="padding: 8px 16px; border-radius: 8px; border: 2px solid white; background: rgba(255, 255, 255, 0.2); color: white; font-weight: 600; font-size: 1em; cursor: pointer;">
+                    <select id="yearSelect" class="year-dropdown" style="padding: 8px 16px; border-radius: 8px; border: 2px solid white; background: white; color: #333; font-weight: 600; font-size: 1em; cursor: pointer;">
                         <!-- 옵션은 JavaScript로 동적 생성 -->
                     </select>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <label for="seasonSelect" style="color: white; font-weight: 600;">시즌:</label>
-                    <select id="seasonSelect" class="year-dropdown" style="padding: 8px 16px; border-radius: 8px; border: 2px solid white; background: rgba(255, 255, 255, 0.2); color: white; font-weight: 600; font-size: 1em; cursor: pointer;">
+                    <select id="seasonSelect" class="year-dropdown" style="padding: 8px 16px; border-radius: 8px; border: 2px solid white; background: white; color: #333; font-weight: 600; font-size: 1em; cursor: pointer;">
                         <option value="all">전체</option>
                         <option value="firstHalf">상반기</option>
                         <option value="secondHalf">하반기</option>
@@ -413,6 +413,19 @@
                 <button id="adminAuthCancel" class="btn-secondary">취소</button>
             </div>
             <p id="adminAuthMessage" class="message-area"></p>
+        </div>
+    </div>
+
+    <!-- 출석 상세 정보 모달 -->
+    <div id="attendanceDetailModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2 id="attendanceDetailTitle">📋 출석 명단</h2>
+            <div id="attendanceDetailBody" style="max-height: 400px; overflow-y: auto;">
+                <!-- 출석 상세 정보가 여기에 표시됩니다 -->
+            </div>
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button id="attendanceDetailClose" class="btn-primary">닫기</button>
+            </div>
         </div>
     </div>
 

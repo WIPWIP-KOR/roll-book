@@ -585,6 +585,12 @@ body {
     user-select: none;
 }
 
+/* 월별 탭 (작게 표시하여 1-12월 한 줄에) */
+.tab-btn.month-tab {
+    padding: 10px 12px;
+    font-size: 0.9em;
+}
+
 .tab-btn:hover {
     color: #667eea;
     background: rgba(102, 126, 234, 0.05);
