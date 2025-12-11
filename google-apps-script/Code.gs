@@ -1084,6 +1084,90 @@ function migrateMembersSheetAddSeasonTeams() {
 }
 
 /**
+ * 기존 출석기록 시트에 지각여부 컬럼 추가하는 마이그레이션 스크립트
+ */
+function migrateAttendanceSheetsAddLateColumn() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+  const settingsSheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+
+  let updatedSheets = 0;
+
+  // 출석 시간 설정 가져오기 (있는 경우에만 지각 판정)
+  const startRow = findSettingRow(settingsSheet, '출석 시작 시간');
+  const lateRow = findSettingRow(settingsSheet, '지각 기준 시간');
+  const startTime = startRow ? settingsSheet.getRange(startRow, 2).getValue() : null;
+  const lateTime = lateRow ? settingsSheet.getRange(lateRow, 2).getValue() : null;
+  const hasTimeSetting = startTime && lateTime;
+
+  sheets.forEach(sheet => {
+    const sheetName = sheet.getName();
+
+    // 출석기록_YYYY 형식의 시트만 처리
+    if (sheetName.startsWith('출석기록_')) {
+      Logger.log(`처리 중: ${sheetName}`);
+
+      const lastRow = sheet.getLastRow();
+
+      if (lastRow === 0) {
+        Logger.log(`  → 빈 시트, 건너뜀`);
+        return;
+      }
+
+      // 헤더 확인
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+      // 이미 지각여부 컬럼이 있는지 확인
+      if (headers.includes('지각여부')) {
+        Logger.log(`  → 이미 지각여부 컬럼이 있습니다`);
+        return;
+      }
+
+      // 현재 구조: [날짜, 요일, 이름, 팀, 시즌, 출석시간, 위도, 경도, IP주소, 거리]
+      // 새 구조: [날짜, 요일, 이름, 팀, 시즌, 출석시간, 지각여부, 위도, 경도, IP주소, 거리]
+
+      if (headers[0] === '날짜' && headers[5] === '출석시간') {
+        Logger.log(`  → 지각여부 컬럼 추가 중...`);
+
+        // F열(6번째, 출석시간) 다음에 새 컬럼 삽입
+        sheet.insertColumnAfter(6);
+
+        // 헤더 업데이트
+        sheet.getRange(1, 7).setValue('지각여부');
+
+        // 기존 데이터에 지각 정보 자동 채우기
+        if (lastRow > 1) {
+          for (let row = 2; row <= lastRow; row++) {
+            const attendanceTime = sheet.getRange(row, 6).getValue(); // F열: 출석시간
+
+            if (attendanceTime && hasTimeSetting) {
+              // 출석 시간을 HH:mm 형식으로 변환
+              const timeStr = Utilities.formatDate(new Date(attendanceTime), Session.getScriptTimeZone(), 'HH:mm');
+
+              // 지각 여부 판정
+              const isLate = timeStr >= lateTime;
+              sheet.getRange(row, 7).setValue(isLate ? '지각' : '정상'); // G열: 지각여부
+            } else {
+              // 시간 설정이 없거나 출석시간 데이터가 없으면 기본값 '정상'
+              sheet.getRange(row, 7).setValue('정상');
+            }
+          }
+          Logger.log(`  → ${lastRow - 1}개 레코드에 지각 정보 자동 입력 완료`);
+        }
+
+        updatedSheets++;
+        Logger.log(`  ✅ ${sheetName} 업데이트 완료`);
+      } else {
+        Logger.log(`  ⚠️ 예상과 다른 컬럼 구조: ${headers.join(', ')}`);
+      }
+    }
+  });
+
+  Logger.log(`\n총 ${updatedSheets}개 시트 업데이트 완료`);
+  Logger.log(`✅ 시트 업데이트 완료! ${updatedSheets}개의 출석기록 시트에 지각여부 컬럼이 추가되었습니다.`);
+}
+
+/**
  * 모든 마이그레이션을 한 번에 실행
  * Google Apps Script 편집기에서 이 함수를 실행하세요.
  */
@@ -1095,6 +1179,9 @@ function runAllMigrations() {
 
   // 2. 회원목록 시트 구조 업데이트
   migrateMembersSheetAddSeasonTeams();
+
+  // 3. 출석기록 시트에 지각여부 컬럼 추가
+  migrateAttendanceSheetsAddLateColumn();
 
   // 캐시 무효화
   CacheService.getScriptCache().remove('ALL_MEMBERS_DATA');
