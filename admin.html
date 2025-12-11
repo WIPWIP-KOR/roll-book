@@ -141,37 +141,37 @@
                 <!-- 출석 가능 요일 설정 -->
                 <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
                     <h3 style="margin-bottom: 20px; color: #333;">📅 출석 가능 요일 설정</h3>
-                    <div class="form-group" style="display: flex; flex-wrap: wrap; gap: 10px;">
-                        <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; background: #f8f9fa; border-radius: 8px; min-width: 90px;">
-                            <input type="checkbox" class="attendance-day-checkbox" value="0" style="margin-right: 8px;">
-                            <span>일요일</span>
+                    <div class="attendance-days-container">
+                        <label class="day-checkbox-label">
+                            <input type="checkbox" class="attendance-day-checkbox" value="0">
+                            <span class="day-checkbox-custom">일요일</span>
                         </label>
-                        <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; background: #f8f9fa; border-radius: 8px; min-width: 90px;">
-                            <input type="checkbox" class="attendance-day-checkbox" value="1" style="margin-right: 8px;">
-                            <span>월요일</span>
+                        <label class="day-checkbox-label">
+                            <input type="checkbox" class="attendance-day-checkbox" value="1">
+                            <span class="day-checkbox-custom">월요일</span>
                         </label>
-                        <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; background: #f8f9fa; border-radius: 8px; min-width: 90px;">
-                            <input type="checkbox" class="attendance-day-checkbox" value="2" style="margin-right: 8px;">
-                            <span>화요일</span>
+                        <label class="day-checkbox-label">
+                            <input type="checkbox" class="attendance-day-checkbox" value="2">
+                            <span class="day-checkbox-custom">화요일</span>
                         </label>
-                        <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; background: #f8f9fa; border-radius: 8px; min-width: 90px;">
-                            <input type="checkbox" class="attendance-day-checkbox" value="3" style="margin-right: 8px;">
-                            <span>수요일</span>
+                        <label class="day-checkbox-label">
+                            <input type="checkbox" class="attendance-day-checkbox" value="3">
+                            <span class="day-checkbox-custom">수요일</span>
                         </label>
-                        <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; background: #f8f9fa; border-radius: 8px; min-width: 90px;">
-                            <input type="checkbox" class="attendance-day-checkbox" value="4" style="margin-right: 8px;">
-                            <span>목요일</span>
+                        <label class="day-checkbox-label">
+                            <input type="checkbox" class="attendance-day-checkbox" value="4">
+                            <span class="day-checkbox-custom">목요일</span>
                         </label>
-                        <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; background: #f8f9fa; border-radius: 8px; min-width: 90px;">
-                            <input type="checkbox" class="attendance-day-checkbox" value="5" style="margin-right: 8px;">
-                            <span>금요일</span>
+                        <label class="day-checkbox-label">
+                            <input type="checkbox" class="attendance-day-checkbox" value="5">
+                            <span class="day-checkbox-custom">금요일</span>
                         </label>
-                        <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; background: #f8f9fa; border-radius: 8px; min-width: 90px;">
-                            <input type="checkbox" class="attendance-day-checkbox" value="6" style="margin-right: 8px;">
-                            <span>토요일</span>
+                        <label class="day-checkbox-label">
+                            <input type="checkbox" class="attendance-day-checkbox" value="6">
+                            <span class="day-checkbox-custom">토요일</span>
                         </label>
                     </div>
-                    <button id="saveAttendanceDaysBtn" class="btn-primary">요일 설정 저장</button>
+                    <button id="saveAttendanceDaysBtn" class="btn-primary" style="margin-top: 20px;">요일 설정 저장</button>
                     <p id="attendanceDaysMessage" class="message-area"></p>
 
                     <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
@@ -330,6 +330,88 @@
             color: #666;
             font-size: 0.9em;
             margin: 0;
+        }
+
+        /* 출석 가능 요일 선택 스타일 */
+        .attendance-days-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .day-checkbox-label {
+            position: relative;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .day-checkbox-label input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+
+        .day-checkbox-custom {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px 12px;
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-weight: 500;
+            font-size: 1em;
+            color: #666;
+            transition: all 0.3s ease;
+            text-align: center;
+            min-height: 56px;
+        }
+
+        .day-checkbox-label:hover .day-checkbox-custom {
+            background: #e8eaf6;
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+
+        .day-checkbox-label input[type="checkbox"]:checked + .day-checkbox-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .day-checkbox-label input[type="checkbox"]:checked:hover + .day-checkbox-custom {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        .day-checkbox-label:active .day-checkbox-custom {
+            transform: translateY(0);
+        }
+
+        /* 모바일 대응 */
+        @media (max-width: 600px) {
+            .attendance-days-container {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .day-checkbox-custom {
+                padding: 14px 10px;
+                font-size: 0.95em;
+                min-height: 52px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .attendance-days-container {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 
