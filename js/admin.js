@@ -1125,6 +1125,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (saveAttendanceDaysBtn) {
         saveAttendanceDaysBtn.addEventListener('click', saveAttendanceDays);
     }
+
+    // 출석 가능 요일 체크박스 - span 클릭 시 체크박스 토글
+    document.querySelectorAll('.day-checkbox-custom').forEach(span => {
+        span.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const label = this.parentElement;
+            const checkbox = label.querySelector('.attendance-day-checkbox');
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                console.log('요일 선택:', checkbox.value, '선택됨:', checkbox.checked);
+            }
+        });
+    });
 });
 
 // 3. 카카오 지도 API가 로드되면 initMap 함수를 호출해야 합니다.
