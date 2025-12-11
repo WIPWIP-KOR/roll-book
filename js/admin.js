@@ -677,7 +677,8 @@ async function loadMembers() {
                 <thead>
                     <tr>
                         <th>이름</th>
-                        <th>팀</th>
+                        <th>상반기 팀</th>
+                        <th>하반기 팀</th>
                         <th>총 출석수</th>
                         <th>최초 등록일</th>
                     </tr>
@@ -691,10 +692,13 @@ async function loadMembers() {
         members.forEach(member => {
             // attendanceCountTotal은 GAS에서 캐시된 객체에 추가된 필드명입니다.
             const count = member.attendanceCountTotal !== undefined ? member.attendanceCountTotal : member.attendanceCount;
+            const firstHalfTeam = member.firstHalfTeam || '';
+            const secondHalfTeam = member.secondHalfTeam || '';
             html += `
                 <tr>
                     <td>${member.name}</td>
-                    <td>${member.team}</td>
+                    <td>${firstHalfTeam}</td>
+                    <td>${secondHalfTeam}</td>
                     <td>${count}회</td>
                     <td>${member.firstDate}</td>
                 </tr>
