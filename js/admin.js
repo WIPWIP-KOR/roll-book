@@ -329,15 +329,28 @@ async function setAdminPassword() {
  * 출석 시간 설정 저장
  */
 async function saveAttendanceTime() {
-    const startTime = document.getElementById('attendanceStartTime').value;
-    const lateTime = document.getElementById('lateThresholdTime').value;
+    const startHour = document.getElementById('attendanceStartHour').value;
+    const startMinute = document.getElementById('attendanceStartMinute').value;
+    const lateHour = document.getElementById('lateThresholdHour').value;
+    const lateMinute = document.getElementById('lateThresholdMinute').value;
     const messageEl = document.getElementById('attendanceTimeMessage');
 
-    if (!startTime || !lateTime) {
-        messageEl.textContent = '출석 시작 시간과 지각 기준 시간을 모두 입력해주세요.';
+    // 입력 검증
+    if (!startHour || !startMinute) {
+        messageEl.textContent = '출석 시작 시간을 모두 선택해주세요.';
         messageEl.className = 'message-area error';
         return;
     }
+
+    if (!lateHour || !lateMinute) {
+        messageEl.textContent = '지각 기준 시간을 모두 선택해주세요.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    // HH:mm 형식으로 변환
+    const startTime = `${startHour}:${startMinute}`;
+    const lateTime = `${lateHour}:${lateMinute}`;
 
     // 시간 검증: 지각 기준 시간이 출석 시작 시간보다 늦어야 함
     if (startTime >= lateTime) {
@@ -355,6 +368,15 @@ async function saveAttendanceTime() {
         if (response.success) {
             messageEl.textContent = '✅ 출석 시간 설정이 저장되었습니다.';
             messageEl.className = 'message-area success';
+
+            // 현재 설정 표시 업데이트
+            updateCurrentTimeDisplay(startTime, lateTime);
+
+            // 3초 후 메시지 제거
+            setTimeout(() => {
+                messageEl.textContent = '';
+                messageEl.className = 'message-area';
+            }, 3000);
         } else {
             messageEl.textContent = '❌ 저장에 실패했습니다: ' + (response.message || '알 수 없는 오류');
             messageEl.className = 'message-area error';
@@ -362,6 +384,30 @@ async function saveAttendanceTime() {
     } catch (error) {
         messageEl.textContent = '❌ 저장 중 오류가 발생했습니다: ' + error;
         messageEl.className = 'message-area error';
+    }
+}
+
+/**
+ * 현재 설정 표시 업데이트
+ */
+function updateCurrentTimeDisplay(startTime, lateTime) {
+    const currentStartTimeEl = document.getElementById('currentStartTime');
+    const currentLateTimeEl = document.getElementById('currentLateTime');
+
+    if (startTime) {
+        currentStartTimeEl.textContent = startTime;
+        currentStartTimeEl.classList.remove('not-set');
+    } else {
+        currentStartTimeEl.textContent = '설정되지 않음';
+        currentStartTimeEl.classList.add('not-set');
+    }
+
+    if (lateTime) {
+        currentLateTimeEl.textContent = lateTime;
+        currentLateTimeEl.classList.remove('not-set');
+    } else {
+        currentLateTimeEl.textContent = '설정되지 않음';
+        currentLateTimeEl.classList.add('not-set');
     }
 }
 
@@ -374,11 +420,29 @@ async function loadAttendanceTime() {
 
         if (response.success && response.attendanceTime) {
             const { startTime, lateTime } = response.attendanceTime;
-            if (startTime) document.getElementById('attendanceStartTime').value = startTime;
-            if (lateTime) document.getElementById('lateThresholdTime').value = lateTime;
+
+            // 현재 설정 표시 업데이트
+            updateCurrentTimeDisplay(startTime, lateTime);
+
+            // 드롭다운에 값 설정
+            if (startTime) {
+                const [startHour, startMinute] = startTime.split(':');
+                document.getElementById('attendanceStartHour').value = startHour;
+                document.getElementById('attendanceStartMinute').value = startMinute;
+            }
+
+            if (lateTime) {
+                const [lateHour, lateMinute] = lateTime.split(':');
+                document.getElementById('lateThresholdHour').value = lateHour;
+                document.getElementById('lateThresholdMinute').value = lateMinute;
+            }
+        } else {
+            // 설정이 없을 때
+            updateCurrentTimeDisplay(null, null);
         }
     } catch (error) {
         console.error('출석 시간 설정 로드 오류:', error);
+        updateCurrentTimeDisplay(null, null);
     }
 }
 
