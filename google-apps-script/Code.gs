@@ -827,7 +827,7 @@ function migrateAttendanceSheetsAddSeasonColumn() {
   });
 
   Logger.log(`\n총 ${updatedSheets}개 시트 업데이트 완료`);
-  SpreadsheetApp.getUi().alert(`시트 업데이트 완료!\n\n${updatedSheets}개의 출석기록 시트에 시즌 컬럼이 추가되었습니다.\n\n로그를 확인하려면: 보기 > 로그`);
+  Logger.log(`✅ 시트 업데이트 완료! ${updatedSheets}개의 출석기록 시트에 시즌 컬럼이 추가되었습니다.`);
 }
 
 /**
@@ -840,7 +840,7 @@ function migrateMembersSheetAddSeasonTeams() {
   const sheet = ss.getSheetByName('회원목록');
 
   if (!sheet) {
-    SpreadsheetApp.getUi().alert('회원목록 시트를 찾을 수 없습니다.');
+    Logger.log('❌ 회원목록 시트를 찾을 수 없습니다.');
     return;
   }
 
@@ -858,7 +858,6 @@ function migrateMembersSheetAddSeasonTeams() {
   // 이미 업데이트되었는지 확인
   if (headers[1] === '상반기팀' && headers[2] === '하반기팀') {
     Logger.log('이미 시즌별 팀 구조로 업데이트되어 있습니다.');
-    SpreadsheetApp.getUi().alert('회원목록 시트는 이미 업데이트되어 있습니다.');
     return;
   }
 
@@ -883,10 +882,9 @@ function migrateMembersSheetAddSeasonTeams() {
     }
 
     Logger.log('✅ 회원목록 시트 업데이트 완료');
-    SpreadsheetApp.getUi().alert('회원목록 시트 업데이트 완료!\n\n기존 팀 정보가 상반기팀과 하반기팀 양쪽에 복사되었습니다.\n필요시 수동으로 조정하세요.');
+    Logger.log('기존 팀 정보가 상반기팀과 하반기팀 양쪽에 복사되었습니다. 필요시 수동으로 조정하세요.');
   } else {
     Logger.log(`⚠️ 예상과 다른 컬럼 구조: ${headers.join(', ')}`);
-    SpreadsheetApp.getUi().alert('회원목록 시트의 구조가 예상과 다릅니다.\n로그를 확인하세요: 보기 > 로그');
   }
 }
 
@@ -895,7 +893,7 @@ function migrateMembersSheetAddSeasonTeams() {
  * Google Apps Script 편집기에서 이 함수를 실행하세요.
  */
 function runAllMigrations() {
-  SpreadsheetApp.getUi().alert('시트 마이그레이션을 시작합니다...');
+  Logger.log('🚀 시트 마이그레이션을 시작합니다...\n');
 
   // 1. 출석기록 시트에 시즌 컬럼 추가
   migrateAttendanceSheetsAddSeasonColumn();
@@ -907,5 +905,5 @@ function runAllMigrations() {
   CacheService.getScriptCache().remove('ALL_MEMBERS_DATA');
 
   Logger.log('\n✅ 모든 마이그레이션 완료!');
-  SpreadsheetApp.getUi().alert('모든 마이그레이션이 완료되었습니다!\n\n페이지를 새로고침하여 확인하세요.');
+  Logger.log('페이지를 새로고침하여 확인하세요.');
 }
