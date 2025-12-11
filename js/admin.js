@@ -388,22 +388,55 @@ async function saveAttendanceTime() {
 }
 
 /**
+ * 시간 값을 HH:mm 형식 문자열로 변환
+ * @param {string|Date} timeValue - 시간 값 (문자열 또는 날짜 객체)
+ * @returns {string|null} - HH:mm 형식 문자열 또는 null
+ */
+function formatTimeValue(timeValue) {
+    if (!timeValue) return null;
+
+    // 이미 HH:mm 형식인 경우
+    if (typeof timeValue === 'string' && /^\d{1,2}:\d{2}$/.test(timeValue)) {
+        // 한 자리 시간을 두 자리로 변환 (예: "9:30" -> "09:30")
+        const [hour, minute] = timeValue.split(':');
+        return `${hour.padStart(2, '0')}:${minute}`;
+    }
+
+    // 날짜 객체인 경우 또는 날짜 문자열인 경우
+    try {
+        const date = new Date(timeValue);
+        if (!isNaN(date.getTime())) {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+    } catch (e) {
+        console.error('시간 형식 변환 오류:', e);
+    }
+
+    return null;
+}
+
+/**
  * 현재 설정 표시 업데이트
  */
 function updateCurrentTimeDisplay(startTime, lateTime) {
     const currentStartTimeEl = document.getElementById('currentStartTime');
     const currentLateTimeEl = document.getElementById('currentLateTime');
 
-    if (startTime) {
-        currentStartTimeEl.textContent = startTime;
+    const formattedStartTime = formatTimeValue(startTime);
+    const formattedLateTime = formatTimeValue(lateTime);
+
+    if (formattedStartTime) {
+        currentStartTimeEl.textContent = formattedStartTime;
         currentStartTimeEl.classList.remove('not-set');
     } else {
         currentStartTimeEl.textContent = '설정되지 않음';
         currentStartTimeEl.classList.add('not-set');
     }
 
-    if (lateTime) {
-        currentLateTimeEl.textContent = lateTime;
+    if (formattedLateTime) {
+        currentLateTimeEl.textContent = formattedLateTime;
         currentLateTimeEl.classList.remove('not-set');
     } else {
         currentLateTimeEl.textContent = '설정되지 않음';
@@ -424,15 +457,18 @@ async function loadAttendanceTime() {
             // 현재 설정 표시 업데이트
             updateCurrentTimeDisplay(startTime, lateTime);
 
-            // 드롭다운에 값 설정
-            if (startTime) {
-                const [startHour, startMinute] = startTime.split(':');
+            // 드롭다운에 값 설정 (포맷 변환 적용)
+            const formattedStartTime = formatTimeValue(startTime);
+            const formattedLateTime = formatTimeValue(lateTime);
+
+            if (formattedStartTime) {
+                const [startHour, startMinute] = formattedStartTime.split(':');
                 document.getElementById('attendanceStartHour').value = startHour;
                 document.getElementById('attendanceStartMinute').value = startMinute;
             }
 
-            if (lateTime) {
-                const [lateHour, lateMinute] = lateTime.split(':');
+            if (formattedLateTime) {
+                const [lateHour, lateMinute] = formattedLateTime.split(':');
                 document.getElementById('lateThresholdHour').value = lateHour;
                 document.getElementById('lateThresholdMinute').value = lateMinute;
             }
@@ -1153,7 +1189,51 @@ function initializeMap(mapContainer, resolve, reject) {
 
 // ==================== 이벤트 리스너 및 초기 실행 ====================
 
+/**
+ * 시간/분 선택 드롭다운 옵션을 동적으로 생성
+ */
+function initializeTimeSelectors() {
+    // 시간 옵션 생성 (00-23)
+    const hourSelects = [
+        document.getElementById('attendanceStartHour'),
+        document.getElementById('lateThresholdHour')
+    ];
+
+    hourSelects.forEach(select => {
+        if (select) {
+            for (let h = 0; h < 24; h++) {
+                const option = document.createElement('option');
+                const hourStr = String(h).padStart(2, '0');
+                option.value = hourStr;
+                option.textContent = hourStr;
+                select.appendChild(option);
+            }
+        }
+    });
+
+    // 분 옵션 생성 (00-59)
+    const minuteSelects = [
+        document.getElementById('attendanceStartMinute'),
+        document.getElementById('lateThresholdMinute')
+    ];
+
+    minuteSelects.forEach(select => {
+        if (select) {
+            for (let m = 0; m < 60; m++) {
+                const option = document.createElement('option');
+                const minuteStr = String(m).padStart(2, '0');
+                option.value = minuteStr;
+                option.textContent = minuteStr;
+                select.appendChild(option);
+            }
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    // 0. 시간/분 선택 드롭다운 초기화
+    initializeTimeSelectors();
+
     // 1. 관리자 인증 확인 및 페이지 로드
     checkAndInitAdmin();
 
