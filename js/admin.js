@@ -387,16 +387,23 @@ async function loadAttendanceTime() {
  */
 async function saveAttendanceDays() {
     const checkboxes = document.querySelectorAll('.attendance-day-checkbox:checked');
-    const selectedDays = Array.from(checkboxes).map(cb => cb.value);
+    const selectedDays = Array.from(checkboxes).map(cb => String(cb.value));
     const messageEl = document.getElementById('attendanceDaysMessage');
 
+    console.log('저장할 요일:', selectedDays);
+
     try {
+        // 빈 배열이면 빈 문자열, 아니면 쉼표로 연결
+        const daysString = selectedDays.length > 0 ? selectedDays.join(',') : '';
+
         const response = await requestGas('saveAttendanceDays', {
-            days: selectedDays.join(',')
+            days: daysString
         });
 
         if (response.success) {
-            messageEl.textContent = '✅ 출석 가능 요일 설정이 저장되었습니다.';
+            messageEl.textContent = selectedDays.length > 0
+                ? '✅ 출석 가능 요일 설정이 저장되었습니다.'
+                : '✅ 모든 요일에 출석 가능하도록 설정되었습니다.';
             messageEl.className = 'message-area success';
         } else {
             messageEl.textContent = '❌ 저장에 실패했습니다: ' + (response.message || '알 수 없는 오류');
@@ -415,21 +422,23 @@ async function loadAttendanceDays() {
     try {
         const response = await requestGas('getAttendanceDays');
 
-        if (response.success && response.attendanceDays) {
-            const daysString = response.attendanceDays;
+        // 모든 체크박스 초기화
+        document.querySelectorAll('.attendance-day-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
 
-            // 모든 체크박스 초기화
-            document.querySelectorAll('.attendance-day-checkbox').forEach(cb => {
-                cb.checked = false;
-            });
+        if (response.success && response.attendanceDays) {
+            // 문자열로 강제 변환 (타입 에러 방지)
+            const daysString = String(response.attendanceDays || '');
 
             // 저장된 요일 체크
-            if (daysString) {
-                const days = daysString.split(',').map(d => d.trim());
+            if (daysString && daysString.trim() !== '') {
+                const days = daysString.split(',').map(d => String(d).trim()).filter(d => d !== '');
                 days.forEach(day => {
                     const checkbox = document.querySelector(`.attendance-day-checkbox[value="${day}"]`);
                     if (checkbox) {
                         checkbox.checked = true;
+                        console.log('요일 로드:', day, '체크됨');
                     }
                 });
             }
