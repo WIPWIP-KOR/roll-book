@@ -258,7 +258,10 @@ function getAttendanceDays(callback) {
     try {
         const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
         const row = findSettingRow(sheet, '출석 가능 요일');
-        const days = row ? sheet.getRange(row, 2).getValue() : '';
+        const daysValue = row ? sheet.getRange(row, 2).getValue() : '';
+
+        // 문자열로 강제 변환 (숫자로 저장된 경우 대비)
+        const days = daysValue ? String(daysValue) : '';
 
         return createResponse(true, null, {
             attendanceDays: days
@@ -972,9 +975,11 @@ function getAllowedDays() {
 
         if (!row) return []; // 설정이 없으면 모든 요일 허용
 
-        const daysString = sheet.getRange(row, 2).getValue();
-        if (!daysString || daysString === '') return [];
+        const daysValue = sheet.getRange(row, 2).getValue();
+        if (!daysValue || daysValue === '') return [];
 
+        // 문자열로 강제 변환 후 처리 (숫자로 저장된 경우 대비)
+        const daysString = String(daysValue);
         return daysString.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d));
     } catch (e) {
         Logger.log('Error in getAllowedDays: ' + e.toString());
