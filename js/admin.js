@@ -300,7 +300,7 @@ async function attemptAuth() {
  */
 async function setAdminPassword() {
     const newPassword = document.getElementById('newPassword').value;
-    
+
     // 비밀번호 해제
     if (newPassword === "") {
         if (!confirm('비밀번호를 해제하시겠습니까? 해제 시 누구나 접근 가능합니다.')) {
@@ -310,7 +310,7 @@ async function setAdminPassword() {
         alert('비밀번호는 4자리 숫자로 입력해야 합니다.');
         return;
     }
-    
+
     try {
         const response = await requestGas('setAdminPassword', { newPassword: newPassword });
 
@@ -322,6 +322,63 @@ async function setAdminPassword() {
         }
     } catch (error) {
         alert('비밀번호 설정 중 오류가 발생했습니다: ' + error);
+    }
+}
+
+/**
+ * 출석 시간 설정 저장
+ */
+async function saveAttendanceTime() {
+    const startTime = document.getElementById('attendanceStartTime').value;
+    const lateTime = document.getElementById('lateThresholdTime').value;
+    const messageEl = document.getElementById('attendanceTimeMessage');
+
+    if (!startTime || !lateTime) {
+        messageEl.textContent = '출석 시작 시간과 지각 기준 시간을 모두 입력해주세요.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    // 시간 검증: 지각 기준 시간이 출석 시작 시간보다 늦어야 함
+    if (startTime >= lateTime) {
+        messageEl.textContent = '지각 기준 시간은 출석 시작 시간보다 늦어야 합니다.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    try {
+        const response = await requestGas('saveAttendanceTime', {
+            startTime: startTime,
+            lateTime: lateTime
+        });
+
+        if (response.success) {
+            messageEl.textContent = '✅ 출석 시간 설정이 저장되었습니다.';
+            messageEl.className = 'message-area success';
+        } else {
+            messageEl.textContent = '❌ 저장에 실패했습니다: ' + (response.message || '알 수 없는 오류');
+            messageEl.className = 'message-area error';
+        }
+    } catch (error) {
+        messageEl.textContent = '❌ 저장 중 오류가 발생했습니다: ' + error;
+        messageEl.className = 'message-area error';
+    }
+}
+
+/**
+ * 출석 시간 설정 불러오기
+ */
+async function loadAttendanceTime() {
+    try {
+        const response = await requestGas('getAttendanceTime');
+
+        if (response.success && response.attendanceTime) {
+            const { startTime, lateTime } = response.attendanceTime;
+            if (startTime) document.getElementById('attendanceStartTime').value = startTime;
+            if (lateTime) document.getElementById('lateThresholdTime').value = lateTime;
+        }
+    } catch (error) {
+        console.error('출석 시간 설정 로드 오류:', error);
     }
 }
 
@@ -788,7 +845,8 @@ function switchTab(tabName) {
             loadMembersTab();
             break;
         case 'settings':
-            // 설정 탭은 별도 로딩 불필요
+            // 설정 탭: 출석 시간 설정 로드
+            loadAttendanceTime();
             break;
     }
 }
@@ -998,6 +1056,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeMapBtn = document.getElementById('closeMapBtn');
     if (closeMapBtn) {
         closeMapBtn.addEventListener('click', closeMapSearch);
+    }
+
+    const saveAttendanceTimeBtn = document.getElementById('saveAttendanceTimeBtn');
+    if (saveAttendanceTimeBtn) {
+        saveAttendanceTimeBtn.addEventListener('click', saveAttendanceTime);
     }
 });
 

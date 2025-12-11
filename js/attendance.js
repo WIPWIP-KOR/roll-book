@@ -407,6 +407,7 @@ function displayTodayStatus(attendance) {
                 <tr>
                     <th>이름</th>
                     <th>팀</th>
+                    <th>상태</th>
                     <th>출석 시간</th>
                 </tr>
             </thead>
@@ -414,10 +415,15 @@ function displayTodayStatus(attendance) {
     `;
 
     attendance.forEach(record => {
+        const lateStatus = record.isLate ?
+            '<span style="color: #ff9800; font-weight: 600;">⏰ 지각</span>' :
+            '<span style="color: #4caf50; font-weight: 600;">✅ 정상</span>';
+
         html += `
             <tr>
                 <td><strong>${record.name}</strong></td>
                 <td>${record.team}팀</td>
+                <td>${lateStatus}</td>
                 <td>${formatTimeHHMM(record.time)}</td>
             </tr>
         `;
