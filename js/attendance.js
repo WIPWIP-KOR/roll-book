@@ -229,13 +229,58 @@ function processAttendance() {
         return;
     }
 
-    if (!userPosition) {
-        showMessage('위치 정보 확인 중입니다. 잠시 후 다시 시도해주세요.', 'error');
-        getLocation();
+    // 출석 버튼 비활성화
+    attendBtn.disabled = true;
+    attendBtn.textContent = '위치 확인 중...';
+
+    // 💡 출석 시마다 최신 위치 정보를 가져옴
+    if (!navigator.geolocation) {
+        showMessage('위치 서비스를 지원하지 않는 기기입니다.', 'error');
+        attendBtn.disabled = false;
+        attendBtn.textContent = '출석하기';
         return;
     }
 
-    attendBtn.disabled = true;
+    // 실시간 위치 가져오기
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            // 최신 위치로 업데이트
+            userPosition = position.coords;
+            locationText.textContent = '위치 정보 확인 완료';
+            locationStatus.classList.remove('error');
+            locationStatus.classList.add('success');
+
+            // 위치 확인 후 출석 처리
+            submitAttendance(name, team);
+        },
+        (error) => {
+            let errorMsg = '위치 정보를 가져올 수 없습니다.';
+
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = '위치 정보 권한이 거부되었습니다. 설정에서 허용해주세요.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = '위치 정보를 사용할 수 없습니다.';
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = '위치 정보 요청 시간이 초과되었습니다. 다시 시도해주세요.';
+                    break;
+            }
+
+            showMessage(errorMsg, 'error');
+            locationText.textContent = errorMsg;
+            locationStatus.classList.remove('success');
+            locationStatus.classList.add('error');
+            attendBtn.disabled = false;
+            attendBtn.textContent = '출석하기';
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+}
+
+// 실제 출석 제출 처리
+function submitAttendance(name, team) {
     attendBtn.textContent = '출석 처리 중...';
 
     // 💡 핵심 수정: POST 관련 설정을 제거하고 JSONP(GET) 방식으로 데이터 전달
