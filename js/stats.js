@@ -485,18 +485,10 @@ function calculatePersonalStats(attendance, members, totalSaturdays, season) {
         const rate = totalSaturdays > 0 ? (attendanceCount / totalSaturdays) * 100 : 0;
         const lateRate = attendanceCount > 0 ? (lateCount / attendanceCount) * 100 : 0;
 
-        // 시즌에 따라 팀 정보 결정
-        let teamForSeason;
-        if (season === 'firstHalf') {
-            teamForSeason = member.firstHalfTeam;
-        } else if (season === 'secondHalf') {
-            teamForSeason = member.secondHalfTeam;
-        } else {
-            // 'all'인 경우 현재 시즌의 팀 사용
-            const currentMonth = new Date().getMonth() + 1;
-            teamForSeason = (currentMonth >= 1 && currentMonth <= 6) ?
-                member.firstHalfTeam : member.secondHalfTeam;
-        }
+        // 개인별 통계는 항상 현재 달 기준의 팀으로 표시
+        const currentMonth = new Date().getMonth() + 1;
+        const teamForSeason = (currentMonth >= 1 && currentMonth <= 6) ?
+            member.firstHalfTeam : member.secondHalfTeam;
 
         return {
             name: member.name,
@@ -630,7 +622,7 @@ function handleCategoryChange(category) {
     document.getElementById('teamStats').style.display = 'none';
     document.getElementById('personalStats').style.display = 'none';
     document.getElementById('weeklyStats').style.display = 'none';
-    document.getElementById('monthTabs').style.display = 'none';
+    document.getElementById('monthTabsWrapper').style.display = 'none';
 
     switch (category) {
         case 'team':
@@ -647,7 +639,7 @@ function handleCategoryChange(category) {
             break;
         case 'monthly':
             document.getElementById('weeklyStats').style.display = 'block';
-            document.getElementById('monthTabs').style.display = 'flex';
+            document.getElementById('monthTabsWrapper').style.display = 'block';
             const cacheKeyStr2 = `${currentYear}_${currentSeason}`;
             if (allStats[cacheKeyStr2]) {
                 const activeMonthTab = document.querySelector('.month-tab.active');
@@ -877,38 +869,76 @@ function initSeasonDropdown() {
 }
 
 function initMonthTabs(weeklyStats) {
-    const monthTabsContainer = document.getElementById('monthTabs');
-    monthTabsContainer.innerHTML = '';
-    
+    const firstHalfContainer = document.getElementById('firstHalfTabs');
+    const secondHalfContainer = document.getElementById('secondHalfTabs');
+    const firstHalfTabsWrapper = document.getElementById('firstHalfTabsContainer');
+    const secondHalfTabsWrapper = document.getElementById('secondHalfTabsContainer');
+
+    firstHalfContainer.innerHTML = '';
+    secondHalfContainer.innerHTML = '';
+
     if (!Array.isArray(weeklyStats) || weeklyStats.length === 0) return;
-    
+
     const months = new Set();
-    
+
     weeklyStats.forEach(stat => {
-        if (!stat || !stat.fullDate) return; 
+        if (!stat || !stat.fullDate) return;
         const month = parseInt(stat.fullDate.substring(5, 7));
         if (month >= 1 && month <= 12) {
             months.add(month);
         }
     });
-    
+
     const sortedMonths = Array.from(months).sort((a, b) => a - b);
 
-    sortedMonths.forEach(month => {
-        const button = document.createElement('button');
-        button.className = 'tab-btn month-tab';
-        button.id = `month-tab-${month}`;
-        button.textContent = `${month}월`;
-        button.onclick = () => {
-            document.querySelectorAll('.month-tab').forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            const cacheKeyStr = `${currentYear}_${currentSeason}`;
-            if (allStats[cacheKeyStr]) {
-                filterWeeklyStatsByMonth(month, allStats[cacheKeyStr].weeklyStats);
-            }
-        };
-        monthTabsContainer.appendChild(button);
-    });
+    // 상반기 (1-6월)와 하반기 (7-12월)로 분리
+    const firstHalfMonths = sortedMonths.filter(m => m >= 1 && m <= 6);
+    const secondHalfMonths = sortedMonths.filter(m => m >= 7 && m <= 12);
+
+    // 시즌에 따라 표시할 그룹 결정
+    const showFirstHalf = currentSeason === 'all' || currentSeason === 'firstHalf';
+    const showSecondHalf = currentSeason === 'all' || currentSeason === 'secondHalf';
+
+    // 상반기 탭 생성
+    if (showFirstHalf && firstHalfMonths.length > 0) {
+        firstHalfTabsWrapper.style.display = 'block';
+        firstHalfMonths.forEach(month => {
+            const button = createMonthTabButton(month);
+            firstHalfContainer.appendChild(button);
+        });
+    } else {
+        firstHalfTabsWrapper.style.display = 'none';
+    }
+
+    // 하반기 탭 생성
+    if (showSecondHalf && secondHalfMonths.length > 0) {
+        secondHalfTabsWrapper.style.display = 'block';
+        secondHalfMonths.forEach(month => {
+            const button = createMonthTabButton(month);
+            secondHalfContainer.appendChild(button);
+        });
+    } else {
+        secondHalfTabsWrapper.style.display = 'none';
+    }
+}
+
+/**
+ * 월 탭 버튼을 생성하는 헬퍼 함수
+ */
+function createMonthTabButton(month) {
+    const button = document.createElement('button');
+    button.className = 'tab-btn month-tab';
+    button.id = `month-tab-${month}`;
+    button.textContent = `${month}월`;
+    button.onclick = () => {
+        document.querySelectorAll('.month-tab').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        const cacheKeyStr = `${currentYear}_${currentSeason}`;
+        if (allStats[cacheKeyStr]) {
+            filterWeeklyStatsByMonth(month, allStats[cacheKeyStr].weeklyStats);
+        }
+    };
+    return button;
 }
 
 function getCurrentMonthFromStats(weeklyStats) {
