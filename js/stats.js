@@ -368,6 +368,7 @@ async function handleSeasonChange(season) {
 
 /**
  * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다. - 개선된 캐싱
+ * 원본 데이터를 받아서 클라이언트에서 집계 처리 (성능 최적화)
  */
 async function loadStats(year, season = 'all') {
     const cacheKeyStr = `${year}_${season}`;
@@ -402,7 +403,11 @@ async function loadStats(year, season = 'all') {
 
         console.log(`📡 ${year}년 ${season} 데이터 서버에서 로드 중...`);
         const response = await requestGas('getStats', { year: year, season: season });
-        const stats = response.stats;
+        const rawData = response.rawData;
+
+        // 💡 클라이언트에서 통계 집계 처리
+        updateLoadingSpinner('데이터 집계 중...');
+        const stats = calculateStats(rawData);
 
         // 메모리 캐시 저장
         allStats[cacheKeyStr] = stats;
@@ -420,6 +425,167 @@ async function loadStats(year, season = 'all') {
         document.getElementById('stats-content-wrapper').style.display = 'none';
         console.error(`Stats Load Error (${year}, ${season}):`, error);
     }
+}
+
+// ==================== 클라이언트 집계 로직 (성능 최적화) ====================
+
+/**
+ * 원본 데이터로부터 통계를 계산합니다 (클라이언트에서 처리)
+ */
+function calculateStats(rawData) {
+    const { attendance, members, saturdays, targetYear, season } = rawData;
+
+    const totalSaturdays = saturdays.length;
+
+    // 1. 개인별 통계 계산
+    const personalStats = calculatePersonalStats(attendance, members, totalSaturdays, season);
+
+    // 2. 팀별 통계 계산
+    const teamStats = calculateTeamStats(personalStats, totalSaturdays);
+
+    // 3. 주차별 통계 계산
+    const weeklyStats = calculateWeeklyStats(attendance, saturdays);
+
+    return {
+        personalStats,
+        teamStats,
+        weeklyStats,
+        targetYear,
+        totalSaturdays
+    };
+}
+
+/**
+ * 개인별 통계 계산
+ */
+function calculatePersonalStats(attendance, members, totalSaturdays, season) {
+    // 출석 횟수 및 지각 횟수 집계
+    const attendanceCountMap = {};
+    const lateCountMap = {};
+
+    members.forEach(m => {
+        attendanceCountMap[m.name] = 0;
+        lateCountMap[m.name] = 0;
+    });
+
+    attendance.forEach(record => {
+        const name = record.name;
+        if (attendanceCountMap[name] !== undefined) {
+            attendanceCountMap[name]++;
+            if (record.isLate) {
+                lateCountMap[name]++;
+            }
+        }
+    });
+
+    // 개인별 통계 생성
+    const personalStats = members.map(member => {
+        const attendanceCount = attendanceCountMap[member.name] || 0;
+        const lateCount = lateCountMap[member.name] || 0;
+        const rate = totalSaturdays > 0 ? (attendanceCount / totalSaturdays) * 100 : 0;
+        const lateRate = attendanceCount > 0 ? (lateCount / attendanceCount) * 100 : 0;
+
+        // 시즌에 따라 팀 정보 결정
+        let teamForSeason;
+        if (season === 'firstHalf') {
+            teamForSeason = member.firstHalfTeam;
+        } else if (season === 'secondHalf') {
+            teamForSeason = member.secondHalfTeam;
+        } else {
+            // 'all'인 경우 현재 시즌의 팀 사용
+            const currentMonth = new Date().getMonth() + 1;
+            teamForSeason = (currentMonth >= 1 && currentMonth <= 6) ?
+                member.firstHalfTeam : member.secondHalfTeam;
+        }
+
+        return {
+            name: member.name,
+            team: teamForSeason,
+            attendanceCount: attendanceCount,
+            attendanceCountTotal: member.attendanceCountTotal,
+            lateCount: lateCount,
+            totalSaturdays: totalSaturdays,
+            rate: rate,
+            lateRate: lateRate
+        };
+    });
+
+    return personalStats;
+}
+
+/**
+ * 팀별 통계 계산
+ */
+function calculateTeamStats(personalStats, totalSaturdays) {
+    const teamStats = {
+        A: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 },
+        B: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 },
+        C: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 }
+    };
+
+    ['A', 'B', 'C'].forEach(team => {
+        const teamMembers = personalStats.filter(s => s.team === team);
+        const teamMemberCount = teamMembers.length;
+
+        if (teamMemberCount > 0) {
+            const totalAttendanceForTeam = teamMembers.reduce((sum, m) => sum + m.attendanceCount, 0);
+            const totalLateForTeam = teamMembers.reduce((sum, m) => sum + m.lateCount, 0);
+
+            teamStats[team].count = totalAttendanceForTeam / teamMemberCount;
+            teamStats[team].total = totalSaturdays;
+            teamStats[team].rate = (teamStats[team].count / teamStats[team].total) * 100;
+            teamStats[team].lateCount = totalLateForTeam / teamMemberCount;
+            teamStats[team].lateRate = totalAttendanceForTeam > 0 ? (totalLateForTeam / totalAttendanceForTeam) * 100 : 0;
+        } else {
+            teamStats[team].count = 0;
+            teamStats[team].total = totalSaturdays;
+            teamStats[team].rate = 0;
+            teamStats[team].lateCount = 0;
+            teamStats[team].lateRate = 0;
+        }
+    });
+
+    return teamStats;
+}
+
+/**
+ * 주차별 통계 계산
+ */
+function calculateWeeklyStats(attendance, saturdays) {
+    // 날짜별 출석 집계
+    const attendanceByDate = {};
+
+    attendance.forEach(record => {
+        const dateStr = record.date;
+
+        if (!attendanceByDate[dateStr]) {
+            attendanceByDate[dateStr] = {
+                count: 0,
+                teamCounts: { A: 0, B: 0, C: 0 }
+            };
+        }
+
+        attendanceByDate[dateStr].count++;
+        if (attendanceByDate[dateStr].teamCounts[record.team] !== undefined) {
+            attendanceByDate[dateStr].teamCounts[record.team]++;
+        }
+    });
+
+    // 토요일별 통계 생성
+    const weeklyStats = saturdays.map((dateStr, index) => {
+        const displayDate = dateStr.substring(5).replace('-', '/'); // YYYY-MM-DD -> MM/DD
+        const stats = attendanceByDate[dateStr] || { count: 0, teamCounts: { A: 0, B: 0, C: 0 } };
+
+        return {
+            date: displayDate,
+            fullDate: dateStr,
+            week: index + 1,
+            count: stats.count,
+            teamCounts: stats.teamCounts
+        };
+    });
+
+    return weeklyStats;
 }
 
 // ==================== 카테고리 및 필터 관리 ====================
