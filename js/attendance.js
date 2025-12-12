@@ -118,6 +118,7 @@ function loadMembers() {
     const cached = CacheManager.get(CacheManager.KEYS.MEMBERS);
     if (cached) {
         console.log('✅ 회원 목록 캐시에서 로드');
+        console.log('📋 회원 목록 데이터:', cached);
         membersList = cached;
         renderNameSelect(membersList);
         return;
@@ -129,7 +130,9 @@ function loadMembers() {
         url: `${CONFIG.GAS_URL}?action=getMembers`,
         dataType: 'jsonp', // CORS 우회
         success: function(data) {
+            console.log('📨 서버 응답:', data);
             if (data.success && data.members) {
+                console.log('📋 회원 목록 데이터:', data.members);
                 membersList = data.members;
                 renderNameSelect(membersList);
 
@@ -165,6 +168,9 @@ function renderNameSelect(members) {
 // 팀 선택 시 해당 팀원만 필터링하여 표시
 function filterMembersByTeam() {
     const selectedTeam = teamSelect.value;
+    console.log('🔍 팀 필터링 시작:', selectedTeam);
+    console.log('📊 현재 시즌:', currentSeason);
+    console.log('👥 전체 회원 목록:', membersList);
 
     // select 표시, input 숨김 (팀 변경 시 항상 select 모드로)
     nameSelect.style.display = '';
@@ -180,6 +186,7 @@ function filterMembersByTeam() {
     // 현재 시즌의 팀으로 필터링 (현재 시즌 팀 정보가 없으면 다른 시즌 팀 정보로 fallback)
     const filteredMembers = membersList.filter(member => {
         const currentSeasonTeam = member[currentSeason.teamKey]; // firstHalfTeam 또는 secondHalfTeam
+        console.log(`👤 ${member.name}: 현재시즌팀=${currentSeasonTeam}, 상반기팀=${member.firstHalfTeam}, 하반기팀=${member.secondHalfTeam}`);
 
         // 현재 시즌 팀 정보가 있으면 그것으로 비교
         if (currentSeasonTeam) {
@@ -191,6 +198,8 @@ function filterMembersByTeam() {
         const otherSeasonTeam = member[otherSeasonKey];
         return otherSeasonTeam === selectedTeam;
     });
+
+    console.log('✅ 필터링된 회원:', filteredMembers);
     renderNameSelect(filteredMembers);
 
     // 이름 선택 초기화
