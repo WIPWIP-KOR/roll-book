@@ -718,14 +718,20 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
     filteredStats.sort((a, b) => {
         switch (sortOption) {
             case 'rate-asc':
-                return a.rate - b.rate;
+                // 출석률 낮은순, 같으면 지각 적은순
+                if (a.rate !== b.rate) return a.rate - b.rate;
+                return a.lateCount - b.lateCount;
             case 'name':
                 return a.name.localeCompare(b.name);
             case 'count-desc':
-                return b.attendanceCount - a.attendanceCount;
+                // 출석 횟수 많은순, 같으면 지각 적은순
+                if (b.attendanceCount !== a.attendanceCount) return b.attendanceCount - a.attendanceCount;
+                return a.lateCount - b.lateCount;
             case 'rate-desc':
             default:
-                return b.rate - a.rate;
+                // 출석률 높은순, 같으면 지각 적은순
+                if (b.rate !== a.rate) return b.rate - a.rate;
+                return a.lateCount - b.lateCount;
         }
     });
 
@@ -748,6 +754,7 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
                         <th>이름</th>
                         <th>팀</th>
                         <th class="text-end">출석 횟수</th>
+                        <th class="text-end">지각 횟수</th>
                         <th class="text-end">출석률 (%)</th>
                     </tr>
                 </thead>
@@ -756,12 +763,14 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
 
         filteredStats.forEach((p, index) => {
             const rateDisplay = p.rate.toFixed(1);
+            const lateDisplay = p.lateCount || 0;
             html += `
                 <tr>
                     <td>${index + 1}</td>
                     <td>${p.name}</td>
                     <td><span class="badge bg-primary">${p.team}</span></td>
                     <td class="text-end">${p.attendanceCount} / ${totalSaturdays}</td>
+                    <td class="text-end"><span style="color: #ff9800; font-weight: 600;">⏰ ${lateDisplay}</span></td>
                     <td class="text-end">
                         <span class="fw-bold">${rateDisplay}%</span>
                     </td>
