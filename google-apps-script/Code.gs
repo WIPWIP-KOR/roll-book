@@ -355,6 +355,27 @@ function processAttendance(data, e, callback) {
 }
 
 /**
+ * 시간 문자열을 분 단위로 변환 (HH:mm → 분)
+ */
+function timeToMinutes(timeStr) {
+  if (!timeStr) return null;
+
+  // 문자열로 변환 (숫자나 다른 타입이 들어올 경우 대비)
+  const str = String(timeStr).trim();
+
+  // HH:mm 형식 파싱
+  const parts = str.split(':');
+  if (parts.length !== 2) return null;
+
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+
+  if (isNaN(hours) || isNaN(minutes)) return null;
+
+  return hours * 60 + minutes;
+}
+
+/**
  * 지각 여부 판정
  */
 function checkLateStatus() {
@@ -377,13 +398,26 @@ function checkLateStatus() {
   const now = new Date();
   const currentTime = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm');
 
+  // 문자열을 분 단위로 변환하여 비교
+  const currentMinutes = timeToMinutes(currentTime);
+  const startMinutes = timeToMinutes(startTime);
+  const lateMinutes = timeToMinutes(lateTime);
+
+  // 변환 실패 시 지각 판정 안 함
+  if (currentMinutes === null || startMinutes === null || lateMinutes === null) {
+    Logger.log('시간 변환 실패: current=' + currentTime + ', start=' + startTime + ', late=' + lateTime);
+    return { isLate: false, beforeStart: false, startTime: null };
+  }
+
   // 출석 시작 시간 이전인지 확인
-  if (currentTime < startTime) {
+  if (currentMinutes < startMinutes) {
     return { isLate: false, beforeStart: true, startTime: startTime };
   }
 
-  // 지각 기준 시간 이후인지 확인
-  const isLate = currentTime >= lateTime;
+  // 지각 기준 시간 이후인지 확인 (같거나 크면 지각)
+  const isLate = currentMinutes >= lateMinutes;
+
+  Logger.log('지각 판정: 현재=' + currentTime + '(' + currentMinutes + '분), 지각기준=' + lateTime + '(' + lateMinutes + '분), 결과=' + (isLate ? '지각' : '정상'));
 
   return { isLate: isLate, beforeStart: false, startTime: startTime };
 }
