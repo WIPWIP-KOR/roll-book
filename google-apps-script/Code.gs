@@ -672,7 +672,8 @@ function getAttendanceDetailByDate(callback, dateParam) {
 }
 
 /**
- * 전체 통계 (요청된 연도에 대한 데이터만 처리, 시즌 필터링 지원)
+ * 통계용 원본 데이터 반환 (클라이언트에서 집계 처리)
+ * 성능 최적화: Apps Script에서는 데이터 읽기만, 집계는 클라이언트에서 처리
  */
 function getStats(callback, year, season) {
   const targetYear = parseInt(year);
@@ -698,8 +699,6 @@ function getStats(callback, year, season) {
       return month >= 7 && month <= 12;
     });
   }
-
-  const totalSaturdays = saturdays.length;
 
   // 💡 해당 연도의 출석 기록 시트만 사용
   const attendanceSheet = getAttendanceSheet(targetYear);
@@ -736,138 +735,37 @@ function getStats(callback, year, season) {
       }
     });
   }
-  // 'all'인 경우 필터링하지 않음
 
-  // 💡 캐시된 회원 목록 사용 (성능 최적화)
+  // 💡 원본 데이터를 JSON 친화적인 형태로 변환 (민감 정보 제외)
+  // 필요한 컬럼만: 날짜, 이름, 팀, 시즌, 시간, 지각여부
+  const rawAttendance = attendanceData.map(row => {
+    return {
+      date: Utilities.formatDate(new Date(row[0]), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+      dayOfWeek: row[1],
+      name: row[2],
+      team: row[3],
+      season: row[4],
+      time: row[5] ? Utilities.formatDate(new Date(row[5]), Session.getScriptTimeZone(), 'HH:mm:ss') : '',
+      isLate: row[6] === '지각'
+    };
+  });
+
+  // 💡 회원 목록 (캐시 사용)
   const members = getMembers(null);
 
-  // 1. 개인별 통계 계산을 위한 해당 연도 출석 횟수 및 지각 횟수 집계
-  const attendanceCountMap = {};
-  const lateCountMap = {};
-  members.forEach(m => {
-    attendanceCountMap[m.name] = 0;
-    lateCountMap[m.name] = 0;
-  });
+  // 💡 토요일 목록을 날짜 문자열로 변환
+  const saturdayDates = saturdays.map(sat =>
+    Utilities.formatDate(sat, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+  );
 
-  // 출석 기록 시트 스캔 (해당 연도 데이터만 있으므로 빠름)
-  attendanceData.forEach(row => {
-    const rowName = row[2];
-    const isLate = row[6] === '지각'; // 지각 여부 컬럼
-
-    if (attendanceCountMap[rowName] !== undefined) {
-        attendanceCountMap[rowName]++;
-        if (isLate) {
-            lateCountMap[rowName]++;
-        }
-    }
-  });
-
-  const personalStats = [];
-  members.forEach(member => {
-    const attendanceCountInYear = attendanceCountMap[member.name] || 0;
-    const lateCountInYear = lateCountMap[member.name] || 0;
-    const rate = totalSaturdays > 0 ? (attendanceCountInYear / totalSaturdays) * 100 : 0;
-    const lateRate = attendanceCountInYear > 0 ? (lateCountInYear / attendanceCountInYear) * 100 : 0;
-
-    // 시즌에 따라 팀 정보 결정
-    let teamForSeason;
-    if (seasonFilter === 'firstHalf') {
-      teamForSeason = member.firstHalfTeam;
-    } else if (seasonFilter === 'secondHalf') {
-      teamForSeason = member.secondHalfTeam;
-    } else {
-      // 'all'인 경우 현재 시즌의 팀 사용
-      const currentMonth = new Date().getMonth() + 1;
-      teamForSeason = (currentMonth >= 1 && currentMonth <= 6) ?
-        member.firstHalfTeam : member.secondHalfTeam;
-    }
-
-    personalStats.push({
-      name: member.name,
-      team: teamForSeason,
-      attendanceCount: attendanceCountInYear,
-      attendanceCountTotal: member.attendanceCountTotal,
-      lateCount: lateCountInYear,
-      totalSaturdays: totalSaturdays,
-      rate: rate,
-      lateRate: lateRate
-    });
-  });
-
-  // 2. 팀별 통계 계산
-  const teamStats = {
-    A: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 },
-    B: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 },
-    C: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 }
-  };
-    Object.keys(teamStats).forEach(team => {
-        const teamMembers = personalStats.filter(s => s.team === team);
-        const teamMemberCount = teamMembers.length;
-
-        if (teamMemberCount > 0) {
-            const totalAttendanceForTeam = teamMembers.reduce((sum, member) => sum + member.attendanceCount, 0);
-            const totalLateForTeam = teamMembers.reduce((sum, member) => sum + member.lateCount, 0);
-
-            teamStats[team].count = totalAttendanceForTeam / teamMemberCount;
-            teamStats[team].total = totalSaturdays;
-            teamStats[team].rate = (teamStats[team].count / teamStats[team].total) * 100;
-            teamStats[team].lateCount = totalLateForTeam / teamMemberCount;
-            teamStats[team].lateRate = totalAttendanceForTeam > 0 ? (totalLateForTeam / totalAttendanceForTeam) * 100 : 0;
-        } else {
-            teamStats[team].count = 0;
-            teamStats[team].total = totalSaturdays;
-            teamStats[team].rate = 0;
-            teamStats[team].lateCount = 0;
-            teamStats[team].lateRate = 0;
-        }
-    });
-
-
-  // 3. 주차별 통계 계산
-  const weeklyStats = [];
-  const attendanceByDate = {};
-  
-  attendanceData.forEach(row => {
-    const date = row[0];
-    if (!date) return;
-    
-    const dateStr = Utilities.formatDate(new Date(date), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    const team = row[3]; 
-
-    if (!attendanceByDate[dateStr]) {
-      attendanceByDate[dateStr] = {
-        count: 0,
-        teamCounts: { A: 0, B: 0, C: 0 }
-      };
-    }
-
-    attendanceByDate[dateStr].count++;
-    if (attendanceByDate[dateStr].teamCounts[team] !== undefined) {
-      attendanceByDate[dateStr].teamCounts[team]++;
-    }
-  });
-
-  saturdays.forEach((sat, index) => {
-    const dateStr = Utilities.formatDate(sat, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    const displayDateStr = Utilities.formatDate(sat, Session.getScriptTimeZone(), 'MM/dd'); 
-    
-    const stats = attendanceByDate[dateStr] || { count: 0, teamCounts: { A: 0, B: 0, C: 0 } };
-
-    weeklyStats.push({
-      date: displayDateStr, 
-      fullDate: dateStr,    
-      week: index + 1,
-      count: stats.count,
-      teamCounts: stats.teamCounts
-    });
-  });
-
+  // 클라이언트로 원본 데이터 전송
   return createResponse(true, null, {
-    stats: {
-      personalStats: personalStats,
-      teamStats: teamStats,
-      weeklyStats: weeklyStats,
-      targetYear: targetYear 
+    rawData: {
+      attendance: rawAttendance,
+      members: members,
+      saturdays: saturdayDates,
+      targetYear: targetYear,
+      season: seasonFilter
     }
   }, callback);
 }
