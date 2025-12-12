@@ -348,8 +348,19 @@
                 <button class="tab-btn category-tab" data-category="monthly">월별</button>
             </div>
 
-            <div id="monthTabs" class="tab-container level-3" style="display: none;">
+            <div id="monthTabsWrapper" style="display: none; padding: 0 20px;">
+                <!-- 상반기 탭 -->
+                <div id="firstHalfTabsContainer" style="display: none; margin-bottom: 15px;">
+                    <h5 style="color: #667eea; font-size: 1em; font-weight: 600; margin: 15px 0 10px 0; padding-left: 10px; border-left: 4px solid #667eea;">상반기 (1월 ~ 6월)</h5>
+                    <div id="firstHalfTabs" class="tab-container level-3"></div>
                 </div>
+
+                <!-- 하반기 탭 -->
+                <div id="secondHalfTabsContainer" style="display: none; margin-bottom: 15px;">
+                    <h5 style="color: #764ba2; font-size: 1em; font-weight: 600; margin: 15px 0 10px 0; padding-left: 10px; border-left: 4px solid #764ba2;">하반기 (7월 ~ 12월)</h5>
+                    <div id="secondHalfTabs" class="tab-container level-3"></div>
+                </div>
+            </div>
 
             <!-- 팀별 통계 -->
             <div id="teamStats" class="stats-content-area team-stats">
