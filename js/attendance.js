@@ -177,10 +177,19 @@ function filterMembersByTeam() {
         return;
     }
 
-    // 현재 시즌의 팀으로 필터링
+    // 현재 시즌의 팀으로 필터링 (현재 시즌 팀 정보가 없으면 다른 시즌 팀 정보로 fallback)
     const filteredMembers = membersList.filter(member => {
-        const memberTeam = member[currentSeason.teamKey]; // firstHalfTeam 또는 secondHalfTeam
-        return memberTeam === selectedTeam;
+        const currentSeasonTeam = member[currentSeason.teamKey]; // firstHalfTeam 또는 secondHalfTeam
+
+        // 현재 시즌 팀 정보가 있으면 그것으로 비교
+        if (currentSeasonTeam) {
+            return currentSeasonTeam === selectedTeam;
+        }
+
+        // 현재 시즌 팀 정보가 없으면 다른 시즌 팀 정보로 fallback
+        const otherSeasonKey = currentSeason.teamKey === 'firstHalfTeam' ? 'secondHalfTeam' : 'firstHalfTeam';
+        const otherSeasonTeam = member[otherSeasonKey];
+        return otherSeasonTeam === selectedTeam;
     });
     renderNameSelect(filteredMembers);
 
