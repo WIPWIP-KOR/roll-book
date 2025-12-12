@@ -399,13 +399,39 @@ function loadTodayStatus(forceReload = false) {
 function formatTimeHHMM(timeStr) {
     if (!timeStr) return '';
 
-    // "HH:MM:SS" 형식에서 HH:MM만 추출
-    const timeParts = timeStr.split(':');
-    if (timeParts.length >= 2) {
-        return `${timeParts[0]}:${timeParts[1]}`;
+    // Date 객체인 경우
+    if (timeStr instanceof Date) {
+        const hours = String(timeStr.getHours()).padStart(2, '0');
+        const minutes = String(timeStr.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
     }
 
-    return timeStr; // 형식이 다르면 원본 반환
+    // 문자열 처리
+    const str = String(timeStr);
+
+    // ISO 8601 형식 또는 날짜가 포함된 경우 (예: "2025-01-15T09:30:00" 또는 "2025-01-15 09:30:00")
+    if (str.includes('T') || str.includes(' ')) {
+        try {
+            const date = new Date(str);
+            if (!isNaN(date.getTime())) {
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${hours}:${minutes}`;
+            }
+        } catch (e) {
+            console.warn('시간 파싱 실패:', str);
+        }
+    }
+
+    // "HH:MM:SS" 형식에서 HH:MM만 추출
+    const timeParts = str.split(':');
+    if (timeParts.length >= 2) {
+        const hours = timeParts[0].padStart(2, '0');
+        const minutes = timeParts[1].padStart(2, '0');
+        return `${hours}:${minutes}`;
+    }
+
+    return str; // 형식이 다르면 원본 반환
 }
 
 /**
