@@ -89,23 +89,37 @@ function clearAuthToken() {
  */
 function requestGas(action, params = {}) {
     return new Promise((resolve, reject) => {
-        const callbackName = 'jsonpCallback_' + Date.now();
-        
-        // 콜백 함수를 전역 범위에 등록
-        window[callbackName] = (response) => {
-            // 응답이 오면 스크립트 태그 제거 및 콜백 함수 해제
+        const callbackName = 'jsonpCallback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        let timeoutId;
+
+        // 정리 함수
+        const cleanup = () => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
             const script = document.getElementById(callbackName);
             if (script) {
                 script.remove();
             }
             delete window[callbackName];
-            
-            if (response.success) {
+        };
+
+        // 콜백 함수를 전역 범위에 등록
+        window[callbackName] = (response) => {
+            cleanup();
+
+            if (response && response.success) {
                 resolve(response);
             } else {
-                reject(response.message || '서버 오류가 발생했습니다.');
+                reject(response?.message || '서버 오류가 발생했습니다.');
             }
         };
+
+        // 타임아웃 설정 (10초)
+        timeoutId = setTimeout(() => {
+            cleanup();
+            reject('요청 시간이 초과되었습니다. 네트워크 상태를 확인해주세요.');
+        }, 10000);
 
         const url = new URL(GAS_URL);
         url.searchParams.append('action', action);
@@ -121,18 +135,14 @@ function requestGas(action, params = {}) {
         const script = document.createElement('script');
         script.src = url.toString();
         script.id = callbackName;
-        document.head.appendChild(script);
 
-        // 오류 처리 (네트워크 오류, 타임아웃 등 - GAS에서 응답이 오지 않는 경우)
-        // GAS는 HTTP 200 응답 내에서 오류를 반환하므로, 이는 주로 네트워크 레벨의 오류를 잡습니다.
+        // 오류 처리
         script.onerror = () => {
+            cleanup();
             reject('네트워크 연결 또는 서버 응답에 실패했습니다.');
-            const script = document.getElementById(callbackName);
-            if (script) {
-                script.remove();
-            }
-            delete window[callbackName];
         };
+
+        document.head.appendChild(script);
     });
 }
 
@@ -449,7 +459,10 @@ function updateCurrentTimeDisplay(startTime, lateTime) {
  */
 async function loadAttendanceTime() {
     try {
+        console.log('⏰ 출석 시간 설정 로드 시작...');
         const response = await requestGas('getAttendanceTime');
+
+        console.log('✅ 출석 시간 설정 응답:', response);
 
         if (response.success && response.attendanceTime) {
             const { startTime, lateTime } = response.attendanceTime;
@@ -472,13 +485,27 @@ async function loadAttendanceTime() {
                 document.getElementById('lateThresholdHour').value = lateHour;
                 document.getElementById('lateThresholdMinute').value = lateMinute;
             }
+
+            console.log('✅ 출석 시간 설정 로드 완료');
         } else {
             // 설정이 없을 때
+            console.log('ℹ️ 출석 시간 설정이 없습니다.');
             updateCurrentTimeDisplay(null, null);
         }
     } catch (error) {
-        console.error('출석 시간 설정 로드 오류:', error);
+        console.error('❌ 출석 시간 설정 로드 오류:', error);
         updateCurrentTimeDisplay(null, null);
+
+        // 사용자에게 오류 표시
+        const messageEl = document.getElementById('attendanceTimeMessage');
+        if (messageEl) {
+            messageEl.textContent = '⚠️ 설정을 불러오는 중 오류가 발생했습니다: ' + error;
+            messageEl.className = 'message-area error';
+            setTimeout(() => {
+                messageEl.textContent = '';
+                messageEl.className = 'message-area';
+            }, 5000);
+        }
     }
 }
 
@@ -520,31 +547,57 @@ async function saveAttendanceDays() {
  */
 async function loadAttendanceDays() {
     try {
+        console.log('📅 출석 가능 요일 설정 로드 시작...');
         const response = await requestGas('getAttendanceDays');
+
+        console.log('✅ 출석 가능 요일 응답:', response);
 
         // 모든 체크박스 초기화
         document.querySelectorAll('.attendance-day-checkbox').forEach(cb => {
             cb.checked = false;
         });
 
-        if (response.success && response.attendanceDays) {
+        if (response.success && response.attendanceDays !== undefined) {
             // 문자열로 강제 변환 (타입 에러 방지)
             const daysString = String(response.attendanceDays || '');
+
+            console.log('📅 저장된 요일 문자열:', daysString);
 
             // 저장된 요일 체크
             if (daysString && daysString.trim() !== '') {
                 const days = daysString.split(',').map(d => String(d).trim()).filter(d => d !== '');
+                console.log('📅 파싱된 요일 배열:', days);
+
                 days.forEach(day => {
                     const checkbox = document.querySelector(`.attendance-day-checkbox[value="${day}"]`);
                     if (checkbox) {
                         checkbox.checked = true;
-                        console.log('요일 로드:', day, '체크됨');
+                        console.log('✅ 요일 로드:', day, '체크됨');
+                    } else {
+                        console.warn('⚠️ 요일 체크박스를 찾을 수 없음:', day);
                     }
                 });
+            } else {
+                console.log('ℹ️ 설정된 요일 없음 (모든 요일 허용)');
             }
+
+            console.log('✅ 출석 가능 요일 설정 로드 완료');
+        } else {
+            console.log('ℹ️ 출석 가능 요일 설정이 없습니다.');
         }
     } catch (error) {
-        console.error('출석 가능 요일 설정 로드 오류:', error);
+        console.error('❌ 출석 가능 요일 설정 로드 오류:', error);
+
+        // 사용자에게 오류 표시
+        const messageEl = document.getElementById('attendanceDaysMessage');
+        if (messageEl) {
+            messageEl.textContent = '⚠️ 설정을 불러오는 중 오류가 발생했습니다: ' + error;
+            messageEl.className = 'message-area error';
+            setTimeout(() => {
+                messageEl.textContent = '';
+                messageEl.className = 'message-area';
+            }, 5000);
+        }
     }
 }
 
@@ -736,13 +789,19 @@ async function loadMembersTab(forceReload = false) {
  * 설정 탭 데이터 로드
  */
 async function loadSettingsTab() {
-    // 출석 시간 설정 및 요일 설정 항상 로드 (최신 데이터 표시)
-    await Promise.all([
-        loadAttendanceTime(),
-        loadAttendanceDays()
-    ]);
+    console.log('⚙️ 설정 탭 데이터 로드 시작...');
 
-    console.log('✅ 설정 탭 데이터 로드 완료');
+    try {
+        // 출석 시간 설정 및 요일 설정 항상 로드 (최신 데이터 표시)
+        await Promise.all([
+            loadAttendanceTime(),
+            loadAttendanceDays()
+        ]);
+
+        console.log('✅ 설정 탭 데이터 로드 완료');
+    } catch (error) {
+        console.error('❌ 설정 탭 데이터 로드 오류:', error);
+    }
 }
 
 /**
