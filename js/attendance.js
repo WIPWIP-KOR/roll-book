@@ -651,53 +651,67 @@ let locationMarker = null;
 function showLocationMap(latitude, longitude) {
     const modal = document.getElementById('locationMapModal');
     const mapContainer = document.getElementById('locationMap');
+    const mapLatElement = document.getElementById('mapLatitude');
+    const mapLngElement = document.getElementById('mapLongitude');
+
+    // DOM 요소 존재 확인
+    if (!modal || !mapContainer || !mapLatElement || !mapLngElement) {
+        console.error('지도 모달 요소를 찾을 수 없습니다.');
+        showMessage('지도를 표시할 수 없습니다.', 'error');
+        return;
+    }
+
+    // 위도/경도 표시 업데이트
+    mapLatElement.textContent = latitude.toFixed(6);
+    mapLngElement.textContent = longitude.toFixed(6);
 
     // 모달 표시
     modal.style.display = 'flex';
 
-    // 위도/경도 표시 업데이트
-    document.getElementById('mapLatitude').textContent = latitude.toFixed(6);
-    document.getElementById('mapLongitude').textContent = longitude.toFixed(6);
+    // 카카오맵 SDK 로드 확인 및 대기
+    const initializeMap = () => {
+        if (typeof kakao === 'undefined' || !kakao.maps) {
+            console.error('카카오맵 SDK가 로드되지 않았습니다.');
+            showMessage('지도를 불러올 수 없습니다.', 'error');
+            closeLocationMap();
+            return;
+        }
 
-    // 카카오맵 SDK 로드 확인
-    if (typeof kakao === 'undefined' || !kakao.maps) {
-        console.error('카카오맵 SDK가 로드되지 않았습니다.');
-        showMessage('지도를 불러올 수 없습니다.', 'error');
-        closeLocationMap();
-        return;
-    }
+        // 지도가 이미 생성되어 있으면 위치만 업데이트
+        if (locationMap && locationMarker) {
+            const position = new kakao.maps.LatLng(latitude, longitude);
+            locationMap.setCenter(position);
+            locationMarker.setPosition(position);
+            return;
+        }
 
-    // 지도가 이미 생성되어 있으면 위치만 업데이트
-    if (locationMap && locationMarker) {
-        const position = new kakao.maps.LatLng(latitude, longitude);
-        locationMap.setCenter(position);
-        locationMarker.setPosition(position);
-        return;
-    }
+        // 지도 생성
+        try {
+            const position = new kakao.maps.LatLng(latitude, longitude);
 
-    // 지도 생성
-    try {
-        const position = new kakao.maps.LatLng(latitude, longitude);
+            const mapOption = {
+                center: position,
+                level: 3 // 확대 레벨
+            };
 
-        const mapOption = {
-            center: position,
-            level: 3 // 확대 레벨
-        };
+            locationMap = new kakao.maps.Map(mapContainer, mapOption);
 
-        locationMap = new kakao.maps.Map(mapContainer, mapOption);
+            // 마커 생성
+            locationMarker = new kakao.maps.Marker({
+                position: position,
+                map: locationMap
+            });
 
-        // 마커 생성
-        locationMarker = new kakao.maps.Marker({
-            position: position,
-            map: locationMap
-        });
+            console.log('✅ 카카오맵 초기화 완료');
+        } catch (error) {
+            console.error('카카오맵 초기화 오류:', error);
+            showMessage('지도를 불러오는 중 오류가 발생했습니다.', 'error');
+            closeLocationMap();
+        }
+    };
 
-        console.log('✅ 카카오맵 초기화 완료');
-    } catch (error) {
-        console.error('카카오맵 초기화 오류:', error);
-        showMessage('지도를 불러오는 중 오류가 발생했습니다.', 'error');
-        closeLocationMap();
-    }
+    // 모달이 표시된 후 지도 초기화 (렌더링 이슈 방지)
+    setTimeout(initializeMap, 100);
 }
 
 /**
