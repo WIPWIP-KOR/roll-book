@@ -64,6 +64,8 @@ function doGet(e) {
         return getLocation(callback);
       case 'getTodayAttendance':
         return getTodayAttendance(callback);
+      case 'getLastWeekAttendance':
+        return getLastWeekAttendance(callback);
       case 'getAttendanceDetailByDate':
         const dateParam = e.parameter.date;
         return getAttendanceDetailByDate(callback, dateParam);
@@ -681,6 +683,59 @@ function getTodayAttendance(callback) {
     }
   }
   return createResponse(true, null, { attendance: attendance }, callback);
+}
+
+/**
+ * 지난주 출석 현황 (지난주 토요일 기록)
+ */
+function getLastWeekAttendance(callback) {
+  // 지난주 토요일 날짜 계산
+  const today = new Date();
+  const currentDay = today.getDay(); // 0(일) ~ 6(토)
+
+  // 지난주 토요일까지의 일수 계산
+  // 오늘이 토요일(6)이면 7일 전, 일요일(0)이면 8일 전, 월요일(1)이면 9일 전...
+  let daysToLastSaturday;
+  if (currentDay === 6) {
+    // 오늘이 토요일이면 지난주 토요일은 7일 전
+    daysToLastSaturday = 7;
+  } else {
+    // 그 외의 경우: 이번주 토요일까지의 일수 + 7일
+    daysToLastSaturday = (currentDay + 1) + 7;
+  }
+
+  const lastSaturday = new Date(today);
+  lastSaturday.setDate(today.getDate() - daysToLastSaturday);
+  const lastSaturdayStr = Utilities.formatDate(lastSaturday, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  // 해당 연도의 시트 가져오기
+  const year = lastSaturday.getFullYear();
+  const sheet = getAttendanceSheet(year);
+
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return createResponse(true, null, { attendance: [], date: lastSaturdayStr }, callback);
+  }
+
+  const data = sheet.getDataRange().getValues();
+  const attendance = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const rowDate = data[i][0];
+    if (!rowDate) continue;
+    const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+    if (rowDateStr === lastSaturdayStr) {
+      attendance.push({
+        name: data[i][2],
+        team: data[i][3],
+        season: data[i][4],
+        time: data[i][5],
+        isLate: data[i][6] === '지각' // 지각 여부 추가
+      });
+    }
+  }
+
+  return createResponse(true, null, { attendance: attendance, date: lastSaturdayStr }, callback);
 }
 
 /**
