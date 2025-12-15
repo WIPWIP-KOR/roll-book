@@ -228,6 +228,25 @@ body {
     transform: scale(0.98);
 }
 
+.btn-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+    color: #333;
+    border: none;
+    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.2);
+    font-weight: 600;
+}
+
+.btn-warning:active:not(:disabled) {
+    transform: scale(0.98);
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
+}
+
+.btn-warning:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
 /* 데스크톱 호버 효과 */
 @media (hover: hover) {
     .btn-primary:hover:not(:disabled) {
@@ -238,6 +257,11 @@ body {
     .btn-secondary:hover {
         background: #667eea;
         color: white;
+    }
+
+    .btn-warning:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(255, 193, 7, 0.3);
     }
 }
 

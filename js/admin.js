@@ -428,6 +428,49 @@ function formatTimeValue(timeValue) {
 }
 
 /**
+ * 기존 출석 기록의 지각 여부 재계산
+ */
+async function recalculateLateStatus() {
+    const messageEl = document.getElementById('recalculateMessage');
+    const btn = document.getElementById('recalculateLateBtn');
+
+    // 확인 메시지
+    if (!confirm('기존 출석 기록의 지각 여부를 현재 지각 기준 시간에 따라 다시 계산합니다.\n계속하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        btn.disabled = true;
+        btn.textContent = '⏳ 재계산 중...';
+        messageEl.textContent = '';
+        messageEl.className = 'message-area';
+
+        const response = await requestGas('recalculateLateStatus');
+
+        if (response.success) {
+            const { totalProcessed, updatedCount } = response.data;
+            messageEl.textContent = `✅ 재계산 완료!\n총 ${totalProcessed}개 기록 중 ${updatedCount}개 업데이트됨`;
+            messageEl.className = 'message-area success';
+
+            // 3초 후 메시지 제거
+            setTimeout(() => {
+                messageEl.textContent = '';
+                messageEl.className = 'message-area';
+            }, 5000);
+        } else {
+            messageEl.textContent = '❌ ' + (response.message || '재계산에 실패했습니다.');
+            messageEl.className = 'message-area error';
+        }
+    } catch (error) {
+        messageEl.textContent = '❌ 재계산 중 오류가 발생했습니다: ' + error;
+        messageEl.className = 'message-area error';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄 지각 여부 재계산';
+    }
+}
+
+/**
  * 현재 설정 표시 업데이트
  */
 function updateCurrentTimeDisplay(startTime, lateTime) {
@@ -1347,6 +1390,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveAttendanceTimeBtn = document.getElementById('saveAttendanceTimeBtn');
     if (saveAttendanceTimeBtn) {
         saveAttendanceTimeBtn.addEventListener('click', saveAttendanceTime);
+    }
+
+    const recalculateLateBtn = document.getElementById('recalculateLateBtn');
+    if (recalculateLateBtn) {
+        recalculateLateBtn.addEventListener('click', recalculateLateStatus);
     }
 
     const saveAttendanceDaysBtn = document.getElementById('saveAttendanceDaysBtn');
