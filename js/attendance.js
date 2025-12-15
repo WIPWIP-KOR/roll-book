@@ -146,6 +146,9 @@ function refreshLocation() {
             showMessage('✅ 위치 정보가 업데이트되었습니다!', 'success');
             refreshLocationBtn.disabled = false;
             refreshLocationBtn.textContent = '🔄 위치 새로고침';
+
+            // 위치 새로고침 완료 후 지도 모달 표시
+            showLocationMap(userPosition.latitude, userPosition.longitude);
         },
         (error) => {
             let errorMsg = '위치 정보를 가져올 수 없습니다.';
@@ -636,3 +639,95 @@ function displayLastWeekStatus(attendance, date) {
 
     container.innerHTML = html;
 }
+
+// ==================== 위치 확인 지도 모달 ====================
+
+let locationMap = null;
+let locationMarker = null;
+
+/**
+ * 카카오맵 초기화 및 지도 모달 표시
+ */
+function showLocationMap(latitude, longitude) {
+    const modal = document.getElementById('locationMapModal');
+    const mapContainer = document.getElementById('locationMap');
+
+    // 모달 표시
+    modal.style.display = 'flex';
+
+    // 위도/경도 표시 업데이트
+    document.getElementById('mapLatitude').textContent = latitude.toFixed(6);
+    document.getElementById('mapLongitude').textContent = longitude.toFixed(6);
+
+    // 카카오맵 SDK 로드 확인
+    if (typeof kakao === 'undefined' || !kakao.maps) {
+        console.error('카카오맵 SDK가 로드되지 않았습니다.');
+        showMessage('지도를 불러올 수 없습니다.', 'error');
+        closeLocationMap();
+        return;
+    }
+
+    // 지도가 이미 생성되어 있으면 위치만 업데이트
+    if (locationMap && locationMarker) {
+        const position = new kakao.maps.LatLng(latitude, longitude);
+        locationMap.setCenter(position);
+        locationMarker.setPosition(position);
+        return;
+    }
+
+    // 지도 생성
+    try {
+        const position = new kakao.maps.LatLng(latitude, longitude);
+
+        const mapOption = {
+            center: position,
+            level: 3 // 확대 레벨
+        };
+
+        locationMap = new kakao.maps.Map(mapContainer, mapOption);
+
+        // 마커 생성
+        locationMarker = new kakao.maps.Marker({
+            position: position,
+            map: locationMap
+        });
+
+        console.log('✅ 카카오맵 초기화 완료');
+    } catch (error) {
+        console.error('카카오맵 초기화 오류:', error);
+        showMessage('지도를 불러오는 중 오류가 발생했습니다.', 'error');
+        closeLocationMap();
+    }
+}
+
+/**
+ * 지도 모달 닫기
+ */
+function closeLocationMap() {
+    const modal = document.getElementById('locationMapModal');
+    modal.style.display = 'none';
+}
+
+// 지도 모달 이벤트 리스너 추가 (DOMContentLoaded 시)
+window.addEventListener('DOMContentLoaded', () => {
+    const closeMapModalBtn = document.getElementById('closeMapModal');
+    const confirmLocationBtn = document.getElementById('confirmLocationBtn');
+
+    if (closeMapModalBtn) {
+        closeMapModalBtn.addEventListener('click', closeLocationMap);
+    }
+
+    if (confirmLocationBtn) {
+        confirmLocationBtn.addEventListener('click', closeLocationMap);
+    }
+
+    // 모달 배경 클릭 시 닫기
+    const modal = document.getElementById('locationMapModal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeLocationMap();
+            }
+        });
+    }
+});

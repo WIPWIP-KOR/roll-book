@@ -8,6 +8,7 @@
     <meta name="theme-color" content="#667eea">
     <title>청라FS 출석체크</title>
     <link rel="stylesheet" href="css/style.css">
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ba33aab3a17f53b23105c96b7618df35"></script>
 </head>
 <body>
     <div class="container">
@@ -100,6 +101,18 @@
 
     <!-- 상단 고정 토스트 메시지 -->
     <div id="message" class="message"></div>
+
+    <!-- 위치 확인 지도 모달 -->
+    <div id="locationMapModal" class="modal" style="display: none;">
+        <div class="modal-content location-modal-content">
+            <div class="modal-header">
+                <h2>📍 현재 위치 확인</h2>
+                <button id="closeMapModal" class="close-btn">&times;</button>
+            </div>
+            <div id="locationMap" class="location-map"></div>
+            <button id="confirmLocationBtn" class="btn-primary" style="width: 100%; margin-top: 15px;">확인</button>
+        </div>
+    </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="js/unregister-sw.js"></script>

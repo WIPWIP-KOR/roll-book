@@ -1090,3 +1090,155 @@ body {
         padding-bottom: calc(80px + max(0px, env(safe-area-inset-bottom)));
     }
 }
+
+/* ==================== 위치 확인 지도 모달 ==================== */
+
+/* 모달 배경 */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    padding: 20px;
+}
+
+/* 모달 콘텐츠 */
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    max-width: 500px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+/* 위치 모달 전용 콘텐츠 (더 넓게) */
+.location-modal-content {
+    max-width: 600px;
+    padding: 0;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 모달 헤더 */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.3em;
+    color: #333;
+}
+
+/* 닫기 버튼 */
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 2em;
+    color: #999;
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.close-btn:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.close-btn:active {
+    transform: scale(0.95);
+}
+
+/* 위치 지도 */
+.location-map {
+    width: 100%;
+    height: 400px;
+    border: none;
+}
+
+/* 모바일에서 조금 작게 */
+@media (max-width: 768px) {
+    .location-map {
+        height: 350px;
+    }
+}
+
+/* 지도 정보 */
+.map-info {
+    padding: 15px 25px;
+    background: #f8f9fa;
+    border-top: 1px solid #e0e0e0;
+}
+
+.map-info p {
+    margin: 5px 0;
+    font-size: 0.95em;
+    color: #666;
+}
+
+.map-info strong {
+    color: #333;
+    margin-right: 8px;
+}
+
+.map-info span {
+    color: #667eea;
+    font-weight: 500;
+}
+
+/* 확인 버튼 (모달 내부) */
+.modal-content .btn-primary {
+    margin: 15px 25px;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 600px) {
+    .modal {
+        padding: 10px;
+    }
+
+    .modal-header {
+        padding: 15px 20px;
+    }
+
+    .modal-header h2 {
+        font-size: 1.1em;
+    }
+
+    .map-info {
+        padding: 12px 20px;
+    }
+
+    .modal-content .btn-primary {
+        margin: 12px 20px;
+    }
+}
