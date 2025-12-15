@@ -10,6 +10,7 @@ const nameSelect = document.getElementById('nameSelect');
 const nameInput = document.getElementById('nameInput');
 const teamSelect = document.getElementById('teamSelect');
 const attendBtn = document.getElementById('attendBtn');
+const refreshLocationBtn = document.getElementById('refreshLocationBtn');
 const messageDiv = document.getElementById('message');
 const locationStatus = document.getElementById('locationStatus');
 const locationText = document.getElementById('locationText');
@@ -65,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 이벤트 리스너
     attendBtn.addEventListener('click', processAttendance);
+    refreshLocationBtn.addEventListener('click', refreshLocation);
     teamSelect.addEventListener('change', filterMembersByTeam);
     nameSelect.addEventListener('change', handleNameSelectChange);
 
@@ -81,10 +83,14 @@ function getLocation() {
         return;
     }
 
+    locationText.textContent = '위치 정보 확인 중...';
+    locationStatus.classList.remove('success', 'error');
+
     navigator.geolocation.getCurrentPosition(
         (position) => {
             userPosition = position.coords;
             locationText.textContent = '위치 정보 확인 완료';
+            locationStatus.classList.remove('error');
             locationStatus.classList.add('success');
             attendBtn.disabled = false;
         },
@@ -104,9 +110,65 @@ function getLocation() {
             }
 
             locationText.textContent = errorMsg;
+            locationStatus.classList.remove('success');
             locationStatus.classList.add('error');
             attendBtn.disabled = true;
             showMessage(errorMsg, 'error');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+}
+
+// 위치 새로고침 (사용자가 수동으로 클릭)
+function refreshLocation() {
+    showMessage('📍 위치를 다시 확인하는 중...', 'info');
+    refreshLocationBtn.disabled = true;
+    refreshLocationBtn.textContent = '🔄 확인 중...';
+
+    if (!navigator.geolocation) {
+        locationText.textContent = '위치 서비스를 지원하지 않습니다.';
+        attendBtn.disabled = true;
+        refreshLocationBtn.disabled = false;
+        refreshLocationBtn.textContent = '🔄 위치 새로고침';
+        return;
+    }
+
+    locationText.textContent = '위치 정보 확인 중...';
+    locationStatus.classList.remove('success', 'error');
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            userPosition = position.coords;
+            locationText.textContent = '위치 정보 확인 완료';
+            locationStatus.classList.remove('error');
+            locationStatus.classList.add('success');
+            attendBtn.disabled = false;
+            showMessage('✅ 위치 정보가 업데이트되었습니다!', 'success');
+            refreshLocationBtn.disabled = false;
+            refreshLocationBtn.textContent = '🔄 위치 새로고침';
+        },
+        (error) => {
+            let errorMsg = '위치 정보를 가져올 수 없습니다.';
+
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = '위치 정보 권한이 거부되었습니다. 설정에서 허용해주세요.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = '위치 정보를 사용할 수 없습니다.';
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = '위치 정보 요청 시간이 초과되었습니다. 다시 시도해주세요.';
+                    break;
+            }
+
+            locationText.textContent = errorMsg;
+            locationStatus.classList.remove('success');
+            locationStatus.classList.add('error');
+            attendBtn.disabled = true;
+            showMessage(errorMsg, 'error');
+            refreshLocationBtn.disabled = false;
+            refreshLocationBtn.textContent = '🔄 위치 새로고침';
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -230,8 +292,7 @@ function processAttendance() {
     }
 
     if (!userPosition) {
-        showMessage('위치 정보 확인 중입니다. 잠시 후 다시 시도해주세요.', 'error');
-        getLocation();
+        showMessage('위치 정보 확인 중입니다. "위치 새로고침" 버튼을 눌러주세요.', 'error');
         return;
     }
 
