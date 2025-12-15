@@ -686,22 +686,22 @@ function getTodayAttendance(callback) {
 }
 
 /**
- * 지난주 출석 현황 (지난주 토요일 기록)
+ * 지난주 출석 현황 (가장 최근 지나간 토요일 기록)
  */
 function getLastWeekAttendance(callback) {
-  // 지난주 토요일 날짜 계산
+  // 가장 최근 지나간 토요일 날짜 계산
   const today = new Date();
   const currentDay = today.getDay(); // 0(일) ~ 6(토)
 
-  // 지난주 토요일까지의 일수 계산
-  // 오늘이 토요일(6)이면 7일 전, 일요일(0)이면 8일 전, 월요일(1)이면 9일 전...
+  // 가장 최근 지나간 토요일까지의 일수 계산
+  // 일요일(0)이면 1일 전(어제), 월요일(1)이면 2일 전, ..., 토요일(6)이면 7일 전
   let daysToLastSaturday;
   if (currentDay === 6) {
     // 오늘이 토요일이면 지난주 토요일은 7일 전
     daysToLastSaturday = 7;
   } else {
-    // 그 외의 경우: 이번주 토요일까지의 일수 + 7일
-    daysToLastSaturday = (currentDay + 1) + 7;
+    // 그 외의 경우: 가장 최근 지나간 토요일
+    daysToLastSaturday = currentDay + 1;
   }
 
   const lastSaturday = new Date(today);
