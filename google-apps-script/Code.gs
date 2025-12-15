@@ -54,6 +54,8 @@ function doGet(e) {
           return createResponse(saveDaysSuccess, saveDaysSuccess ? null : 'Failed to save attendance days', null, callback);
       case 'getAttendanceDays':
           return getAttendanceDays(callback);
+      case 'recalculateLateStatus':
+          return recalculateLateStatus(callback);
 
       // 데이터/정보 조회
       case 'getMembers':
@@ -201,8 +203,16 @@ function getAttendanceTime(callback) {
         const startRow = findSettingRow(sheet, '출석 시작 시간');
         const lateRow = findSettingRow(sheet, '지각 기준 시간');
 
-        const startTime = startRow ? sheet.getRange(startRow, 2).getValue() : null;
-        const lateTime = lateRow ? sheet.getRange(lateRow, 2).getValue() : null;
+        let startTime = startRow ? sheet.getRange(startRow, 2).getValue() : null;
+        let lateTime = lateRow ? sheet.getRange(lateRow, 2).getValue() : null;
+
+        // Date 객체인 경우 HH:mm 형식 문자열로 변환
+        if (startTime instanceof Date) {
+            startTime = Utilities.formatDate(startTime, Session.getScriptTimeZone(), 'HH:mm');
+        }
+        if (lateTime instanceof Date) {
+            lateTime = Utilities.formatDate(lateTime, Session.getScriptTimeZone(), 'HH:mm');
+        }
 
         return createResponse(true, null, {
             attendanceTime: {
@@ -388,8 +398,16 @@ function checkLateStatus() {
     return { isLate: false, beforeStart: false, startTime: null };
   }
 
-  const startTime = sheet.getRange(startRow, 2).getValue();
-  const lateTime = sheet.getRange(lateRow, 2).getValue();
+  let startTime = sheet.getRange(startRow, 2).getValue();
+  let lateTime = sheet.getRange(lateRow, 2).getValue();
+
+  // Date 객체인 경우 HH:mm 형식 문자열로 변환
+  if (startTime instanceof Date) {
+    startTime = Utilities.formatDate(startTime, Session.getScriptTimeZone(), 'HH:mm');
+  }
+  if (lateTime instanceof Date) {
+    lateTime = Utilities.formatDate(lateTime, Session.getScriptTimeZone(), 'HH:mm');
+  }
 
   if (!startTime || !lateTime) {
     return { isLate: false, beforeStart: false, startTime: null };
@@ -1206,4 +1224,123 @@ function runAllMigrations() {
 
   Logger.log('\n✅ 모든 마이그레이션 완료!');
   Logger.log('페이지를 새로고침하여 확인하세요.');
+}
+
+/**
+ * 기존 출석 기록의 지각 여부를 재계산하여 업데이트
+ * Google Apps Script 편집기에서 이 함수를 실행하거나 관리자 페이지에서 호출하세요.
+ */
+function recalculateLateStatus(callback) {
+  try {
+    // 지각 기준 시간 가져오기
+    const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+    const lateRow = findSettingRow(sheet, '지각 기준 시간');
+
+    if (!lateRow) {
+      const message = '⚠️ 지각 기준 시간이 설정되지 않았습니다. 먼저 출석 시간을 설정해주세요.';
+      Logger.log(message);
+      return createResponse(false, message, null, callback);
+    }
+
+    let lateTime = sheet.getRange(lateRow, 2).getValue();
+
+    // Date 객체인 경우 HH:mm 형식 문자열로 변환
+    if (lateTime instanceof Date) {
+      lateTime = Utilities.formatDate(lateTime, Session.getScriptTimeZone(), 'HH:mm');
+    }
+
+    if (!lateTime) {
+      const message = '⚠️ 지각 기준 시간이 비어있습니다.';
+      Logger.log(message);
+      return createResponse(false, message, null, callback);
+    }
+
+    Logger.log('지각 기준 시간: ' + lateTime);
+
+    // 모든 연도의 출석 기록 시트 찾기
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const allSheets = ss.getSheets();
+    const attendanceSheets = allSheets.filter(s => s.getName().startsWith(SHEET_NAMES.ATTENDANCE + '_'));
+
+    if (attendanceSheets.length === 0) {
+      const message = '📋 처리할 출석 기록이 없습니다.';
+      Logger.log(message);
+      return createResponse(true, message, { updatedCount: 0 }, callback);
+    }
+
+    let totalUpdated = 0;
+    let totalProcessed = 0;
+
+    // 각 시트 처리
+    attendanceSheets.forEach(attendanceSheet => {
+      Logger.log('\n📊 처리 중: ' + attendanceSheet.getName());
+
+      const lastRow = attendanceSheet.getLastRow();
+      if (lastRow <= 1) {
+        Logger.log('  데이터 없음 (헤더만 존재)');
+        return; // 다음 시트로
+      }
+
+      const data = attendanceSheet.getDataRange().getValues();
+
+      // 헤더 확인 (출석시간과 지각여부 컬럼 위치 찾기)
+      const headers = data[0];
+      const timeColIndex = headers.indexOf('출석시간');
+      const lateColIndex = headers.indexOf('지각여부');
+
+      if (timeColIndex === -1 || lateColIndex === -1) {
+        Logger.log('  ⚠️ 필요한 컬럼을 찾을 수 없습니다.');
+        return;
+      }
+
+      // 데이터 행 처리 (1부터 시작 - 0은 헤더)
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        let attendanceTime = row[timeColIndex];
+        const currentLateStatus = row[lateColIndex];
+
+        if (!attendanceTime) continue;
+
+        totalProcessed++;
+
+        // 출석시간을 HH:mm 형식으로 변환
+        let timeStr = '';
+        if (attendanceTime instanceof Date) {
+          timeStr = Utilities.formatDate(attendanceTime, Session.getScriptTimeZone(), 'HH:mm');
+        } else if (typeof attendanceTime === 'string') {
+          // HH:mm:ss 형식에서 HH:mm만 추출
+          const timeParts = attendanceTime.split(':');
+          if (timeParts.length >= 2) {
+            timeStr = timeParts[0].padStart(2, '0') + ':' + timeParts[1];
+          }
+        }
+
+        if (!timeStr) continue;
+
+        // 지각 여부 계산
+        const shouldBeLate = timeStr >= lateTime;
+        const newLateStatus = shouldBeLate ? '지각' : '정상';
+
+        // 현재 값과 다르면 업데이트
+        if (currentLateStatus !== newLateStatus) {
+          attendanceSheet.getRange(i + 1, lateColIndex + 1).setValue(newLateStatus);
+          totalUpdated++;
+          Logger.log(`  행 ${i + 1}: ${timeStr} -> ${newLateStatus} (이전: ${currentLateStatus})`);
+        }
+      }
+    });
+
+    const message = `✅ 재계산 완료!\n총 ${totalProcessed}개 기록 중 ${totalUpdated}개 업데이트됨`;
+    Logger.log('\n' + message);
+
+    return createResponse(true, message, {
+      totalProcessed: totalProcessed,
+      updatedCount: totalUpdated
+    }, callback);
+
+  } catch (e) {
+    const errorMsg = '❌ 오류 발생: ' + e.toString();
+    Logger.log(errorMsg);
+    return createResponse(false, errorMsg, null, callback);
+  }
 }
