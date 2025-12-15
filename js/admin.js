@@ -448,7 +448,7 @@ async function recalculateLateStatus() {
         const response = await requestGas('recalculateLateStatus');
 
         if (response.success) {
-            const { totalProcessed, updatedCount } = response.data;
+            const { totalProcessed, updatedCount } = response;
             messageEl.textContent = `✅ 재계산 완료!\n총 ${totalProcessed}개 기록 중 ${updatedCount}개 업데이트됨`;
             messageEl.className = 'message-area success';
 
