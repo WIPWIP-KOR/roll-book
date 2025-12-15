@@ -201,8 +201,16 @@ function getAttendanceTime(callback) {
         const startRow = findSettingRow(sheet, '출석 시작 시간');
         const lateRow = findSettingRow(sheet, '지각 기준 시간');
 
-        const startTime = startRow ? sheet.getRange(startRow, 2).getValue() : null;
-        const lateTime = lateRow ? sheet.getRange(lateRow, 2).getValue() : null;
+        let startTime = startRow ? sheet.getRange(startRow, 2).getValue() : null;
+        let lateTime = lateRow ? sheet.getRange(lateRow, 2).getValue() : null;
+
+        // Date 객체인 경우 HH:mm 형식 문자열로 변환
+        if (startTime instanceof Date) {
+            startTime = Utilities.formatDate(startTime, Session.getScriptTimeZone(), 'HH:mm');
+        }
+        if (lateTime instanceof Date) {
+            lateTime = Utilities.formatDate(lateTime, Session.getScriptTimeZone(), 'HH:mm');
+        }
 
         return createResponse(true, null, {
             attendanceTime: {
@@ -367,8 +375,16 @@ function checkLateStatus() {
     return { isLate: false, beforeStart: false, startTime: null };
   }
 
-  const startTime = sheet.getRange(startRow, 2).getValue();
-  const lateTime = sheet.getRange(lateRow, 2).getValue();
+  let startTime = sheet.getRange(startRow, 2).getValue();
+  let lateTime = sheet.getRange(lateRow, 2).getValue();
+
+  // Date 객체인 경우 HH:mm 형식 문자열로 변환
+  if (startTime instanceof Date) {
+    startTime = Utilities.formatDate(startTime, Session.getScriptTimeZone(), 'HH:mm');
+  }
+  if (lateTime instanceof Date) {
+    lateTime = Utilities.formatDate(lateTime, Session.getScriptTimeZone(), 'HH:mm');
+  }
 
   if (!startTime || !lateTime) {
     return { isLate: false, beforeStart: false, startTime: null };
