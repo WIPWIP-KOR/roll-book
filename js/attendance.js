@@ -393,6 +393,7 @@ function switchTab(tabName) {
     // 출석현황 탭이 선택되면 데이터 로드 (최초 1회만)
     if (tabName === 'status' && !statusLoaded) {
         loadTodayStatus();
+        loadLastWeekStatus();
     }
 }
 
@@ -507,6 +508,102 @@ function displayTodayStatus(attendance) {
     }
 
     let html = `
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>팀</th>
+                    <th>상태</th>
+                    <th>출석 시간</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    attendance.forEach(record => {
+        const lateStatus = record.isLate ?
+            '<span style="color: #ff9800; font-weight: 600;">⏰ 지각</span>' :
+            '<span style="color: #4caf50; font-weight: 600;">✅ 정상</span>';
+
+        html += `
+            <tr>
+                <td><strong>${record.name}</strong></td>
+                <td>${record.team}팀</td>
+                <td>${lateStatus}</td>
+                <td>${formatTimeHHMM(record.time)}</td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+    html += `<p style="text-align: center; color: #666; margin-top: 15px;">총 ${attendance.length}명 출석</p>`;
+
+    container.innerHTML = html;
+}
+
+/**
+ * 지난주 출석 현황을 서버에서 불러와 표시합니다. - 캐싱 적용
+ */
+function loadLastWeekStatus(forceReload = false) {
+    const container = document.getElementById('lastWeekStatus');
+
+    // 1. 강제 새로고침이 아니면 캐시 확인
+    if (!forceReload) {
+        const cached = CacheManager.get(CacheManager.KEYS.LAST_WEEK_ATTENDANCE);
+        if (cached) {
+            console.log('✅ 지난주 출석 현황 캐시에서 로드');
+            displayLastWeekStatus(cached.attendance, cached.date);
+            return;
+        }
+    }
+
+    // 2. 캐시 없거나 강제 새로고침 시 서버에서 로드
+    console.log('📡 지난주 출석 현황 서버에서 로드 중...');
+
+    // 로딩 중 표시
+    container.innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="margin-top: 15px; color: #666;">지난주 출석 현황을 불러오는 중...</p>
+        </div>
+    `;
+
+    $.ajax({
+        url: `${CONFIG.GAS_URL}?action=getLastWeekAttendance`,
+        dataType: 'jsonp',
+        success: function(data) {
+            if (data.success && data.attendance) {
+                displayLastWeekStatus(data.attendance, data.date);
+
+                // 캐시에 저장 (10분 TTL)
+                CacheManager.set(CacheManager.KEYS.LAST_WEEK_ATTENDANCE, {
+                    attendance: data.attendance,
+                    date: data.date
+                });
+            } else {
+                container.innerHTML = '<p class="text-danger">지난주 출석 현황을 불러오는데 실패했습니다.</p>';
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('지난주 출석 현황 로딩 에러:', textStatus, errorThrown);
+            container.innerHTML = '<p class="text-danger">네트워크 오류가 발생했습니다.</p>';
+        }
+    });
+}
+
+/**
+ * 지난주 출석 현황 데이터를 화면에 표시
+ */
+function displayLastWeekStatus(attendance, date) {
+    const container = document.getElementById('lastWeekStatus');
+
+    if (attendance.length === 0) {
+        container.innerHTML = `<p class="text-secondary">${date} (토) 출석 기록이 없습니다.</p>`;
+        return;
+    }
+
+    let html = `
+        <p style="margin-bottom: 10px; color: #666; font-size: 14px;">${date} (토)</p>
         <table class="table">
             <thead>
                 <tr>

@@ -15,6 +15,7 @@ const CacheManager = (function() {
     const CACHE_KEYS = {
         MEMBERS: 'members',
         TODAY_ATTENDANCE: 'today_attendance',
+        LAST_WEEK_ATTENDANCE: 'last_week_attendance',
         LOCATION: 'location',
         STATS: 'stats', // year를 suffix로 사용
         AVAILABLE_YEARS: 'available_years'
@@ -24,6 +25,7 @@ const CacheManager = (function() {
     const TTL_CONFIG = {
         [CACHE_KEYS.MEMBERS]: 10 * 60 * 1000,          // 10분
         [CACHE_KEYS.TODAY_ATTENDANCE]: 2 * 60 * 1000,  // 2분
+        [CACHE_KEYS.LAST_WEEK_ATTENDANCE]: 10 * 60 * 1000,  // 10분
         [CACHE_KEYS.LOCATION]: 60 * 60 * 1000,         // 1시간
         [CACHE_KEYS.STATS]: 30 * 60 * 1000,            // 30분
         [CACHE_KEYS.AVAILABLE_YEARS]: 60 * 60 * 1000   // 1시간
