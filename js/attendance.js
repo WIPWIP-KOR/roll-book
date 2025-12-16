@@ -438,7 +438,9 @@ function loadTodayStatus(forceReload = false) {
         url: `${CONFIG.GAS_URL}?action=getTodayAttendance`,
         dataType: 'jsonp',
         success: function(data) {
-            if (data.success && data.attendance) {
+            console.log('오늘 출석 현황 응답:', data);
+
+            if (data && data.success && data.attendance !== undefined) {
                 displayTodayStatus(data.attendance);
 
                 // 캐시에 저장 (2분 TTL)
@@ -448,7 +450,9 @@ function loadTodayStatus(forceReload = false) {
                     statusLoaded = true;
                 }
             } else {
-                container.innerHTML = '<p class="text-danger">출석 현황을 불러오는데 실패했습니다.</p>';
+                console.error('출석 현황 로딩 실패:', data);
+                const errorMsg = data && data.message ? data.message : '출석 현황을 불러오는데 실패했습니다.';
+                container.innerHTML = `<p class="text-danger">${errorMsg}</p>`;
             }
         },
         error: function(jqXHR, textStatus, errorThrown) {
@@ -575,7 +579,9 @@ function loadLastWeekStatus(forceReload = false) {
         url: `${CONFIG.GAS_URL}?action=getLastWeekAttendance`,
         dataType: 'jsonp',
         success: function(data) {
-            if (data.success && data.attendance) {
+            console.log('지난주 출석 현황 응답:', data);
+
+            if (data && data.success && data.attendance !== undefined) {
                 displayLastWeekStatus(data.attendance, data.date);
 
                 // 캐시에 저장 (10분 TTL)
@@ -584,7 +590,9 @@ function loadLastWeekStatus(forceReload = false) {
                     date: data.date
                 });
             } else {
-                container.innerHTML = '<p class="text-danger">지난주 출석 현황을 불러오는데 실패했습니다.</p>';
+                console.error('지난주 출석 현황 로딩 실패:', data);
+                const errorMsg = data && data.message ? data.message : '지난주 출석 현황을 불러오는데 실패했습니다.';
+                container.innerHTML = `<p class="text-danger">${errorMsg}</p>`;
             }
         },
         error: function(jqXHR, textStatus, errorThrown) {
