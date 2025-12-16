@@ -651,19 +651,13 @@ let locationMarker = null;
 function showLocationMap(latitude, longitude) {
     const modal = document.getElementById('locationMapModal');
     const mapContainer = document.getElementById('locationMap');
-    const mapLatElement = document.getElementById('mapLatitude');
-    const mapLngElement = document.getElementById('mapLongitude');
 
     // DOM 요소 존재 확인
-    if (!modal || !mapContainer || !mapLatElement || !mapLngElement) {
+    if (!modal || !mapContainer) {
         console.error('지도 모달 요소를 찾을 수 없습니다.');
         showMessage('지도를 표시할 수 없습니다.', 'error');
         return;
     }
-
-    // 위도/경도 표시 업데이트
-    mapLatElement.textContent = latitude.toFixed(6);
-    mapLngElement.textContent = longitude.toFixed(6);
 
     // 모달 표시
     modal.style.display = 'flex';
