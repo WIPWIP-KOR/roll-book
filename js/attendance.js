@@ -51,6 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    // 💡 설정 확인
+    console.log('📋 CONFIG.GAS_URL:', CONFIG.GAS_URL);
+
     // 현재 시즌 설정 및 표시
     currentSeason = getCurrentSeason();
     const seasonTextEl = document.getElementById('seasonText');
@@ -434,8 +437,11 @@ function loadTodayStatus(forceReload = false) {
         </style>
     `;
 
+    const requestUrl = `${CONFIG.GAS_URL}?action=getTodayAttendance`;
+    console.log('🔗 요청 URL:', requestUrl);
+
     $.ajax({
-        url: `${CONFIG.GAS_URL}?action=getTodayAttendance`,
+        url: requestUrl,
         dataType: 'jsonp',
         success: function(data) {
             console.log('오늘 출석 현황 응답:', data);
@@ -575,8 +581,11 @@ function loadLastWeekStatus(forceReload = false) {
         </div>
     `;
 
+    const requestUrl = `${CONFIG.GAS_URL}?action=getLastWeekAttendance`;
+    console.log('🔗 요청 URL:', requestUrl);
+
     $.ajax({
-        url: `${CONFIG.GAS_URL}?action=getLastWeekAttendance`,
+        url: requestUrl,
         dataType: 'jsonp',
         success: function(data) {
             console.log('지난주 출석 현황 응답:', data);
