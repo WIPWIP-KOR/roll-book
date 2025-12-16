@@ -651,19 +651,13 @@ let locationMarker = null;
 function showLocationMap(latitude, longitude) {
     const modal = document.getElementById('locationMapModal');
     const mapContainer = document.getElementById('locationMap');
-    const mapLatElement = document.getElementById('mapLatitude');
-    const mapLngElement = document.getElementById('mapLongitude');
 
     // DOM 요소 존재 확인
-    if (!modal || !mapContainer || !mapLatElement || !mapLngElement) {
+    if (!modal || !mapContainer) {
         console.error('지도 모달 요소를 찾을 수 없습니다.');
         showMessage('지도를 표시할 수 없습니다.', 'error');
         return;
     }
-
-    // 위도/경도 표시 업데이트
-    mapLatElement.textContent = latitude.toFixed(6);
-    mapLngElement.textContent = longitude.toFixed(6);
 
     // 모달 표시
     modal.style.display = 'flex';
@@ -691,7 +685,8 @@ function showLocationMap(latitude, longitude) {
 
             const mapOption = {
                 center: position,
-                level: 3 // 확대 레벨
+                level: 3, // 확대 레벨
+                draggable: false // 지도 드래그 비활성화 (확대/축소는 가능)
             };
 
             locationMap = new kakao.maps.Map(mapContainer, mapOption);
@@ -725,14 +720,9 @@ function closeLocationMap() {
 // 지도 모달 이벤트 리스너 추가 (DOMContentLoaded 시)
 window.addEventListener('DOMContentLoaded', () => {
     const closeMapModalBtn = document.getElementById('closeMapModal');
-    const confirmLocationBtn = document.getElementById('confirmLocationBtn');
 
     if (closeMapModalBtn) {
         closeMapModalBtn.addEventListener('click', closeLocationMap);
-    }
-
-    if (confirmLocationBtn) {
-        confirmLocationBtn.addEventListener('click', closeLocationMap);
     }
 
     // 모달 배경 클릭 시 닫기
