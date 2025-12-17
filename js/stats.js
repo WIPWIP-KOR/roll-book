@@ -355,25 +355,39 @@ async function handleSeasonChange(season) {
 
     currentSeason = season;
 
-    // 로딩 표시
-    const seasonText = season === 'firstHalf' ? '상반기' : season === 'secondHalf' ? '하반기' : '전체';
-    showLoadingSpinner(`${currentYear}년 ${seasonText} 데이터를 불러오는 중...`);
+    // 전체 데이터가 캐시에 있는지 확인
+    const allDataKey = `${currentYear}_all`;
 
-    // 데이터 로드 (현재 연도 유지)
-    await loadStats(currentYear, season);
+    if (!allStats[allDataKey]) {
+        // 전체 데이터가 없으면 로드
+        const seasonText = season === 'firstHalf' ? '상반기' : season === 'secondHalf' ? '하반기' : '전체';
+        showLoadingSpinner(`${currentYear}년 데이터를 불러오는 중...`);
+        await loadStats(currentYear, 'all');
+        hideLoadingSpinner();
+    }
 
-    // 로딩 숨김
-    hideLoadingSpinner();
+    // 전체 데이터를 클라이언트에서 필터링
+    const rawData = allStats[allDataKey].rawData;
+    const filteredStats = calculateStats(rawData, season);
+
+    // 필터링된 데이터를 현재 시즌 키로 캐시에 저장
+    const seasonKey = `${currentYear}_${season}`;
+    allStats[seasonKey] = filteredStats;
+
+    // 화면에 표시
+    displayStats(filteredStats);
 }
 
 /**
  * 특정 연도의 통계 데이터를 서버에서 로드하거나 캐시에서 가져옵니다. - 개선된 캐싱
- * 원본 데이터를 받아서 클라이언트에서 집계 처리 (성능 최적화)
+ * 항상 전체 데이터만 로드하고, 시즌 필터는 클라이언트에서 처리
  */
 async function loadStats(year, season = 'all') {
+    // 항상 전체 데이터만 로드
+    const allDataKey = `${year}_all`;
     const cacheKeyStr = `${year}_${season}`;
 
-    // 1. 메모리 캐시 확인 (allStats)
+    // 1. 요청된 시즌 데이터가 이미 있으면 사용
     if (allStats[cacheKeyStr]) {
         console.log(`✅ ${year}년 ${season} 데이터 메모리 캐시에서 로드`);
         displayStats(allStats[cacheKeyStr]);
@@ -382,40 +396,70 @@ async function loadStats(year, season = 'all') {
         return;
     }
 
-    // 2. localStorage 캐시 확인
-    const cacheKey = `${CacheManager.KEYS.STATS}_${cacheKeyStr}`;
-    const cached = CacheManager.get(cacheKey);
-
-    if (cached) {
-        console.log(`✅ ${year}년 ${season} 데이터 localStorage에서 로드`);
-        allStats[cacheKeyStr] = cached;
-        displayStats(cached);
+    // 2. 전체 데이터가 메모리에 있으면 필터링해서 사용
+    if (allStats[allDataKey]) {
+        console.log(`✅ ${year}년 전체 데이터에서 ${season} 필터링`);
+        const rawData = allStats[allDataKey].rawData;
+        const stats = calculateStats(rawData, season);
+        allStats[cacheKeyStr] = stats;
+        displayStats(stats);
         hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
         return;
     }
 
-    // 3. 서버에 요청
+    // 3. localStorage 캐시 확인 (전체 데이터)
+    const cacheKey = `${CacheManager.KEYS.STATS}_${allDataKey}`;
+    const cached = CacheManager.get(cacheKey);
+
+    if (cached) {
+        console.log(`✅ ${year}년 전체 데이터 localStorage에서 로드`);
+        allStats[allDataKey] = cached;
+
+        // 필요한 시즌으로 필터링
+        if (season !== 'all') {
+            const stats = calculateStats(cached.rawData, season);
+            allStats[cacheKeyStr] = stats;
+            displayStats(stats);
+        } else {
+            displayStats(cached);
+        }
+
+        hideLoadingSpinner();
+        document.getElementById('stats-content-wrapper').style.display = 'block';
+        return;
+    }
+
+    // 4. 서버에서 전체 데이터만 요청
     try {
-        const seasonText = season === 'firstHalf' ? '상반기' : season === 'secondHalf' ? '하반기' : '전체';
-        showLoadingSpinner(`${year}년 ${seasonText} 통계 데이터를 불러오는 중...`);
+        showLoadingSpinner(`${year}년 전체 데이터를 불러오는 중...`);
         document.getElementById('stats-content-wrapper').style.display = 'none';
 
-        console.log(`📡 ${year}년 ${season} 데이터 서버에서 로드 중...`);
-        const response = await requestGas('getStats', { year: year, season: season });
+        console.log(`📡 ${year}년 전체 데이터 서버에서 로드 중...`);
+        const response = await requestGas('getStats', { year: year, season: 'all' });
         const rawData = response.rawData;
 
         // 💡 클라이언트에서 통계 집계 처리
         updateLoadingSpinner('데이터 집계 중...');
-        const stats = calculateStats(rawData);
+        const allSeasonStats = calculateStats(rawData, 'all');
 
-        // 메모리 캐시 저장
-        allStats[cacheKeyStr] = stats;
+        // rawData를 함께 저장 (나중에 필터링할 때 사용)
+        allSeasonStats.rawData = rawData;
+
+        // 전체 데이터를 메모리 캐시에 저장
+        allStats[allDataKey] = allSeasonStats;
 
         // localStorage 캐시 저장 (30분 TTL)
-        CacheManager.set(cacheKey, stats);
+        CacheManager.set(cacheKey, allSeasonStats);
 
-        displayStats(stats);
+        // 요청된 시즌에 맞게 필터링
+        if (season !== 'all') {
+            const stats = calculateStats(rawData, season);
+            allStats[cacheKeyStr] = stats;
+            displayStats(stats);
+        } else {
+            displayStats(allSeasonStats);
+        }
 
         hideLoadingSpinner();
         document.getElementById('stats-content-wrapper').style.display = 'block';
@@ -423,7 +467,7 @@ async function loadStats(year, season = 'all') {
     } catch (error) {
         updateLoadingSpinner(`❌ ${year}년 통계 데이터 로드 실패. 페이지를 새로고침하세요.`);
         document.getElementById('stats-content-wrapper').style.display = 'none';
-        console.error(`Stats Load Error (${year}, ${season}):`, error);
+        console.error(`Stats Load Error (${year}):`, error);
     }
 }
 
@@ -431,20 +475,48 @@ async function loadStats(year, season = 'all') {
 
 /**
  * 원본 데이터로부터 통계를 계산합니다 (클라이언트에서 처리)
+ * @param {object} rawData - 서버에서 받은 원본 데이터
+ * @param {string} seasonFilter - 필터링할 시즌 ('all', 'firstHalf', 'secondHalf')
  */
-function calculateStats(rawData) {
-    const { attendance, members, saturdays, targetYear, season } = rawData;
+function calculateStats(rawData, seasonFilter = 'all') {
+    const { attendance, members, saturdays, targetYear } = rawData;
 
-    const totalSaturdays = saturdays.length;
+    // 시즌에 따라 토요일 목록 필터링
+    let filteredSaturdays = saturdays;
+    let filteredAttendance = attendance;
+
+    if (seasonFilter === 'firstHalf') {
+        // 상반기: 1-6월
+        filteredSaturdays = saturdays.filter(dateStr => {
+            const month = parseInt(dateStr.substring(5, 7));
+            return month >= 1 && month <= 6;
+        });
+        filteredAttendance = attendance.filter(record => {
+            const month = parseInt(record.date.substring(5, 7));
+            return month >= 1 && month <= 6;
+        });
+    } else if (seasonFilter === 'secondHalf') {
+        // 하반기: 7-12월
+        filteredSaturdays = saturdays.filter(dateStr => {
+            const month = parseInt(dateStr.substring(5, 7));
+            return month >= 7 && month <= 12;
+        });
+        filteredAttendance = attendance.filter(record => {
+            const month = parseInt(record.date.substring(5, 7));
+            return month >= 7 && month <= 12;
+        });
+    }
+
+    const totalSaturdays = filteredSaturdays.length;
 
     // 1. 개인별 통계 계산
-    const personalStats = calculatePersonalStats(attendance, members, totalSaturdays, season);
+    const personalStats = calculatePersonalStats(filteredAttendance, members, totalSaturdays, seasonFilter);
 
     // 2. 팀별 통계 계산
     const teamStats = calculateTeamStats(personalStats, totalSaturdays);
 
     // 3. 주차별 통계 계산
-    const weeklyStats = calculateWeeklyStats(attendance, saturdays);
+    const weeklyStats = calculateWeeklyStats(filteredAttendance, filteredSaturdays);
 
     return {
         personalStats,
