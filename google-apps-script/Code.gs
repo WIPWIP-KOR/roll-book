@@ -514,10 +514,22 @@ function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress
  * 회원 정보 업데이트 (총 출석수 누적, 시즌별 팀 관리)
  */
 function updateMember(name, team, season) {
-  const sheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
+  const currentYear = new Date().getFullYear();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
 
+  // 💡 연도별 회원 목록 시트 가져오기 또는 생성
+  let sheet = getMemberSheet(currentYear);
+
+  if (!sheet) {
+    // 시트가 없으면 자동 생성
+    const sheetName = getMemberSheetName(currentYear);
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(['이름', '상반기팀', '하반기팀', '최초등록일', '출석수']);
+  }
+
+  // 헤더가 없으면 추가 (시트는 있지만 비어있는 경우 대비)
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['이름', '상반기팀', '하반기팀', '최초등록일', '총출석수']);
+    sheet.appendRow(['이름', '상반기팀', '하반기팀', '최초등록일', '출석수']);
   }
 
   const data = sheet.getDataRange().getValues();
@@ -535,8 +547,8 @@ function updateMember(name, team, season) {
         sheet.getRange(i + 1, 3).setValue(team);
       }
 
-      // 💡 캐시 무효화: 회원 정보가 변경되었으므로 캐시를 지웁니다.
-      CacheService.getScriptCache().remove('ALL_MEMBERS_DATA');
+      // 💡 캐시 무효화: 연도별 캐시 키 사용
+      CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${currentYear}`);
 
       found = true;
       break;
@@ -553,8 +565,8 @@ function updateMember(name, team, season) {
 
     sheet.appendRow([name, firstHalfTeam, secondHalfTeam, date, 1]);
 
-    // 💡 캐시 무효화
-    CacheService.getScriptCache().remove('ALL_MEMBERS_DATA');
+    // 💡 캐시 무효화: 연도별 캐시 키 사용
+    CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${currentYear}`);
   }
 }
 
@@ -599,27 +611,32 @@ function getTargetLocation() {
 
 /**
  * 회원 목록 조회 및 캐싱 적용 (성능 최적화)
+ * 💡 연도별 회원 목록 시트 사용
+ * @param {function} callback - JSONP 콜백 함수 (옵션)
+ * @param {number} year - 조회할 연도 (옵션, 기본값: 현재 연도)
  */
-function getMembers(callback) {
+function getMembers(callback, year) {
+  const targetYear = year || new Date().getFullYear();
   const cache = CacheService.getScriptCache();
-  const CACHE_KEY = 'ALL_MEMBERS_DATA';
-  
+  const CACHE_KEY = `ALL_MEMBERS_DATA_${targetYear}`; // 💡 연도별 캐시 키
+
   // 1. 캐시에서 데이터 로드 시도
   let membersJson = cache.get(CACHE_KEY);
-  
+
   if (membersJson) {
-      Logger.log('Members data loaded from cache.');
+      Logger.log(`Members data for ${targetYear} loaded from cache.`);
       const members = JSON.parse(membersJson);
       if (callback) {
           return createResponse(true, 'Loaded from cache', { members: members }, callback);
       }
       return members; // 콜백이 없으면 순수 데이터 반환
   }
-  
+
   // 2. 캐시 부재 시 시트에서 로드
-  const sheet = getOrCreateSheet(SHEET_NAMES.MEMBERS);
-  
-  if (sheet.getLastRow() <= 1) {
+  const sheet = getMemberSheet(targetYear); // 💡 연도별 시트 가져오기
+
+  // 시트가 없거나 데이터가 없으면 빈 배열 반환
+  if (!sheet || sheet.getLastRow() <= 1) {
       if (callback) {
           return createResponse(true, null, { members: [] }, callback);
       }
@@ -636,7 +653,7 @@ function getMembers(callback) {
         firstHalfTeam: data[i][1],   // 상반기 팀
         secondHalfTeam: data[i][2],  // 하반기 팀
         firstDate: data[i][3],
-        attendanceCountTotal: data[i][4] || 0 // 총 출석수
+        attendanceCountTotal: data[i][4] || 0 // 해당 연도 출석수
       });
     }
   }
@@ -644,7 +661,7 @@ function getMembers(callback) {
   // 3. 캐시에 저장
   membersJson = JSON.stringify(members);
   cache.put(CACHE_KEY, membersJson, CACHE_TTL_SECONDS);
-  Logger.log('Members data loaded from sheet and saved to cache.');
+  Logger.log(`Members data for ${targetYear} loaded from sheet and saved to cache.`);
 
   if (callback) {
       return createResponse(true, null, { members: members }, callback);
@@ -857,8 +874,8 @@ function getStats(callback, year, season) {
     };
   });
 
-  // 💡 회원 목록 (캐시 사용)
-  const members = getMembers(null);
+  // 💡 회원 목록 (캐시 사용, 해당 연도 기준)
+  const members = getMembers(null, targetYear);
 
   // 💡 토요일 목록을 날짜 문자열로 변환
   const saturdayDates = saturdays.map(sat =>
@@ -940,6 +957,21 @@ function getAttendanceSheetName(year) {
 function getAttendanceSheet(year) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     return ss.getSheetByName(getAttendanceSheetName(year));
+}
+
+/**
+ * 💡 회원 목록 시트 이름 생성 (YYYY 반영)
+ */
+function getMemberSheetName(year) {
+    return `${SHEET_NAMES.MEMBERS}_${year}`;
+}
+
+/**
+ * 💡 특정 연도의 회원 목록 시트 가져오기
+ */
+function getMemberSheet(year) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    return ss.getSheetByName(getMemberSheetName(year));
 }
 
 /**
