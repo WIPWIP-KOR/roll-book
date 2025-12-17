@@ -778,8 +778,12 @@ function displayStats(stats) {
         periodElement.textContent = `${stats.targetYear}년 통계 (${stats.totalSaturdays}주 기준)`;
     }
 
-    // 초기 탭 상태: 팀별 통계 활성화
-    handleCategoryChange('team');
+    // 현재 활성화된 탭 확인
+    const activeTab = document.querySelector('.category-tab.active');
+    const currentCategory = activeTab ? activeTab.dataset.category : 'team';
+
+    // 현재 탭 유지 (없으면 팀별 탭으로 이동)
+    handleCategoryChange(currentCategory);
 
     // 통계 내용 전체 Wrapper 표시
     document.getElementById('stats-content-wrapper').style.display = 'block';
