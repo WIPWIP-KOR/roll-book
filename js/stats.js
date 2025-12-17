@@ -370,6 +370,9 @@ async function handleSeasonChange(season) {
     const rawData = allStats[allDataKey].rawData;
     const filteredStats = calculateStats(rawData, season);
 
+    // rawData를 함께 저장 (나중에 다시 필터링할 때 사용)
+    filteredStats.rawData = rawData;
+
     // 필터링된 데이터를 현재 시즌 키로 캐시에 저장
     const seasonKey = `${currentYear}_${season}`;
     allStats[seasonKey] = filteredStats;
@@ -401,6 +404,8 @@ async function loadStats(year, season = 'all') {
         console.log(`✅ ${year}년 전체 데이터에서 ${season} 필터링`);
         const rawData = allStats[allDataKey].rawData;
         const stats = calculateStats(rawData, season);
+        // rawData를 함께 저장
+        stats.rawData = rawData;
         allStats[cacheKeyStr] = stats;
         displayStats(stats);
         hideLoadingSpinner();
@@ -419,6 +424,8 @@ async function loadStats(year, season = 'all') {
         // 필요한 시즌으로 필터링
         if (season !== 'all') {
             const stats = calculateStats(cached.rawData, season);
+            // rawData를 함께 저장
+            stats.rawData = cached.rawData;
             allStats[cacheKeyStr] = stats;
             displayStats(stats);
         } else {
@@ -455,6 +462,8 @@ async function loadStats(year, season = 'all') {
         // 요청된 시즌에 맞게 필터링
         if (season !== 'all') {
             const stats = calculateStats(rawData, season);
+            // rawData를 함께 저장
+            stats.rawData = rawData;
             allStats[cacheKeyStr] = stats;
             displayStats(stats);
         } else {
