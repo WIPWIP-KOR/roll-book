@@ -124,6 +124,52 @@ function getLocation() {
     );
 }
 
+// 위치정보 가져오기 헬퍼 함수 (GPS 우선, 네트워크 fallback)
+function getLocationWithFallback(onSuccess, onError) {
+    if (!navigator.geolocation) {
+        onError({
+            code: 0,
+            message: '위치 서비스를 지원하지 않습니다.'
+        });
+        return;
+    }
+
+    // 1단계: GPS로 먼저 시도
+    console.log('📍 GPS로 위치 정보 가져오는 중...');
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            console.log('✅ GPS로 위치 정보 획득 성공');
+            onSuccess(position);
+        },
+        (error) => {
+            // PERMISSION_DENIED는 재시도해도 소용없으므로 바로 실패 처리
+            if (error.code === error.PERMISSION_DENIED) {
+                console.error('❌ 위치 권한이 거부됨');
+                onError(error);
+                return;
+            }
+
+            // POSITION_UNAVAILABLE 또는 TIMEOUT인 경우 네트워크 기반으로 재시도
+            console.log('⚠️ GPS 실패 (코드: ' + error.code + '), 네트워크 기반으로 재시도...');
+
+            // 2단계: 네트워크 기반으로 재시도
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    console.log('✅ 네트워크 기반으로 위치 정보 획득 성공');
+                    showMessage('📡 네트워크 기반으로 위치를 확인했습니다.', 'success');
+                    onSuccess(position);
+                },
+                (networkError) => {
+                    console.error('❌ 네트워크 기반도 실패');
+                    onError(networkError);
+                },
+                { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
+            );
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+}
+
 // 위치정보 가져오기 (사용자가 수동으로 클릭)
 function refreshLocation() {
     refreshLocationBtn.disabled = true;
@@ -144,7 +190,7 @@ function refreshLocation() {
     locationText.textContent = '위치 정보 확인 중...';
     locationStatus.classList.remove('success', 'error');
 
-    navigator.geolocation.getCurrentPosition(
+    getLocationWithFallback(
         (position) => {
             userPosition = position.coords;
             locationText.textContent = '위치 정보 확인 완료';
@@ -183,8 +229,7 @@ function refreshLocation() {
 
             // 에러 발생 시 지도 모달 닫기
             closeLocationMap();
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        }
     );
 }
 
@@ -800,17 +845,8 @@ function moveToCurrentLocation() {
         currentLocationBtn.disabled = true;
     }
 
-    // 위치 정보 가져오기
-    if (!navigator.geolocation) {
-        showMessage('이 브라우저는 위치 정보를 지원하지 않습니다.', 'error');
-        if (currentLocationBtn) {
-            currentLocationBtn.classList.remove('loading');
-            currentLocationBtn.disabled = false;
-        }
-        return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
+    // 위치 정보 가져오기 (GPS 우선, 네트워크 fallback)
+    getLocationWithFallback(
         (position) => {
             const latitude = position.coords.latitude;
             const longitude = position.coords.longitude;
@@ -856,11 +892,6 @@ function moveToCurrentLocation() {
                 currentLocationBtn.classList.remove('loading');
                 currentLocationBtn.disabled = false;
             }
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
         }
     );
 }
