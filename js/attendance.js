@@ -787,44 +787,6 @@ function closeLocationMap() {
     modal.style.display = 'none';
 }
 
-/**
- * 카카오맵 앱에서 현재 위치 열기
- */
-function openInKakaoMap() {
-    if (!userPosition) {
-        showMessage('위치 정보를 찾을 수 없습니다.', 'error');
-        return;
-    }
-
-    const { latitude, longitude } = userPosition;
-
-    // 카카오맵 앱 딥링크 (앱이 있으면 앱으로, 없으면 웹으로)
-    const kakaoMapAppUrl = `kakaomap://look?p=${latitude},${longitude}`;
-    const kakaoMapWebUrl = `https://map.kakao.com/link/map/${latitude},${longitude}`;
-
-    // 모바일 환경에서는 앱 딥링크 시도, 실패하면 웹으로
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-    if (isMobile) {
-        // 모바일: 앱 실행 시도
-        const appLink = document.createElement('a');
-        appLink.href = kakaoMapAppUrl;
-        appLink.style.display = 'none';
-        document.body.appendChild(appLink);
-        appLink.click();
-        document.body.removeChild(appLink);
-
-        // 앱이 설치되어 있지 않으면 웹으로 이동 (2초 후)
-        setTimeout(() => {
-            if (!document.hidden) {
-                window.open(kakaoMapWebUrl, '_blank');
-            }
-        }, 2000);
-    } else {
-        // 데스크톱: 바로 웹으로
-        window.open(kakaoMapWebUrl, '_blank');
-    }
-}
 
 /**
  * 지도에서 현재 위치로 이동
@@ -906,15 +868,10 @@ function moveToCurrentLocation() {
 // 지도 모달 이벤트 리스너 추가 (DOMContentLoaded 시)
 window.addEventListener('DOMContentLoaded', () => {
     const closeMapModalBtn = document.getElementById('closeMapModal');
-    const openKakaoMapBtn = document.getElementById('openKakaoMapBtn');
     const currentLocationBtn = document.getElementById('currentLocationBtn');
 
     if (closeMapModalBtn) {
         closeMapModalBtn.addEventListener('click', closeLocationMap);
-    }
-
-    if (openKakaoMapBtn) {
-        openKakaoMapBtn.addEventListener('click', openInKakaoMap);
     }
 
     if (currentLocationBtn) {
