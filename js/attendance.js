@@ -61,8 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
         seasonTextEl.textContent = currentSeason.displayText;
     }
 
-    // 위치 정보 가져오기 시작
-    getLocation();
+    // 초기 상태: 위치 정보 없음
+    locationText.textContent = '위치정보 가져오기 버튼을 눌러주세요';
+    locationStatus.classList.remove('success', 'error');
+    attendBtn.disabled = true;
 
     // 기존 회원 목록 로드
     loadMembers();
@@ -122,9 +124,9 @@ function getLocation() {
     );
 }
 
-// 위치 새로고침 (사용자가 수동으로 클릭)
+// 위치정보 가져오기 (사용자가 수동으로 클릭)
 function refreshLocation() {
-    showMessage('📍 위치를 다시 확인하는 중...', 'info');
+    showMessage('📍 위치 정보를 확인하는 중...', 'info');
     refreshLocationBtn.disabled = true;
     refreshLocationBtn.textContent = '🔄 확인 중...';
 
@@ -132,7 +134,7 @@ function refreshLocation() {
         locationText.textContent = '위치 서비스를 지원하지 않습니다.';
         attendBtn.disabled = true;
         refreshLocationBtn.disabled = false;
-        refreshLocationBtn.textContent = '🔄 위치 새로고침';
+        refreshLocationBtn.textContent = '📍 위치정보 가져오기';
         return;
     }
 
@@ -148,9 +150,9 @@ function refreshLocation() {
             attendBtn.disabled = false;
             showMessage('✅ 위치 정보가 업데이트되었습니다!', 'success');
             refreshLocationBtn.disabled = false;
-            refreshLocationBtn.textContent = '🔄 위치 새로고침';
+            refreshLocationBtn.textContent = '📍 위치정보 가져오기';
 
-            // 위치 새로고침 완료 후 지도 모달 표시
+            // 위치정보 가져오기 완료 후 지도 모달 표시
             showLocationMap(userPosition.latitude, userPosition.longitude);
         },
         (error) => {
@@ -174,7 +176,7 @@ function refreshLocation() {
             attendBtn.disabled = true;
             showMessage(errorMsg, 'error');
             refreshLocationBtn.disabled = false;
-            refreshLocationBtn.textContent = '🔄 위치 새로고침';
+            refreshLocationBtn.textContent = '📍 위치정보 가져오기';
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -298,7 +300,7 @@ function processAttendance() {
     }
 
     if (!userPosition) {
-        showMessage('위치 정보 확인 중입니다. "위치 새로고침" 버튼을 눌러주세요.', 'error');
+        showMessage('위치 정보가 없습니다. "위치정보 가져오기" 버튼을 먼저 눌러주세요.', 'error');
         return;
     }
 
