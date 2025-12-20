@@ -61,8 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
         seasonTextEl.textContent = currentSeason.displayText;
     }
 
-    // 위치 정보 가져오기 시작
-    getLocation();
+    // 초기 상태: 위치 정보 없음
+    locationText.textContent = '위치정보 가져오기 버튼을 눌러주세요';
+    locationStatus.classList.remove('success', 'error');
+    attendBtn.disabled = true;
 
     // 기존 회원 목록 로드
     loadMembers();
@@ -122,9 +124,8 @@ function getLocation() {
     );
 }
 
-// 위치 새로고침 (사용자가 수동으로 클릭)
+// 위치정보 가져오기 (사용자가 수동으로 클릭)
 function refreshLocation() {
-    showMessage('📍 위치를 다시 확인하는 중...', 'info');
     refreshLocationBtn.disabled = true;
     refreshLocationBtn.textContent = '🔄 확인 중...';
 
@@ -132,9 +133,13 @@ function refreshLocation() {
         locationText.textContent = '위치 서비스를 지원하지 않습니다.';
         attendBtn.disabled = true;
         refreshLocationBtn.disabled = false;
-        refreshLocationBtn.textContent = '🔄 위치 새로고침';
+        refreshLocationBtn.textContent = '📍 위치정보 가져오기';
+        showMessage('위치 서비스를 지원하지 않습니다.', 'error');
         return;
     }
+
+    // 먼저 지도 모달 열기 (로딩 상태)
+    showLocationMapWithLoading();
 
     locationText.textContent = '위치 정보 확인 중...';
     locationStatus.classList.remove('success', 'error');
@@ -148,9 +153,9 @@ function refreshLocation() {
             attendBtn.disabled = false;
             showMessage('✅ 위치 정보가 업데이트되었습니다!', 'success');
             refreshLocationBtn.disabled = false;
-            refreshLocationBtn.textContent = '🔄 위치 새로고침';
+            refreshLocationBtn.textContent = '📍 위치정보 가져오기';
 
-            // 위치 새로고침 완료 후 지도 모달 표시
+            // 지도에 위치 표시
             showLocationMap(userPosition.latitude, userPosition.longitude);
         },
         (error) => {
@@ -174,7 +179,10 @@ function refreshLocation() {
             attendBtn.disabled = true;
             showMessage(errorMsg, 'error');
             refreshLocationBtn.disabled = false;
-            refreshLocationBtn.textContent = '🔄 위치 새로고침';
+            refreshLocationBtn.textContent = '📍 위치정보 가져오기';
+
+            // 에러 발생 시 지도 모달 닫기
+            closeLocationMap();
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -298,7 +306,7 @@ function processAttendance() {
     }
 
     if (!userPosition) {
-        showMessage('위치 정보 확인 중입니다. "위치 새로고침" 버튼을 눌러주세요.', 'error');
+        showMessage('위치 정보가 없습니다. "위치정보 가져오기" 버튼을 먼저 눌러주세요.', 'error');
         return;
     }
 
@@ -663,6 +671,37 @@ let locationMap = null;
 let locationMarker = null;
 
 /**
+ * 로딩 상태로 지도 모달 표시
+ */
+function showLocationMapWithLoading() {
+    const modal = document.getElementById('locationMapModal');
+    const mapContainer = document.getElementById('locationMap');
+
+    if (!modal || !mapContainer) {
+        console.error('지도 모달 요소를 찾을 수 없습니다.');
+        showMessage('지도를 표시할 수 없습니다.', 'error');
+        return;
+    }
+
+    // 로딩 인디케이터 표시
+    mapContainer.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #f8f9fa;">
+            <div style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="margin-top: 20px; color: #666; font-size: 16px;">📍 위치 정보를 가져오는 중...</p>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+
+    // 모달 표시
+    modal.style.display = 'flex';
+}
+
+/**
  * 카카오맵 초기화 및 지도 모달 표시
  */
 function showLocationMap(latitude, longitude) {
@@ -676,8 +715,22 @@ function showLocationMap(latitude, longitude) {
         return;
     }
 
-    // 모달 표시
-    modal.style.display = 'flex';
+    // 모달이 이미 열려있지 않으면 열기
+    if (modal.style.display !== 'flex') {
+        modal.style.display = 'flex';
+    }
+
+    // 로딩 메시지 제거 (innerHTML을 비우고 지도를 다시 생성)
+    mapContainer.innerHTML = '';
+
+    // 현재 위치 버튼 추가
+    const currentLocationBtn = document.createElement('button');
+    currentLocationBtn.id = 'currentLocationBtn';
+    currentLocationBtn.className = 'current-location-btn';
+    currentLocationBtn.title = '현재 위치로 이동';
+    currentLocationBtn.textContent = '📍';
+    currentLocationBtn.addEventListener('click', moveToCurrentLocation);
+    mapContainer.appendChild(currentLocationBtn);
 
     // 카카오맵 SDK 로드 확인 및 대기
     const initializeMap = () => {
