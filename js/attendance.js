@@ -10,7 +10,6 @@ const nameSelect = document.getElementById('nameSelect');
 const nameInput = document.getElementById('nameInput');
 const teamSelect = document.getElementById('teamSelect');
 const attendBtn = document.getElementById('attendBtn');
-const refreshLocationBtn = document.getElementById('refreshLocationBtn');
 const messageDiv = document.getElementById('message');
 const locationStatus = document.getElementById('locationStatus');
 const locationText = document.getElementById('locationText');
@@ -62,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 초기 상태: 위치 정보 없음
-    locationText.textContent = '위치정보 가져오기 버튼을 눌러주세요';
+    locationText.textContent = '위치 정보 확인 중...';
     locationStatus.classList.remove('success', 'error');
     attendBtn.disabled = true;
 
@@ -71,12 +70,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 이벤트 리스너
     attendBtn.addEventListener('click', processAttendance);
-    refreshLocationBtn.addEventListener('click', refreshLocation);
     teamSelect.addEventListener('change', filterMembersByTeam);
     nameSelect.addEventListener('change', handleNameSelectChange);
 
     // 탭 전환 이벤트 리스너
     initializeTabs();
+
+    // 자동으로 위치 정보 가져오기
+    refreshLocation();
 
 });
 
@@ -170,16 +171,11 @@ function getLocationWithFallback(onSuccess, onError) {
     );
 }
 
-// 위치정보 가져오기 (사용자가 수동으로 클릭)
+// 위치정보 가져오기 (자동)
 function refreshLocation() {
-    refreshLocationBtn.disabled = true;
-    refreshLocationBtn.textContent = '🔄 확인 중...';
-
     if (!navigator.geolocation) {
         locationText.textContent = '위치 서비스를 지원하지 않습니다.';
         attendBtn.disabled = true;
-        refreshLocationBtn.disabled = false;
-        refreshLocationBtn.textContent = '📍 위치정보 가져오기';
         showMessage('위치 서비스를 지원하지 않습니다.', 'error');
         return;
     }
@@ -197,9 +193,7 @@ function refreshLocation() {
             locationStatus.classList.remove('error');
             locationStatus.classList.add('success');
             attendBtn.disabled = false;
-            showMessage('✅ 위치 정보가 업데이트되었습니다!', 'success');
-            refreshLocationBtn.disabled = false;
-            refreshLocationBtn.textContent = '📍 위치정보 가져오기';
+            showMessage('✅ 위치 정보가 확인되었습니다!', 'success');
 
             // 지도에 위치 표시
             showLocationMap(userPosition.latitude, userPosition.longitude);
@@ -215,7 +209,7 @@ function refreshLocation() {
                     errorMsg = '위치 정보를 사용할 수 없습니다.';
                     break;
                 case error.TIMEOUT:
-                    errorMsg = '위치 정보 요청 시간이 초과되었습니다. 다시 시도해주세요.';
+                    errorMsg = '위치 정보 요청 시간이 초과되었습니다. 페이지를 새로고침해주세요.';
                     break;
             }
 
@@ -224,8 +218,6 @@ function refreshLocation() {
             locationStatus.classList.add('error');
             attendBtn.disabled = true;
             showMessage(errorMsg, 'error');
-            refreshLocationBtn.disabled = false;
-            refreshLocationBtn.textContent = '📍 위치정보 가져오기';
 
             // 에러 발생 시 지도 모달 닫기
             closeLocationMap();
@@ -382,7 +374,14 @@ function processAttendance() {
                 localStorage.setItem('last_name', name);
                 localStorage.setItem('last_team', team);
             } else {
-                showMessage(`❌ ${data.message || '출석 실패'}`, 'error');
+                // 출석 실패 시 출석 요청 옵션 제공
+                const errorMessage = data.message || '출석 실패';
+                showMessage(`❌ ${errorMessage}`, 'error');
+
+                // 출석 요청 여부 확인
+                if (confirm(`출석에 실패했습니다.\n${errorMessage}\n\n관리자에게 출석 요청을 하시겠습니까?`)) {
+                    showRequestModal();
+                }
             }
         },
         error: function(jqXHR, textStatus, errorThrown) {
@@ -920,15 +919,10 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     // 출석 요청 모달 이벤트 리스너
-    const requestAttendBtn = document.getElementById('requestAttendBtn');
     const closeRequestModal = document.getElementById('closeRequestModal');
     const cancelRequestBtn = document.getElementById('cancelRequestBtn');
     const submitRequestBtn = document.getElementById('submitRequestBtn');
     const requestModal = document.getElementById('attendanceRequestModal');
-
-    if (requestAttendBtn) {
-        requestAttendBtn.addEventListener('click', showRequestModal);
-    }
 
     if (closeRequestModal) {
         closeRequestModal.addEventListener('click', hideRequestModal);
