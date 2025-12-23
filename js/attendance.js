@@ -18,6 +18,7 @@ let userPosition = null;
 let membersList = [];
 let statusLoaded = false; // 출석현황 로딩 여부
 let currentSeason = null; // 현재 시즌 정보
+let pendingAttendanceRequest = { name: '', team: '' }; // 출석 요청 대기 중인 정보
 
 // 현재 시즌 판단 함수
 function getCurrentSeason() {
@@ -377,6 +378,10 @@ function processAttendance() {
                 // 출석 실패 시 출석 요청 옵션 제공
                 const errorMessage = data.message || '출석 실패';
                 showMessage(`❌ ${errorMessage}`, 'error');
+
+                // 출석 실패 시점의 이름과 팀 정보 저장
+                pendingAttendanceRequest.name = name;
+                pendingAttendanceRequest.team = team;
 
                 // 커스텀 모달로 출석 요청 여부 확인
                 showAttendanceFailModal(errorMessage);
@@ -922,12 +927,14 @@ window.addEventListener('DOMContentLoaded', () => {
     const failModal = document.getElementById('attendanceFailModal');
 
     if (cancelFailBtn) {
-        cancelFailBtn.addEventListener('click', hideAttendanceFailModal);
+        cancelFailBtn.addEventListener('click', () => {
+            hideAttendanceFailModal(true); // 취소 시 데이터 초기화
+        });
     }
 
     if (requestFromFailBtn) {
         requestFromFailBtn.addEventListener('click', () => {
-            hideAttendanceFailModal();
+            hideAttendanceFailModal(false); // 출석 요청하기 시 데이터 유지
             showRequestModal();
         });
     }
@@ -935,7 +942,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (failModal) {
         failModal.addEventListener('click', (e) => {
             if (e.target === failModal) {
-                hideAttendanceFailModal();
+                hideAttendanceFailModal(true); // 배경 클릭 시 데이터 초기화
             }
         });
     }
@@ -1001,10 +1008,16 @@ function showAttendanceFailModal(errorMessage) {
 /**
  * 출석 실패 모달 숨기기
  */
-function hideAttendanceFailModal() {
+function hideAttendanceFailModal(clearData = false) {
     const modal = document.getElementById('attendanceFailModal');
     if (modal) {
         modal.style.display = 'none';
+
+        // clearData가 true일 때만 저장된 출석 요청 정보 초기화 (취소 시)
+        if (clearData) {
+            pendingAttendanceRequest.name = '';
+            pendingAttendanceRequest.team = '';
+        }
     }
 }
 
@@ -1012,13 +1025,20 @@ function hideAttendanceFailModal() {
  * 출석 요청 모달 표시
  */
 function showRequestModal() {
-    const isDirectInput = nameInput.style.display !== 'none';
-    const name = isDirectInput ? nameInput.value.trim() : nameSelect.value;
-    const team = teamSelect.value;
+    // 저장된 정보가 없으면 현재 선택된 정보를 사용 (방어 로직)
+    if (!pendingAttendanceRequest.name || !pendingAttendanceRequest.team) {
+        const isDirectInput = nameInput.style.display !== 'none';
+        const name = isDirectInput ? nameInput.value.trim() : nameSelect.value;
+        const team = teamSelect.value;
 
-    if (!name || !team || name === '__DIRECT_INPUT__') {
-        showMessage('이름과 팀을 먼저 선택/입력해주세요.', 'error');
-        return;
+        if (!name || !team || name === '__DIRECT_INPUT__') {
+            showMessage('이름과 팀을 먼저 선택/입력해주세요.', 'error');
+            return;
+        }
+
+        // 현재 정보 저장
+        pendingAttendanceRequest.name = name;
+        pendingAttendanceRequest.team = team;
     }
 
     const modal = document.getElementById('attendanceRequestModal');
@@ -1056,6 +1076,10 @@ function hideRequestModal() {
             customReasonTextarea.style.display = 'none';
             customReasonTextarea.value = '';
         }
+
+        // 저장된 출석 요청 정보 초기화
+        pendingAttendanceRequest.name = '';
+        pendingAttendanceRequest.team = '';
     }
 }
 
@@ -1063,9 +1087,14 @@ function hideRequestModal() {
  * 출석 요청 제출
  */
 function submitAttendanceRequest() {
-    const isDirectInput = nameInput.style.display !== 'none';
-    const name = isDirectInput ? nameInput.value.trim() : nameSelect.value;
-    const team = teamSelect.value;
+    // 저장된 이름과 팀 정보 사용
+    const name = pendingAttendanceRequest.name;
+    const team = pendingAttendanceRequest.team;
+
+    if (!name || !team) {
+        showMessage('이름과 팀 정보가 없습니다. 다시 시도해주세요.', 'error');
+        return;
+    }
 
     // 선택된 라디오 버튼 값 가져오기
     const selectedRadio = document.querySelector('input[name="requestReason"]:checked');
