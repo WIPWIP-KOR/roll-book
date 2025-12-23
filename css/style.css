@@ -1348,11 +1348,7 @@ body {
 }
 
 .reason-option input[type="radio"] {
-    margin-right: 12px;
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-    accent-color: #667eea;
+    display: none; /* 라디오 버튼 숨김 */
 }
 
 .reason-option span {
