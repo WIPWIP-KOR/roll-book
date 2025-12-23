@@ -1328,3 +1328,46 @@ body {
         margin: 12px 20px;
     }
 }
+
+/* 출석 요청 사유 라디오 버튼 스타일 */
+.reason-option {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #fafafa;
+}
+
+.reason-option:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+    transform: translateX(4px);
+}
+
+.reason-option input[type="radio"] {
+    margin-right: 12px;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #667eea;
+}
+
+.reason-option span {
+    font-size: 1em;
+    color: #333;
+    font-weight: 500;
+}
+
+.reason-option:has(input:checked) {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8eeff 100%);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.reason-option:has(input:checked) span {
+    color: #667eea;
+    font-weight: 600;
+}

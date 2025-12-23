@@ -113,25 +113,68 @@
         </div>
     </div>
 
+    <!-- 출석 실패 확인 모달 -->
+    <div id="attendanceFailModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px 12px 0 0; padding: 25px;">
+                <h2 style="margin: 0; font-size: 1.5em;">❌ 출석 실패</h2>
+            </div>
+            <div class="modal-body" style="padding: 30px;">
+                <p id="failMessage" style="color: #333; font-size: 1.1em; line-height: 1.6; margin-bottom: 25px; text-align: center;">
+                    출석에 실패했습니다.
+                </p>
+                <p style="color: #666; font-size: 0.95em; margin-bottom: 25px; text-align: center;">
+                    관리자에게 출석 요청을 하시겠습니까?
+                </p>
+                <div style="display: flex; gap: 12px;">
+                    <button id="cancelFailBtn" class="btn-secondary" style="flex: 1; padding: 12px; font-size: 1em;">취소</button>
+                    <button id="requestFromFailBtn" class="btn-primary" style="flex: 1; padding: 12px; font-size: 1em; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">📝 출석 요청하기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 출석 요청 모달 -->
     <div id="attendanceRequestModal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2>📝 출석 요청</h2>
-                <button id="closeRequestModal" class="close-btn">&times;</button>
+            <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px 12px 0 0; padding: 25px;">
+                <h2 style="margin: 0; font-size: 1.5em;">📝 출석 요청</h2>
+                <button id="closeRequestModal" class="close-btn" style="color: white; opacity: 0.9;">&times;</button>
             </div>
-            <div class="modal-body">
-                <p style="color: #666; margin-bottom: 20px;">
+            <div class="modal-body" style="padding: 30px;">
+                <p style="color: #666; margin-bottom: 25px; font-size: 0.95em;">
                     위치 오류나 기타 사유로 출석하지 못한 경우,<br>
                     관리자에게 출석 요청을 보낼 수 있습니다.
                 </p>
                 <div class="form-group">
-                    <label for="requestReason">사유</label>
-                    <textarea id="requestReason" rows="4" placeholder="출석하지 못한 사유를 입력해주세요&#10;(예: 위치 오류, GPS 문제 등)" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em; font-family: inherit; resize: vertical;"></textarea>
+                    <label style="display: block; margin-bottom: 15px; font-weight: 600; color: #333; font-size: 1em;">사유를 선택해주세요</label>
+                    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px;">
+                        <label class="reason-option">
+                            <input type="radio" name="requestReason" value="위치 오류 (GPS 문제)" checked>
+                            <span>📍 위치 오류 (GPS 문제)</span>
+                        </label>
+                        <label class="reason-option">
+                            <input type="radio" name="requestReason" value="네트워크 문제">
+                            <span>📶 네트워크 문제</span>
+                        </label>
+                        <label class="reason-option">
+                            <input type="radio" name="requestReason" value="기기 오류">
+                            <span>📱 기기 오류</span>
+                        </label>
+                        <label class="reason-option">
+                            <input type="radio" name="requestReason" value="늦게 도착">
+                            <span>⏰ 늦게 도착</span>
+                        </label>
+                        <label class="reason-option">
+                            <input type="radio" name="requestReason" value="기타" id="reasonOther">
+                            <span>✏️ 기타 (직접 입력)</span>
+                        </label>
+                    </div>
+                    <textarea id="requestReasonCustom" rows="3" placeholder="사유를 직접 입력해주세요" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em; font-family: inherit; resize: vertical; display: none; margin-top: 10px;"></textarea>
                 </div>
-                <div style="display: flex; gap: 10px;">
-                    <button id="cancelRequestBtn" class="btn-secondary" style="flex: 1;">취소</button>
-                    <button id="submitRequestBtn" class="btn-primary" style="flex: 1;">요청 제출</button>
+                <div style="display: flex; gap: 12px; margin-top: 25px;">
+                    <button id="cancelRequestBtn" class="btn-secondary" style="flex: 1; padding: 12px; font-size: 1em;">취소</button>
+                    <button id="submitRequestBtn" class="btn-primary" style="flex: 1; padding: 12px; font-size: 1em; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">요청 제출</button>
                 </div>
             </div>
         </div>
