@@ -1414,6 +1414,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loadUncheckedBtn) {
         loadUncheckedBtn.addEventListener('click', loadUncheckedMembers);
     }
+
+    // 출석 요청 관련 이벤트 리스너
+    const refreshRequestsBtn = document.getElementById('refreshRequestsBtn');
+    if (refreshRequestsBtn) {
+        refreshRequestsBtn.addEventListener('click', loadAttendanceRequests);
+    }
 });
 
 // 3. 카카오 지도 API가 로드되면 initMap 함수를 호출해야 합니다.
@@ -1422,7 +1428,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==================== 수동 출석 관리 ====================
 
 /**
- * 수동 출석 탭 로드
+ * 출석 승인 탭 로드
  */
 function loadManualTab() {
     if (tabLoadState.manual) return;
@@ -1431,6 +1437,9 @@ function loadManualTab() {
     const today = new Date();
     const dateStr = today.toISOString().split('T')[0];
     document.getElementById('manualAttendDate').value = dateStr;
+
+    // 출석 요청 목록 로드
+    loadAttendanceRequests();
 
     tabLoadState.manual = true;
 }
@@ -1589,5 +1598,130 @@ async function processManualAttend(name, targetDate) {
         messageEl.textContent = '❌ 오류 발생: ' + error;
         messageEl.className = 'message error';
         console.error('수동 출석 처리 오류:', error);
+    }
+}
+
+// ==================== 출석 요청 관리 ====================
+
+/**
+ * 출석 요청 목록 로드
+ */
+async function loadAttendanceRequests() {
+    const container = document.getElementById('attendanceRequestsList');
+
+    try {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">⏳ 출석 요청 불러오는 중...</p>';
+
+        const response = await requestGas('getAttendanceRequests');
+
+        if (response.success) {
+            const { requests } = response;
+            displayAttendanceRequests(requests);
+        } else {
+            container.innerHTML = `<p style="text-align: center; color: #f44336; padding: 20px;">❌ ${response.message || '출석 요청을 불러오는데 실패했습니다.'}</p>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<p style="text-align: center; color: #f44336; padding: 20px;">❌ 오류 발생: ${error}</p>`;
+        console.error('출석 요청 조회 오류:', error);
+    }
+}
+
+/**
+ * 출석 요청 목록 화면에 표시
+ */
+function displayAttendanceRequests(requests) {
+    const container = document.getElementById('attendanceRequestsList');
+
+    if (requests.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">대기 중인 출석 요청이 없습니다. 🎉</p>';
+        return;
+    }
+
+    let html = '';
+
+    requests.forEach(request => {
+        const requestDateTime = new Date(request.requestDateTime);
+        const displayDate = requestDateTime.toLocaleString('ko-KR', {
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        html += `
+            <div class="request-card">
+                <div class="request-header">
+                    <span class="request-name">${request.name}</span>
+                    <span class="request-time">${displayDate}</span>
+                </div>
+                <div class="request-info">
+                    <div class="request-info-row">
+                        <span class="request-label">팀:</span>
+                        <span class="request-value">${request.team}팀</span>
+                    </div>
+                    <div class="request-info-row">
+                        <span class="request-label">시즌:</span>
+                        <span class="request-value">${request.season}</span>
+                    </div>
+                </div>
+                <div class="request-reason">
+                    <strong>사유:</strong> ${request.reason}
+                </div>
+                <div class="request-actions">
+                    <button class="btn-approve" onclick="approveRequest('${request.requestId}')">✅ 승인</button>
+                    <button class="btn-reject" onclick="rejectRequest('${request.requestId}')">❌ 거부</button>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * 출석 요청 승인
+ */
+async function approveRequest(requestId) {
+    if (!confirm('이 출석 요청을 승인하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const response = await requestGas('approveAttendanceRequest', { requestId: requestId });
+
+        if (response.success) {
+            alert('✅ ' + (response.message || '출석 요청이 승인되었습니다.'));
+            // 목록 새로고침
+            loadAttendanceRequests();
+        } else {
+            alert('❌ ' + (response.message || '승인에 실패했습니다.'));
+        }
+    } catch (error) {
+        alert('❌ 오류 발생: ' + error);
+        console.error('출석 요청 승인 오류:', error);
+    }
+}
+
+/**
+ * 출석 요청 거부
+ */
+async function rejectRequest(requestId) {
+    if (!confirm('이 출석 요청을 거부하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const response = await requestGas('rejectAttendanceRequest', { requestId: requestId });
+
+        if (response.success) {
+            alert('✅ ' + (response.message || '출석 요청이 거부되었습니다.'));
+            // 목록 새로고침
+            loadAttendanceRequests();
+        } else {
+            alert('❌ ' + (response.message || '거부에 실패했습니다.'));
+        }
+    } catch (error) {
+        alert('❌ 오류 발생: ' + error);
+        console.error('출석 요청 거부 오류:', error);
     }
 }
