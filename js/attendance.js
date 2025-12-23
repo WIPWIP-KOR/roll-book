@@ -382,7 +382,14 @@ function processAttendance() {
                 localStorage.setItem('last_name', name);
                 localStorage.setItem('last_team', team);
             } else {
-                showMessage(`❌ ${data.message || '출석 실패'}`, 'error');
+                // 출석 실패 시 출석 요청 옵션 제공
+                const errorMessage = data.message || '출석 실패';
+                showMessage(`❌ ${errorMessage}`, 'error');
+
+                // 출석 요청 여부 확인
+                if (confirm(`출석에 실패했습니다.\n${errorMessage}\n\n관리자에게 출석 요청을 하시겠습니까?`)) {
+                    showRequestModal();
+                }
             }
         },
         error: function(jqXHR, textStatus, errorThrown) {
@@ -920,15 +927,10 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     // 출석 요청 모달 이벤트 리스너
-    const requestAttendBtn = document.getElementById('requestAttendBtn');
     const closeRequestModal = document.getElementById('closeRequestModal');
     const cancelRequestBtn = document.getElementById('cancelRequestBtn');
     const submitRequestBtn = document.getElementById('submitRequestBtn');
     const requestModal = document.getElementById('attendanceRequestModal');
-
-    if (requestAttendBtn) {
-        requestAttendBtn.addEventListener('click', showRequestModal);
-    }
 
     if (closeRequestModal) {
         closeRequestModal.addEventListener('click', hideRequestModal);
