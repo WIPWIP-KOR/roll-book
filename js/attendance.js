@@ -378,10 +378,8 @@ function processAttendance() {
                 const errorMessage = data.message || '출석 실패';
                 showMessage(`❌ ${errorMessage}`, 'error');
 
-                // 출석 요청 여부 확인
-                if (confirm(`출석에 실패했습니다.\n${errorMessage}\n\n관리자에게 출석 요청을 하시겠습니까?`)) {
-                    showRequestModal();
-                }
+                // 커스텀 모달로 출석 요청 여부 확인
+                showAttendanceFailModal(errorMessage);
             }
         },
         error: function(jqXHR, textStatus, errorThrown) {
@@ -918,6 +916,30 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 출석 실패 모달 이벤트 리스너
+    const cancelFailBtn = document.getElementById('cancelFailBtn');
+    const requestFromFailBtn = document.getElementById('requestFromFailBtn');
+    const failModal = document.getElementById('attendanceFailModal');
+
+    if (cancelFailBtn) {
+        cancelFailBtn.addEventListener('click', hideAttendanceFailModal);
+    }
+
+    if (requestFromFailBtn) {
+        requestFromFailBtn.addEventListener('click', () => {
+            hideAttendanceFailModal();
+            showRequestModal();
+        });
+    }
+
+    if (failModal) {
+        failModal.addEventListener('click', (e) => {
+            if (e.target === failModal) {
+                hideAttendanceFailModal();
+            }
+        });
+    }
+
     // 출석 요청 모달 이벤트 리스너
     const closeRequestModal = document.getElementById('closeRequestModal');
     const cancelRequestBtn = document.getElementById('cancelRequestBtn');
@@ -943,9 +965,48 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // 라디오 버튼 변경 이벤트 리스너
+    const reasonRadios = document.querySelectorAll('input[name="requestReason"]');
+    const customReasonTextarea = document.getElementById('requestReasonCustom');
+
+    reasonRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target.value === '기타' && customReasonTextarea) {
+                customReasonTextarea.style.display = 'block';
+                customReasonTextarea.focus();
+            } else if (customReasonTextarea) {
+                customReasonTextarea.style.display = 'none';
+                customReasonTextarea.value = '';
+            }
+        });
+    });
 });
 
 // ==================== 출석 요청 관련 함수 ====================
+
+/**
+ * 출석 실패 모달 표시
+ */
+function showAttendanceFailModal(errorMessage) {
+    const modal = document.getElementById('attendanceFailModal');
+    const failMessageEl = document.getElementById('failMessage');
+
+    if (modal && failMessageEl) {
+        failMessageEl.textContent = errorMessage;
+        modal.style.display = 'flex';
+    }
+}
+
+/**
+ * 출석 실패 모달 숨기기
+ */
+function hideAttendanceFailModal() {
+    const modal = document.getElementById('attendanceFailModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
 
 /**
  * 출석 요청 모달 표시
@@ -961,10 +1022,22 @@ function showRequestModal() {
     }
 
     const modal = document.getElementById('attendanceRequestModal');
+    const customReasonTextarea = document.getElementById('requestReasonCustom');
+
     if (modal) {
+        // 라디오 버튼 초기화 (첫 번째 옵션 선택)
+        const firstRadio = document.querySelector('input[name="requestReason"]');
+        if (firstRadio) {
+            firstRadio.checked = true;
+        }
+
+        // 직접 입력 텍스트 영역 숨김 및 초기화
+        if (customReasonTextarea) {
+            customReasonTextarea.style.display = 'none';
+            customReasonTextarea.value = '';
+        }
+
         modal.style.display = 'flex';
-        document.getElementById('requestReason').value = '';
-        document.getElementById('requestReason').focus();
     }
 }
 
@@ -973,9 +1046,16 @@ function showRequestModal() {
  */
 function hideRequestModal() {
     const modal = document.getElementById('attendanceRequestModal');
+    const customReasonTextarea = document.getElementById('requestReasonCustom');
+
     if (modal) {
         modal.style.display = 'none';
-        document.getElementById('requestReason').value = '';
+
+        // 텍스트 영역 초기화
+        if (customReasonTextarea) {
+            customReasonTextarea.style.display = 'none';
+            customReasonTextarea.value = '';
+        }
     }
 }
 
@@ -986,10 +1066,28 @@ function submitAttendanceRequest() {
     const isDirectInput = nameInput.style.display !== 'none';
     const name = isDirectInput ? nameInput.value.trim() : nameSelect.value;
     const team = teamSelect.value;
-    const reason = document.getElementById('requestReason').value.trim();
+
+    // 선택된 라디오 버튼 값 가져오기
+    const selectedRadio = document.querySelector('input[name="requestReason"]:checked');
+    let reason = '';
+
+    if (selectedRadio) {
+        if (selectedRadio.value === '기타') {
+            // "기타" 선택 시 직접 입력한 내용 사용
+            const customReason = document.getElementById('requestReasonCustom').value.trim();
+            if (!customReason) {
+                showMessage('사유를 직접 입력해주세요.', 'error');
+                return;
+            }
+            reason = `기타: ${customReason}`;
+        } else {
+            // 선택된 옵션 사용
+            reason = selectedRadio.value;
+        }
+    }
 
     if (!reason) {
-        showMessage('사유를 입력해주세요.', 'error');
+        showMessage('사유를 선택해주세요.', 'error');
         return;
     }
 
