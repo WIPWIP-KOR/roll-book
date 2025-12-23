@@ -9,7 +9,8 @@ const SHEET_NAMES = {
   ATTENDANCE: '출석기록', // (이 이름 뒤에 _YYYY가 붙어 시트가 생성됨)
   MEMBERS: '회원목록',
   LOCATION: '위치설정',
-  SETTINGS: '설정' 
+  SETTINGS: '설정',
+  ATTENDANCE_REQUESTS: '출석요청' // 출석 요청 시트
 };
 
 const PASSWORD_CELL = 'B2'; // 설정 시트에서 비밀번호를 저장할 셀
@@ -79,7 +80,24 @@ function doGet(e) {
       // 💡 통계 페이지 초기 로드 시 필요한 연도 목록 조회
       case 'getAvailableYears':
         return getAvailableYears(callback);
-        
+
+      // 💡 수동 출석 관련
+      case 'getUncheckedMembers':
+        const dateForCheck = e.parameter.date;
+        return getUncheckedMembers(callback, dateForCheck);
+      case 'manualAttend':
+        return manualAttend(e.parameter, callback);
+
+      // 💡 출석 요청 관련
+      case 'submitAttendanceRequest':
+        return submitAttendanceRequest(e.parameter, callback);
+      case 'getAttendanceRequests':
+        return getAttendanceRequests(callback);
+      case 'approveAttendanceRequest':
+        return approveAttendanceRequest(e.parameter, callback);
+      case 'rejectAttendanceRequest':
+        return rejectAttendanceRequest(e.parameter, callback);
+
       // 데이터 쓰기
       case 'saveLocation':
         const dataFromParams = {
@@ -1430,4 +1448,542 @@ function recalculateLateStatus(callback) {
     Logger.log(errorMsg);
     return createResponse(false, errorMsg, null, callback);
   }
+}
+
+// ==================== 수동 출석 관리 ====================
+
+/**
+ * 특정 날짜에 출석하지 않은 회원 목록 반환
+ * @param {function} callback - JSONP 콜백 함수
+ * @param {string} dateParam - 확인할 날짜 (YYYY-MM-DD 형식, 기본값: 오늘)
+ */
+function getUncheckedMembers(callback, dateParam) {
+  try {
+    // 날짜 파라미터가 없으면 오늘 날짜 사용
+    const targetDate = dateParam || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const year = parseInt(targetDate.substring(0, 4));
+    const targetDateStr = targetDate;
+
+    Logger.log('미출석자 조회 대상 날짜: ' + targetDateStr);
+
+    // 1. 해당 연도의 전체 회원 목록 가져오기
+    const members = getMembers(null, year);
+
+    if (!members || members.length === 0) {
+      return createResponse(true, null, { uncheckedMembers: [] }, callback);
+    }
+
+    // 2. 해당 날짜의 출석 기록 가져오기
+    const attendanceSheet = getAttendanceSheet(year);
+    let attendedNames = [];
+
+    if (attendanceSheet && attendanceSheet.getLastRow() > 1) {
+      const data = attendanceSheet.getDataRange().getValues();
+
+      for (let i = 1; i < data.length; i++) {
+        const rowDate = data[i][0];
+        if (!rowDate) continue;
+
+        const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+        if (rowDateStr === targetDateStr) {
+          attendedNames.push(data[i][2]); // 이름 컬럼
+        }
+      }
+    }
+
+    Logger.log('출석한 회원 수: ' + attendedNames.length);
+
+    // 3. 출석하지 않은 회원 필터링
+    const uncheckedMembers = members.filter(member => !attendedNames.includes(member.name));
+
+    Logger.log('미출석자 수: ' + uncheckedMembers.length);
+
+    return createResponse(true, null, {
+      uncheckedMembers: uncheckedMembers,
+      targetDate: targetDateStr,
+      totalMembers: members.length,
+      attendedCount: attendedNames.length
+    }, callback);
+
+  } catch (e) {
+    Logger.log('미출석자 조회 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 관리자가 수동으로 출석 처리
+ * @param {object} data - { name, team, season, date }
+ * @param {function} callback - JSONP 콜백 함수
+ */
+function manualAttend(data, callback) {
+  try {
+    const { name, team, season, date } = data;
+
+    // 필수 파라미터 검증
+    if (!name || !team || !season) {
+      return createResponse(false, '필수 정보가 누락되었습니다. (이름, 팀, 시즌)', null, callback);
+    }
+
+    // 팀 검증
+    if (!['A', 'B', 'C'].includes(team)) {
+      return createResponse(false, '올바른 팀을 선택해주세요.', null, callback);
+    }
+
+    // 시즌 검증
+    if (!['상반기', '하반기'].includes(season)) {
+      return createResponse(false, '올바른 시즌을 선택해주세요.', null, callback);
+    }
+
+    // 날짜 파라미터가 없으면 오늘 날짜 사용
+    const targetDate = date || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const year = parseInt(targetDate.substring(0, 4));
+
+    Logger.log(`수동 출석 처리: ${name}, ${team}, ${season}, ${targetDate}`);
+
+    // 중복 출석 확인
+    const attendanceSheet = getAttendanceSheet(year);
+    if (attendanceSheet && attendanceSheet.getLastRow() > 1) {
+      const data = attendanceSheet.getDataRange().getValues();
+
+      for (let i = 1; i < data.length; i++) {
+        const rowDate = data[i][0];
+        const rowName = data[i][2];
+
+        if (!rowDate) continue;
+
+        const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+        if (rowDateStr === targetDate && rowName === name) {
+          return createResponse(false, `${name}님은 이미 ${targetDate}에 출석하였습니다.`, null, callback);
+        }
+      }
+    }
+
+    // 출석 기록 저장 (수동)
+    saveManualAttendanceRecord(name, team, season, targetDate, year);
+
+    // 회원 정보 업데이트
+    updateMemberForManualAttendance(name, team, season, year);
+
+    Logger.log('✅ 수동 출석 처리 완료');
+
+    return createResponse(true, `${name}님의 출석이 처리되었습니다.`, null, callback);
+
+  } catch (e) {
+    Logger.log('수동 출석 처리 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 수동 출석 기록 저장
+ */
+function saveManualAttendanceRecord(name, team, season, targetDate, year) {
+  let sheet = getAttendanceSheet(year);
+
+  // 시트가 없으면 생성
+  if (!sheet) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const newSheetName = getAttendanceSheetName(year);
+    sheet = ss.insertSheet(newSheetName);
+  }
+
+  // 헤더가 없으면 추가
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['날짜', '요일', '이름', '팀', '시즌', '출석시간', '지각여부', '위도', '경도', 'IP주소', '거리(m)']);
+  }
+
+  const targetDateObj = new Date(targetDate);
+  const dayOfWeek = getDayOfWeek(targetDateObj);
+
+  // 수동 출석은 위치 정보 없이 저장, IP주소에 'manual' 표시
+  sheet.appendRow([
+    targetDate,
+    dayOfWeek,
+    name,
+    team,
+    season,
+    '수동',  // 출석시간에 '수동' 표시
+    '정상',  // 지각여부는 기본 '정상'
+    null,    // 위도
+    null,    // 경도
+    'manual', // IP주소에 manual 표시
+    null     // 거리
+  ]);
+
+  Logger.log(`수동 출석 기록 저장: ${name}, ${targetDate}`);
+}
+
+/**
+ * 수동 출석 시 회원 정보 업데이트
+ */
+function updateMemberForManualAttendance(name, team, season, year) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = getMemberSheet(year);
+
+  // 시트가 없으면 생성
+  if (!sheet) {
+    const sheetName = getMemberSheetName(year);
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(['이름', '상반기팀', '하반기팀', '최초등록일', '출석수']);
+  }
+
+  // 헤더가 없으면 추가
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['이름', '상반기팀', '하반기팀', '최초등록일', '출석수']);
+  }
+
+  const data = sheet.getDataRange().getValues();
+  let found = false;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === name) {
+      // 기존 회원: 출석수 증가
+      const currentCount = data[i][4] || 0;
+      sheet.getRange(i + 1, 5).setValue(currentCount + 1);
+
+      // 해당 시즌의 팀 정보 업데이트 (빈 값인 경우에만)
+      if (season === '상반기' && !data[i][1]) {
+        sheet.getRange(i + 1, 2).setValue(team);
+      } else if (season === '하반기' && !data[i][2]) {
+        sheet.getRange(i + 1, 3).setValue(team);
+      }
+
+      // 캐시 무효화
+      CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${year}`);
+
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    // 새 회원 추가
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const firstHalfTeam = (season === '상반기') ? team : '';
+    const secondHalfTeam = (season === '하반기') ? team : '';
+
+    sheet.appendRow([name, firstHalfTeam, secondHalfTeam, today, 1]);
+
+    // 캐시 무효화
+    CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${year}`);
+  }
+
+  Logger.log(`회원 정보 업데이트: ${name}`);
+}
+
+// ==================== 출석 요청 관리 ====================
+
+/**
+ * 출석 요청 제출
+ * @param {object} data - { name, team, season, latitude, longitude, reason }
+ * @param {function} callback - JSONP 콜백 함수
+ */
+function submitAttendanceRequest(data, callback) {
+  try {
+    const { name, team, season, latitude, longitude, reason } = data;
+
+    // 필수 파라미터 검증
+    if (!name || !team || !season || !reason) {
+      return createResponse(false, '필수 정보가 누락되었습니다.', null, callback);
+    }
+
+    // 팀 검증
+    if (!['A', 'B', 'C'].includes(team)) {
+      return createResponse(false, '올바른 팀을 선택해주세요.', null, callback);
+    }
+
+    // 시즌 검증
+    if (!['상반기', '하반기'].includes(season)) {
+      return createResponse(false, '올바른 시즌을 선택해주세요.', null, callback);
+    }
+
+    const now = new Date();
+    const requestDate = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const requestTime = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss');
+
+    // 출석 요청 시트 가져오기 또는 생성
+    const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE_REQUESTS);
+
+    // 헤더가 없으면 추가
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(['요청ID', '요청일시', '이름', '팀', '시즌', '위도', '경도', '사유', '상태', '처리일시']);
+    }
+
+    // 오늘 이미 요청한 적이 있는지 확인
+    const data_rows = sheet.getDataRange().getValues();
+    for (let i = 1; i < data_rows.length; i++) {
+      const rowDate = data_rows[i][1];
+      const rowName = data_rows[i][2];
+      const rowStatus = data_rows[i][8];
+
+      if (!rowDate) continue;
+
+      const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+      // 오늘 날짜에 대기 중인 요청이 있으면 중복
+      if (rowDateStr === requestDate && rowName === name && rowStatus === '대기') {
+        return createResponse(false, '오늘 이미 출석 요청을 제출하셨습니다.', null, callback);
+      }
+    }
+
+    // 요청 ID 생성 (타임스탬프 기반)
+    const requestId = 'REQ_' + Date.now();
+
+    // 요청 저장
+    sheet.appendRow([
+      requestId,
+      `${requestDate} ${requestTime}`,
+      name,
+      team,
+      season,
+      latitude || '',
+      longitude || '',
+      reason,
+      '대기', // 상태: 대기/승인/거부
+      ''     // 처리일시
+    ]);
+
+    Logger.log(`출석 요청 제출 완료: ${name}, ${requestId}`);
+
+    return createResponse(true, '출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', { requestId: requestId }, callback);
+
+  } catch (e) {
+    Logger.log('출석 요청 제출 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 대기 중인 출석 요청 목록 조회
+ * @param {function} callback - JSONP 콜백 함수
+ */
+function getAttendanceRequests(callback) {
+  try {
+    const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE_REQUESTS);
+
+    if (sheet.getLastRow() <= 1) {
+      return createResponse(true, null, { requests: [] }, callback);
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const requests = [];
+
+    // 헤더 제외하고 데이터 행만 처리
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+
+      // 대기 중인 요청만 반환
+      if (row[8] === '대기') {
+        requests.push({
+          requestId: row[0],
+          requestDateTime: row[1],
+          name: row[2],
+          team: row[3],
+          season: row[4],
+          latitude: row[5],
+          longitude: row[6],
+          reason: row[7],
+          status: row[8]
+        });
+      }
+    }
+
+    // 최신순으로 정렬
+    requests.sort((a, b) => {
+      return new Date(b.requestDateTime) - new Date(a.requestDateTime);
+    });
+
+    Logger.log(`대기 중인 출석 요청: ${requests.length}개`);
+
+    return createResponse(true, null, { requests: requests }, callback);
+
+  } catch (e) {
+    Logger.log('출석 요청 조회 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 출석 요청 승인
+ * @param {object} data - { requestId }
+ * @param {function} callback - JSONP 콜백 함수
+ */
+function approveAttendanceRequest(data, callback) {
+  try {
+    const { requestId } = data;
+
+    if (!requestId) {
+      return createResponse(false, '요청 ID가 없습니다.', null, callback);
+    }
+
+    const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE_REQUESTS);
+    const sheetData = sheet.getDataRange().getValues();
+
+    let requestRow = -1;
+    let requestData = null;
+
+    // 요청 찾기
+    for (let i = 1; i < sheetData.length; i++) {
+      if (sheetData[i][0] === requestId) {
+        requestRow = i + 1; // 행 번호는 1부터 시작
+        requestData = sheetData[i];
+        break;
+      }
+    }
+
+    if (requestRow === -1) {
+      return createResponse(false, '요청을 찾을 수 없습니다.', null, callback);
+    }
+
+    // 이미 처리된 요청인지 확인
+    if (requestData[8] !== '대기') {
+      return createResponse(false, '이미 처리된 요청입니다.', null, callback);
+    }
+
+    // 요청 정보 추출
+    const name = requestData[2];
+    const team = requestData[3];
+    const season = requestData[4];
+    const requestDateTime = requestData[1];
+    const requestDate = Utilities.formatDate(new Date(requestDateTime), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const year = parseInt(requestDate.substring(0, 4));
+
+    // 해당 날짜에 이미 출석했는지 확인
+    const attendanceSheet = getAttendanceSheet(year);
+    if (attendanceSheet && attendanceSheet.getLastRow() > 1) {
+      const attendData = attendanceSheet.getDataRange().getValues();
+
+      for (let i = 1; i < attendData.length; i++) {
+        const rowDate = attendData[i][0];
+        const rowName = attendData[i][2];
+
+        if (!rowDate) continue;
+
+        const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+        if (rowDateStr === requestDate && rowName === name) {
+          return createResponse(false, `${name}님은 이미 ${requestDate}에 출석하였습니다.`, null, callback);
+        }
+      }
+    }
+
+    // 출석 기록 저장 (승인된 요청)
+    saveApprovedAttendanceRecord(name, team, season, requestDate, year);
+
+    // 회원 정보 업데이트
+    updateMemberForManualAttendance(name, team, season, year);
+
+    // 요청 상태 업데이트
+    const now = new Date();
+    const processTime = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+
+    sheet.getRange(requestRow, 9).setValue('승인'); // 상태
+    sheet.getRange(requestRow, 10).setValue(processTime); // 처리일시
+
+    Logger.log(`출석 요청 승인 완료: ${requestId}, ${name}`);
+
+    return createResponse(true, `${name}님의 출석 요청이 승인되었습니다.`, null, callback);
+
+  } catch (e) {
+    Logger.log('출석 요청 승인 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 출석 요청 거부
+ * @param {object} data - { requestId }
+ * @param {function} callback - JSONP 콜백 함수
+ */
+function rejectAttendanceRequest(data, callback) {
+  try {
+    const { requestId } = data;
+
+    if (!requestId) {
+      return createResponse(false, '요청 ID가 없습니다.', null, callback);
+    }
+
+    const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE_REQUESTS);
+    const sheetData = sheet.getDataRange().getValues();
+
+    let requestRow = -1;
+    let requestData = null;
+
+    // 요청 찾기
+    for (let i = 1; i < sheetData.length; i++) {
+      if (sheetData[i][0] === requestId) {
+        requestRow = i + 1;
+        requestData = sheetData[i];
+        break;
+      }
+    }
+
+    if (requestRow === -1) {
+      return createResponse(false, '요청을 찾을 수 없습니다.', null, callback);
+    }
+
+    // 이미 처리된 요청인지 확인
+    if (requestData[8] !== '대기') {
+      return createResponse(false, '이미 처리된 요청입니다.', null, callback);
+    }
+
+    // 요청 상태 업데이트
+    const now = new Date();
+    const processTime = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+
+    sheet.getRange(requestRow, 9).setValue('거부');
+    sheet.getRange(requestRow, 10).setValue(processTime);
+
+    const name = requestData[2];
+
+    Logger.log(`출석 요청 거부 완료: ${requestId}, ${name}`);
+
+    return createResponse(true, `${name}님의 출석 요청이 거부되었습니다.`, null, callback);
+
+  } catch (e) {
+    Logger.log('출석 요청 거부 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 승인된 출석 요청 기록 저장
+ */
+function saveApprovedAttendanceRecord(name, team, season, targetDate, year) {
+  let sheet = getAttendanceSheet(year);
+
+  // 시트가 없으면 생성
+  if (!sheet) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const newSheetName = getAttendanceSheetName(year);
+    sheet = ss.insertSheet(newSheetName);
+  }
+
+  // 헤더가 없으면 추가
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['날짜', '요일', '이름', '팀', '시즌', '출석시간', '지각여부', '위도', '경도', 'IP주소', '거리(m)']);
+  }
+
+  const targetDateObj = new Date(targetDate);
+  const dayOfWeek = getDayOfWeek(targetDateObj);
+
+  // 승인된 요청은 IP주소에 'approved' 표시
+  sheet.appendRow([
+    targetDate,
+    dayOfWeek,
+    name,
+    team,
+    season,
+    '승인됨',  // 출석시간에 '승인됨' 표시
+    '정상',   // 지각여부는 기본 '정상'
+    null,     // 위도
+    null,     // 경도
+    'approved', // IP주소에 approved 표시
+    null      // 거리
+  ]);
+
+  Logger.log(`승인된 출석 기록 저장: ${name}, ${targetDate}`);
 }

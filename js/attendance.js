@@ -918,4 +918,120 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // 출석 요청 모달 이벤트 리스너
+    const requestAttendBtn = document.getElementById('requestAttendBtn');
+    const closeRequestModal = document.getElementById('closeRequestModal');
+    const cancelRequestBtn = document.getElementById('cancelRequestBtn');
+    const submitRequestBtn = document.getElementById('submitRequestBtn');
+    const requestModal = document.getElementById('attendanceRequestModal');
+
+    if (requestAttendBtn) {
+        requestAttendBtn.addEventListener('click', showRequestModal);
+    }
+
+    if (closeRequestModal) {
+        closeRequestModal.addEventListener('click', hideRequestModal);
+    }
+
+    if (cancelRequestBtn) {
+        cancelRequestBtn.addEventListener('click', hideRequestModal);
+    }
+
+    if (submitRequestBtn) {
+        submitRequestBtn.addEventListener('click', submitAttendanceRequest);
+    }
+
+    if (requestModal) {
+        requestModal.addEventListener('click', (e) => {
+            if (e.target === requestModal) {
+                hideRequestModal();
+            }
+        });
+    }
 });
+
+// ==================== 출석 요청 관련 함수 ====================
+
+/**
+ * 출석 요청 모달 표시
+ */
+function showRequestModal() {
+    const isDirectInput = nameInput.style.display !== 'none';
+    const name = isDirectInput ? nameInput.value.trim() : nameSelect.value;
+    const team = teamSelect.value;
+
+    if (!name || !team || name === '__DIRECT_INPUT__') {
+        showMessage('이름과 팀을 먼저 선택/입력해주세요.', 'error');
+        return;
+    }
+
+    const modal = document.getElementById('attendanceRequestModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.getElementById('requestReason').value = '';
+        document.getElementById('requestReason').focus();
+    }
+}
+
+/**
+ * 출석 요청 모달 숨기기
+ */
+function hideRequestModal() {
+    const modal = document.getElementById('attendanceRequestModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.getElementById('requestReason').value = '';
+    }
+}
+
+/**
+ * 출석 요청 제출
+ */
+function submitAttendanceRequest() {
+    const isDirectInput = nameInput.style.display !== 'none';
+    const name = isDirectInput ? nameInput.value.trim() : nameSelect.value;
+    const team = teamSelect.value;
+    const reason = document.getElementById('requestReason').value.trim();
+
+    if (!reason) {
+        showMessage('사유를 입력해주세요.', 'error');
+        return;
+    }
+
+    const submitBtn = document.getElementById('submitRequestBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '제출 중...';
+
+    const dataToSend = {
+        action: 'submitAttendanceRequest',
+        name: name,
+        team: team,
+        season: currentSeason.season,
+        latitude: userPosition ? userPosition.latitude : '',
+        longitude: userPosition ? userPosition.longitude : '',
+        reason: reason
+    };
+
+    $.ajax({
+        url: CONFIG.GAS_URL,
+        data: dataToSend,
+        dataType: 'jsonp',
+        success: function(data) {
+            if (data.success) {
+                showMessage('✅ 출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', 'success');
+                hideRequestModal();
+            } else {
+                showMessage(`❌ ${data.message || '출석 요청 실패'}`, 'error');
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('출석 요청 에러:', textStatus, errorThrown);
+            showMessage('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+        },
+        complete: function() {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '요청 제출';
+        }
+    });
+}

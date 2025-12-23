@@ -26,6 +26,7 @@ const tabLoadState = {
     location: false,
     qrcode: false,
     members: false,
+    manual: false,
     settings: false
 };
 
@@ -1129,6 +1130,9 @@ function switchTab(tabName) {
         case 'members':
             loadMembersTab();
             break;
+        case 'manual':
+            loadManualTab();
+            break;
         case 'settings':
             // 설정 탭: 출석 시간 설정 및 요일 설정 로드
             loadSettingsTab();
@@ -1404,7 +1408,320 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 출석 가능 요일 체크박스 - label의 기본 동작 사용
     // label을 클릭하면 자동으로 checkbox가 토글되므로 별도 핸들러 불필요
+
+    // 수동 출석 관련 이벤트 리스너
+    const loadUncheckedBtn = document.getElementById('loadUncheckedBtn');
+    if (loadUncheckedBtn) {
+        loadUncheckedBtn.addEventListener('click', loadUncheckedMembers);
+    }
+
+    // 출석 요청 관련 이벤트 리스너
+    const refreshRequestsBtn = document.getElementById('refreshRequestsBtn');
+    if (refreshRequestsBtn) {
+        refreshRequestsBtn.addEventListener('click', loadAttendanceRequests);
+    }
 });
 
 // 3. 카카오 지도 API가 로드되면 initMap 함수를 호출해야 합니다.
 // (이 부분은 HTML 파일에서 <script src="...&autoload=false" ...> 후 window.kakao.maps.load(initMap); 와 같이 처리됩니다.)
+
+// ==================== 수동 출석 관리 ====================
+
+/**
+ * 출석 승인 탭 로드
+ */
+function loadManualTab() {
+    if (tabLoadState.manual) return;
+
+    // 오늘 날짜를 기본값으로 설정
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    document.getElementById('manualAttendDate').value = dateStr;
+
+    // 출석 요청 목록 로드
+    loadAttendanceRequests();
+
+    tabLoadState.manual = true;
+}
+
+/**
+ * 미출석자 목록 불러오기
+ */
+async function loadUncheckedMembers() {
+    const dateInput = document.getElementById('manualAttendDate');
+    const targetDate = dateInput.value;
+
+    if (!targetDate) {
+        alert('날짜를 선택해주세요.');
+        return;
+    }
+
+    const messageEl = document.getElementById('manualAttendMessage');
+    const btn = document.getElementById('loadUncheckedBtn');
+
+    try {
+        btn.disabled = true;
+        btn.textContent = '⏳ 불러오는 중...';
+        messageEl.textContent = '';
+        messageEl.className = 'message';
+
+        const response = await requestGas('getUncheckedMembers', { date: targetDate });
+
+        if (response.success) {
+            const { uncheckedMembers, totalMembers, attendedCount } = response;
+
+            // 통계 업데이트
+            document.getElementById('totalMembersCount').textContent = totalMembers;
+            document.getElementById('attendedCount').textContent = attendedCount;
+            document.getElementById('uncheckedCount').textContent = uncheckedMembers.length;
+
+            // 미출석자 목록 표시
+            displayUncheckedMembers(uncheckedMembers, targetDate);
+
+            // 섹션 표시
+            document.getElementById('uncheckedMembersSection').style.display = 'block';
+
+            if (uncheckedMembers.length === 0) {
+                messageEl.textContent = '🎉 모든 회원이 출석했습니다!';
+                messageEl.className = 'message success';
+            }
+        } else {
+            messageEl.textContent = '❌ ' + (response.message || '데이터를 불러오는데 실패했습니다.');
+            messageEl.className = 'message error';
+        }
+    } catch (error) {
+        messageEl.textContent = '❌ 오류 발생: ' + error;
+        messageEl.className = 'message error';
+        console.error('미출석자 조회 오류:', error);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '미출석자 불러오기';
+    }
+}
+
+/**
+ * 미출석자 목록 화면에 표시
+ */
+function displayUncheckedMembers(members, targetDate) {
+    const container = document.getElementById('uncheckedMembersList');
+
+    if (members.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">모든 회원이 출석했습니다! 🎉</p>';
+        return;
+    }
+
+    let html = '';
+
+    members.forEach(member => {
+        const firstHalfTeam = member.firstHalfTeam || '-';
+        const secondHalfTeam = member.secondHalfTeam || '-';
+
+        // 현재 시즌 판단 (1~6월: 상반기, 7~12월: 하반기)
+        const month = parseInt(targetDate.substring(5, 7));
+        const currentSeason = (month >= 1 && month <= 6) ? '상반기' : '하반기';
+        const currentTeam = (currentSeason === '상반기') ? firstHalfTeam : secondHalfTeam;
+
+        html += `
+            <div class="member-card">
+                <div class="member-card-header">
+                    <span class="member-name">${member.name}</span>
+                </div>
+                <div class="member-teams">
+                    <span class="member-team-badge">상반기: ${firstHalfTeam}</span>
+                    <span class="member-team-badge">하반기: ${secondHalfTeam}</span>
+                </div>
+                <div class="attend-controls">
+                    <select id="team-${member.name}" class="team-select">
+                        <option value="">팀 선택</option>
+                        <option value="A" ${currentTeam === 'A' ? 'selected' : ''}>A팀</option>
+                        <option value="B" ${currentTeam === 'B' ? 'selected' : ''}>B팀</option>
+                        <option value="C" ${currentTeam === 'C' ? 'selected' : ''}>C팀</option>
+                    </select>
+                    <select id="season-${member.name}" class="season-select">
+                        <option value="상반기" ${currentSeason === '상반기' ? 'selected' : ''}>상반기</option>
+                        <option value="하반기" ${currentSeason === '하반기' ? 'selected' : ''}>하반기</option>
+                    </select>
+                    <button onclick="processManualAttend('${member.name}', '${targetDate}')">출석 처리</button>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * 수동 출석 처리
+ */
+async function processManualAttend(name, targetDate) {
+    const teamSelect = document.getElementById(`team-${name}`);
+    const seasonSelect = document.getElementById(`season-${name}`);
+
+    const team = teamSelect.value;
+    const season = seasonSelect.value;
+
+    if (!team) {
+        alert('팀을 선택해주세요.');
+        return;
+    }
+
+    if (!confirm(`${name}님을 ${targetDate}에 ${team}팀 ${season}으로 출석 처리하시겠습니까?`)) {
+        return;
+    }
+
+    const messageEl = document.getElementById('manualAttendMessage');
+
+    try {
+        messageEl.textContent = '⏳ 처리 중...';
+        messageEl.className = 'message';
+
+        const response = await requestGas('manualAttend', {
+            name: name,
+            team: team,
+            season: season,
+            date: targetDate
+        });
+
+        if (response.success) {
+            messageEl.textContent = '✅ ' + (response.message || '출석이 처리되었습니다.');
+            messageEl.className = 'message success';
+
+            // 미출석자 목록 새로고침
+            setTimeout(() => {
+                loadUncheckedMembers();
+            }, 1000);
+        } else {
+            messageEl.textContent = '❌ ' + (response.message || '출석 처리에 실패했습니다.');
+            messageEl.className = 'message error';
+        }
+    } catch (error) {
+        messageEl.textContent = '❌ 오류 발생: ' + error;
+        messageEl.className = 'message error';
+        console.error('수동 출석 처리 오류:', error);
+    }
+}
+
+// ==================== 출석 요청 관리 ====================
+
+/**
+ * 출석 요청 목록 로드
+ */
+async function loadAttendanceRequests() {
+    const container = document.getElementById('attendanceRequestsList');
+
+    try {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">⏳ 출석 요청 불러오는 중...</p>';
+
+        const response = await requestGas('getAttendanceRequests');
+
+        if (response.success) {
+            const { requests } = response;
+            displayAttendanceRequests(requests);
+        } else {
+            container.innerHTML = `<p style="text-align: center; color: #f44336; padding: 20px;">❌ ${response.message || '출석 요청을 불러오는데 실패했습니다.'}</p>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<p style="text-align: center; color: #f44336; padding: 20px;">❌ 오류 발생: ${error}</p>`;
+        console.error('출석 요청 조회 오류:', error);
+    }
+}
+
+/**
+ * 출석 요청 목록 화면에 표시
+ */
+function displayAttendanceRequests(requests) {
+    const container = document.getElementById('attendanceRequestsList');
+
+    if (requests.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">대기 중인 출석 요청이 없습니다. 🎉</p>';
+        return;
+    }
+
+    let html = '';
+
+    requests.forEach(request => {
+        const requestDateTime = new Date(request.requestDateTime);
+        const displayDate = requestDateTime.toLocaleString('ko-KR', {
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        html += `
+            <div class="request-card">
+                <div class="request-header">
+                    <span class="request-name">${request.name}</span>
+                    <span class="request-time">${displayDate}</span>
+                </div>
+                <div class="request-info">
+                    <div class="request-info-row">
+                        <span class="request-label">팀:</span>
+                        <span class="request-value">${request.team}팀</span>
+                    </div>
+                    <div class="request-info-row">
+                        <span class="request-label">시즌:</span>
+                        <span class="request-value">${request.season}</span>
+                    </div>
+                </div>
+                <div class="request-reason">
+                    <strong>사유:</strong> ${request.reason}
+                </div>
+                <div class="request-actions">
+                    <button class="btn-approve" onclick="approveRequest('${request.requestId}')">✅ 승인</button>
+                    <button class="btn-reject" onclick="rejectRequest('${request.requestId}')">❌ 거부</button>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * 출석 요청 승인
+ */
+async function approveRequest(requestId) {
+    if (!confirm('이 출석 요청을 승인하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const response = await requestGas('approveAttendanceRequest', { requestId: requestId });
+
+        if (response.success) {
+            alert('✅ ' + (response.message || '출석 요청이 승인되었습니다.'));
+            // 목록 새로고침
+            loadAttendanceRequests();
+        } else {
+            alert('❌ ' + (response.message || '승인에 실패했습니다.'));
+        }
+    } catch (error) {
+        alert('❌ 오류 발생: ' + error);
+        console.error('출석 요청 승인 오류:', error);
+    }
+}
+
+/**
+ * 출석 요청 거부
+ */
+async function rejectRequest(requestId) {
+    if (!confirm('이 출석 요청을 거부하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const response = await requestGas('rejectAttendanceRequest', { requestId: requestId });
+
+        if (response.success) {
+            alert('✅ ' + (response.message || '출석 요청이 거부되었습니다.'));
+            // 목록 새로고침
+            loadAttendanceRequests();
+        } else {
+            alert('❌ ' + (response.message || '거부에 실패했습니다.'));
+        }
+    } catch (error) {
+        alert('❌ 오류 발생: ' + error);
+        console.error('출석 요청 거부 오류:', error);
+    }
+}

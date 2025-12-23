@@ -21,6 +21,7 @@
             <button class="tab-btn active" data-tab="location">📍 위치설정</button>
             <button class="tab-btn" data-tab="qrcode">📱 QR코드</button>
             <button class="tab-btn" data-tab="members">👥 회원목록</button>
+            <button class="tab-btn" data-tab="manual">✅ 출석승인</button>
             <button class="tab-btn" data-tab="settings">⚙️ 설정</button>
         </div>
 
@@ -97,6 +98,64 @@
                 <div id="membersList" class="members-list">
                     <p class="text-secondary">회원목록 탭을 클릭하면 데이터를 불러옵니다.</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- 출석 승인 탭 -->
+        <div class="tab-content" id="manualTab">
+            <div class="tab-content-wrapper">
+                <h3 style="margin: 0 0 15px 0; color: #333;">✅ 출석 승인 관리</h3>
+
+                <div class="info-box" style="margin-bottom: 20px;">
+                    <p style="margin: 0; color: #666;">
+                        💡 위치 오류나 기타 사유로 출석하지 못한 회원들의 요청을 승인/거부하거나<br>
+                        관리자가 직접 회원의 출석을 처리할 수 있습니다.
+                    </p>
+                </div>
+
+                <!-- 출석 요청 목록 섹션 -->
+                <div class="section-header">
+                    <h4 style="margin: 0; color: #333;">📋 출석 요청 목록</h4>
+                    <button id="refreshRequestsBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.9em;">🔄 새로고침</button>
+                </div>
+
+                <div id="attendanceRequestsSection" style="margin-bottom: 30px;">
+                    <div id="attendanceRequestsList"></div>
+                </div>
+
+                <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
+
+                <!-- 수동 출석 처리 섹션 -->
+                <h4 style="margin: 20px 0 15px 0; color: #333;">✍️ 직접 출석 처리</h4>
+
+                <div class="form-group">
+                    <label for="manualAttendDate">출석 날짜</label>
+                    <input type="date" id="manualAttendDate" required>
+                </div>
+
+                <button id="loadUncheckedBtn" class="btn-primary">미출석자 불러오기</button>
+
+                <div id="uncheckedMembersSection" style="display: none; margin-top: 20px;">
+                    <div class="stats-summary" style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+                        <div class="stat-card">
+                            <span class="stat-label">전체 회원</span>
+                            <span class="stat-value" id="totalMembersCount">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">출석 완료</span>
+                            <span class="stat-value" id="attendedCount" style="color: #4caf50;">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">미출석</span>
+                            <span class="stat-value" id="uncheckedCount" style="color: #f44336;">0</span>
+                        </div>
+                    </div>
+
+                    <h4 style="margin: 20px 0 10px 0; color: #333;">미출석자 목록</h4>
+                    <div id="uncheckedMembersList"></div>
+                </div>
+
+                <div id="manualAttendMessage" class="message"></div>
             </div>
         </div>
 
@@ -539,6 +598,235 @@
             .attendance-days-container {
                 grid-template-columns: 1fr;
             }
+        }
+
+        /* 출석 승인 관련 스타일 */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .request-card {
+            background: white;
+            border: 2px solid #ff9800;
+            border-left: 5px solid #ff9800;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .request-card:hover {
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .request-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .request-name {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .request-time {
+            font-size: 0.85em;
+            color: #999;
+        }
+
+        .request-info {
+            margin: 8px 0;
+            padding: 10px;
+            background: #fff3e0;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        .request-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .request-info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .request-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .request-value {
+            color: #333;
+        }
+
+        .request-reason {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 0.9em;
+            color: #555;
+            font-style: italic;
+        }
+
+        .request-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .btn-approve {
+            flex: 1;
+            padding: 10px;
+            background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-approve:hover {
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .btn-reject {
+            flex: 1;
+            padding: 10px;
+            background: linear-gradient(135deg, #f44336 0%, #e53935 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-reject:hover {
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .stats-summary {
+            display: flex;
+            gap: 15px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            flex: 1;
+            min-width: 120px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .stat-label {
+            display: block;
+            font-size: 0.85em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            display: block;
+            font-size: 1.8em;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .member-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .member-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .member-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .member-name {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .member-teams {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .member-team-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            margin-right: 8px;
+            background: #e8eaf6;
+            color: #667eea;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .attend-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .attend-controls select {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95em;
+        }
+
+        .attend-controls button {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .attend-controls button:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .attend-controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
     </style>
 
