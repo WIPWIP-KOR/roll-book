@@ -429,14 +429,32 @@ function formatTimeValue(timeValue) {
 }
 
 /**
- * 기존 출석 기록의 지각 여부 재계산
+ * 기존 출석 기록의 지각 여부 재계산 (날짜 범위 지정 가능)
  */
 async function recalculateLateStatus() {
     const messageEl = document.getElementById('recalculateMessage');
     const btn = document.getElementById('recalculateLateBtn');
+    const startDateEl = document.getElementById('recalculateStartDate');
+    const endDateEl = document.getElementById('recalculateEndDate');
+
+    const startDate = startDateEl.value;
+    const endDate = endDateEl.value;
+
+    // 날짜 유효성 검사
+    if (!startDate || !endDate) {
+        messageEl.textContent = '❌ 시작일과 종료일을 모두 선택해주세요.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    if (startDate > endDate) {
+        messageEl.textContent = '❌ 시작일이 종료일보다 늦을 수 없습니다.';
+        messageEl.className = 'message-area error';
+        return;
+    }
 
     // 확인 메시지
-    if (!confirm('기존 출석 기록의 지각 여부를 현재 지각 기준 시간에 따라 다시 계산합니다.\n계속하시겠습니까?')) {
+    if (!confirm(`${startDate} ~ ${endDate} 기간의 출석 기록을 재계산합니다.\n계속하시겠습니까?`)) {
         return;
     }
 
@@ -446,14 +464,17 @@ async function recalculateLateStatus() {
         messageEl.textContent = '';
         messageEl.className = 'message-area';
 
-        const response = await requestGas('recalculateLateStatus');
+        const response = await requestGas('recalculateLateStatus', {
+            startDate: startDate,
+            endDate: endDate
+        });
 
         if (response.success) {
             const { totalProcessed, updatedCount } = response;
-            messageEl.textContent = `✅ 재계산 완료!\n총 ${totalProcessed}개 기록 중 ${updatedCount}개 업데이트됨`;
+            messageEl.textContent = `✅ 재계산 완료! (${startDate} ~ ${endDate})\n총 ${totalProcessed}개 기록 중 ${updatedCount}개 업데이트됨`;
             messageEl.className = 'message-area success';
 
-            // 3초 후 메시지 제거
+            // 5초 후 메시지 제거
             setTimeout(() => {
                 messageEl.textContent = '';
                 messageEl.className = 'message-area';
@@ -1296,6 +1317,23 @@ function initializeMap(mapContainer, resolve, reject) {
 // ==================== 이벤트 리스너 및 초기 실행 ====================
 
 /**
+ * 지각 재계산 날짜 필드 초기화 (기본값: 오늘)
+ */
+function initializeRecalculateDateFields() {
+    const startDateEl = document.getElementById('recalculateStartDate');
+    const endDateEl = document.getElementById('recalculateEndDate');
+
+    if (startDateEl && endDateEl) {
+        // 오늘 날짜를 YYYY-MM-DD 형식으로
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+
+        startDateEl.value = todayStr;
+        endDateEl.value = todayStr;
+    }
+}
+
+/**
  * 시간/분 선택 드롭다운 옵션을 동적으로 생성
  */
 function initializeTimeSelectors() {
@@ -1339,6 +1377,9 @@ function initializeTimeSelectors() {
 document.addEventListener('DOMContentLoaded', () => {
     // 0. 시간/분 선택 드롭다운 초기화
     initializeTimeSelectors();
+
+    // 0-1. 지각 재계산 날짜 필드 초기화 (기본값: 오늘)
+    initializeRecalculateDateFields();
 
     // 1. 관리자 인증 확인 및 페이지 로드
     checkAndInitAdmin();
