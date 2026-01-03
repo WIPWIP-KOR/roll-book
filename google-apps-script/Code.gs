@@ -305,7 +305,7 @@ function getAttendanceDays(callback) {
 // ==================== 출석 처리 (연도별 시트 적용) ====================
 
 function processAttendance(data, e, callback) {
-  const { name, team, season, latitude, longitude, userAgent } = data;
+  const { name, team, season, latitude, longitude, deviceId } = data;
 
   if (!name || !team || !season || !latitude || !longitude) {
     return createResponse(false, '필수 정보가 누락되었습니다.', null, callback);
@@ -333,10 +333,11 @@ function processAttendance(data, e, callback) {
     return createResponse(false, `출석 불가 지역입니다. (${Math.round(distance)}m 떨어짐)`, null, callback);
   }
 
-  const ipAddress = getClientIP(e);
+  // 📱 클라이언트에서 전송한 기기 고유 식별자 사용 (대리 출석 방지)
+  const clientDeviceId = deviceId || 'unknown';
 
   // 💡 현재 연도 시트만 확인하여 중복 체크
-  if (isDuplicateAttendance(name, ipAddress)) {
+  if (isDuplicateAttendance(name, clientDeviceId)) {
     return createResponse(false, '이미 오늘 출석하셨습니다.', null, callback);
   }
 
@@ -364,7 +365,7 @@ function processAttendance(data, e, callback) {
   }
 
   // 💡 현재 연도 시트에 기록 (시즌 정보 및 지각 여부 포함)
-  saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance, lateStatus.isLate);
+  saveAttendanceRecord(name, team, season, latitude, longitude, clientDeviceId, distance, lateStatus.isLate);
   updateMember(name, team, season);
 
   // 지각 여부에 따라 다른 메시지 반환
@@ -462,8 +463,10 @@ function checkLateStatus() {
 
 /**
  * 중복 출석 체크 (현재 연도 시트만 확인)
+ * - 같은 이름으로 오늘 출석했는지 확인
+ * - 같은 기기(deviceId)로 오늘 출석했는지 확인 (대리 출석 방지)
  */
-function isDuplicateAttendance(name, ipAddress) {
+function isDuplicateAttendance(name, deviceId) {
   const sheet = getAttendanceSheet(new Date().getFullYear());
   if (!sheet || sheet.getLastRow() <= 1) return false;
 
@@ -475,14 +478,15 @@ function isDuplicateAttendance(name, ipAddress) {
   for (let i = 1; i < data.length; i++) {
     const rowDate = data[i][0];
     const rowName = data[i][2];
-    const rowIP = data[i][8];   // IP주소 컬럼 (시즌 컬럼 추가로 인해 8번째 인덱스)
+    const rowDeviceId = data[i][9];   // 기기ID 컬럼 (10번째 컬럼, 인덱스 9)
 
     if (!rowDate) continue;
 
     const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 
     if (rowDateStr === todayStr) {
-      if (rowName === name || rowIP === ipAddress) {
+      // 같은 이름이거나 같은 기기로 출석 시도 시 중복으로 판단
+      if (rowName === name || (deviceId && deviceId !== 'unknown' && rowDeviceId === deviceId)) {
         return true;
       }
     }
@@ -493,7 +497,7 @@ function isDuplicateAttendance(name, ipAddress) {
 /**
  * 출석 기록 저장 (현재 연도 시트에 저장, 시즌 정보 및 지각 여부 포함)
  */
-function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance, isLate) {
+function saveAttendanceRecord(name, team, season, latitude, longitude, deviceId, distance, isLate) {
   const currentYear = new Date().getFullYear();
   let sheet = getAttendanceSheet(currentYear);
 
@@ -505,7 +509,7 @@ function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress
   }
 
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['날짜', '요일', '이름', '팀', '시즌', '출석시간', '지각여부', '위도', '경도', 'IP주소', '거리(m)']);
+    sheet.appendRow(['날짜', '요일', '이름', '팀', '시즌', '출석시간', '지각여부', '위도', '경도', '기기ID', '거리(m)']);
   }
 
   const now = new Date();
@@ -523,7 +527,7 @@ function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress
     isLate ? '지각' : '정상',  // 지각 여부
     latitude,
     longitude,
-    ipAddress,
+    deviceId,  // 기기 고유 식별자 (대리 출석 방지)
     Math.round(distance)
   ]);
 }
@@ -1057,18 +1061,8 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-function getClientIP(e) {
-  try {
-    const headers = JSON.stringify(e);
-    return Utilities.computeDigest(
-      Utilities.DigestAlgorithm.MD5,
-      headers,
-      Utilities.Charset.UTF_8
-    ).map(byte => (byte & 0xFF).toString(16).padStart(2, '0')).join('').substring(0, 16);
-  } catch (error) {
-    return 'unknown';
-  }
-}
+// 📱 getClientIP 함수 삭제됨 - 클라이언트에서 전송하는 deviceId로 대체
+// FingerprintJS 기반 기기 식별자를 사용하여 대리 출석 방지
 
 function createResponse(success, message, data, callback) {
   const response = {
