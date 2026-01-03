@@ -1870,8 +1870,8 @@ function approveAttendanceRequest(data, callback) {
       }
     }
 
-    // 출석 기록 저장 (승인된 요청)
-    saveApprovedAttendanceRecord(name, team, season, requestDate, year);
+    // 출석 기록 저장 (승인된 요청) - 요청 시간을 전달하여 지각 판정
+    saveApprovedAttendanceRecord(name, team, season, requestDate, year, requestDateTime);
 
     // 회원 정보 업데이트
     updateMemberForManualAttendance(name, team, season, year);
@@ -1952,7 +1952,7 @@ function rejectAttendanceRequest(data, callback) {
 /**
  * 승인된 출석 요청 기록 저장
  */
-function saveApprovedAttendanceRecord(name, team, season, targetDate, year) {
+function saveApprovedAttendanceRecord(name, team, season, targetDate, year, requestDateTime) {
   let sheet = getAttendanceSheet(year);
 
   // 시트가 없으면 생성
@@ -1970,6 +1970,37 @@ function saveApprovedAttendanceRecord(name, team, season, targetDate, year) {
   const targetDateObj = new Date(targetDate);
   const dayOfWeek = getDayOfWeek(targetDateObj);
 
+  // 요청 시간 추출 (HH:mm:ss 형식)
+  const requestTime = Utilities.formatDate(new Date(requestDateTime), Session.getScriptTimeZone(), 'HH:mm:ss');
+
+  // 지각 여부 판정
+  const settingsSheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+  const lateRow = findSettingRow(settingsSheet, '지각 기준 시간');
+  let isLate = false; // 기본값은 정상
+
+  if (lateRow) {
+    let lateTime = settingsSheet.getRange(lateRow, 2).getValue();
+
+    // Date 객체인 경우 HH:mm 형식 문자열로 변환
+    if (lateTime instanceof Date) {
+      lateTime = Utilities.formatDate(lateTime, Session.getScriptTimeZone(), 'HH:mm');
+    }
+
+    if (lateTime) {
+      // 요청 시간을 HH:mm 형식으로 변환하여 비교
+      const requestTimeForCompare = Utilities.formatDate(new Date(requestDateTime), Session.getScriptTimeZone(), 'HH:mm');
+
+      // 문자열을 분 단위로 변환하여 비교
+      const requestMinutes = timeToMinutes(requestTimeForCompare);
+      const lateMinutes = timeToMinutes(lateTime);
+
+      if (requestMinutes !== null && lateMinutes !== null) {
+        isLate = requestMinutes >= lateMinutes;
+        Logger.log(`지각 판정: 요청시간=${requestTimeForCompare}(${requestMinutes}분), 지각기준=${lateTime}(${lateMinutes}분), 결과=${isLate ? '지각' : '정상'}`);
+      }
+    }
+  }
+
   // 승인된 요청은 IP주소에 'approved' 표시
   sheet.appendRow([
     targetDate,
@@ -1977,13 +2008,13 @@ function saveApprovedAttendanceRecord(name, team, season, targetDate, year) {
     name,
     team,
     season,
-    '승인됨',  // 출석시간에 '승인됨' 표시
-    '정상',   // 지각여부는 기본 '정상'
+    requestTime,  // 출석시간에 요청 시간 저장
+    isLate ? '지각' : '정상',   // 지각 여부 판정 결과
     null,     // 위도
     null,     // 경도
     'approved', // IP주소에 approved 표시
     null      // 거리
   ]);
 
-  Logger.log(`승인된 출석 기록 저장: ${name}, ${targetDate}`);
+  Logger.log(`승인된 출석 기록 저장: ${name}, ${targetDate}, 출석시간: ${requestTime}, 지각여부: ${isLate ? '지각' : '정상'}`);
 }
