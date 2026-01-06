@@ -913,8 +913,8 @@ function moveToCurrentLocation() {
             const latitude = position.coords.latitude;
             const longitude = position.coords.longitude;
 
-            // userPosition 업데이트 (출석체크에 사용)
-            userPosition = { latitude, longitude };
+            // userPosition 업데이트 (출석체크에 사용) - position.coords 구조와 통일
+            userPosition = { latitude: latitude, longitude: longitude };
 
             // 지도와 마커 업데이트
             if (locationMap && locationMarker && typeof kakao !== 'undefined' && kakao.maps) {

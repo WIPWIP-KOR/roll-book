@@ -1565,11 +1565,11 @@ function manualAttend(data, callback) {
     // 중복 출석 확인
     const attendanceSheet = getAttendanceSheet(year);
     if (attendanceSheet && attendanceSheet.getLastRow() > 1) {
-      const data = attendanceSheet.getDataRange().getValues();
+      const sheetData = attendanceSheet.getDataRange().getValues();
 
-      for (let i = 1; i < data.length; i++) {
-        const rowDate = data[i][0];
-        const rowName = data[i][2];
+      for (let i = 1; i < sheetData.length; i++) {
+        const rowDate = sheetData[i][0];
+        const rowName = sheetData[i][2];
 
         if (!rowDate) continue;
 

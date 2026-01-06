@@ -27,21 +27,37 @@ let allStats = {}; // { '2025_all': {personal: [...], ...}, '2025_firstHalf': {.
  */
 function requestGas(action, params = {}) {
     return new Promise((resolve, reject) => {
-        const callbackName = 'jsonpCallback_' + Date.now();
-        
-        window[callbackName] = (response) => {
+        const callbackName = 'jsonpCallback_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        let timeoutId;
+
+        // 정리 함수
+        const cleanup = () => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
             const script = document.getElementById(callbackName);
             if (script) {
                 script.remove();
             }
             delete window[callbackName];
-            
-            if (response.success) {
+        };
+
+        // 콜백 함수를 전역 범위에 등록
+        window[callbackName] = (response) => {
+            cleanup();
+
+            if (response && response.success) {
                 resolve(response);
             } else {
-                reject(response.message || '서버 오류가 발생했습니다.');
+                reject(response?.message || '서버 오류가 발생했습니다.');
             }
         };
+
+        // 타임아웃 설정 (10초)
+        timeoutId = setTimeout(() => {
+            cleanup();
+            reject('요청 시간이 초과되었습니다. 네트워크 상태를 확인해주세요.');
+        }, 10000);
 
         const url = new URL(GAS_URL);
         url.searchParams.append('action', action);
@@ -53,19 +69,18 @@ function requestGas(action, params = {}) {
             }
         }
 
+        // 스크립트 태그를 생성하여 JSONP 요청
         const script = document.createElement('script');
         script.src = url.toString();
         script.id = callbackName;
-        document.head.appendChild(script);
 
+        // 오류 처리
         script.onerror = () => {
+            cleanup();
             reject('네트워크 연결 또는 서버 응답에 실패했습니다.');
-            const script = document.getElementById(callbackName);
-            if (script) {
-                script.remove();
-            }
-            delete window[callbackName];
         };
+
+        document.head.appendChild(script);
     });
 }
 
@@ -232,43 +247,6 @@ function hideLoadingSpinner() {
         overlay.style.display = 'none';
     }
 }
-
-/**
- * 백그라운드에서 다른 연도들의 데이터를 미리 로드
- * ⚠️ 드롭다운 방식으로 변경되어 더 이상 사용하지 않음 (온디맨드 로딩)
- */
-/*
-async function preloadOtherYears(years) {
-    console.log('🚀 백그라운드 프리로딩 시작:', years);
-
-    for (const year of years) {
-        try {
-            // 이미 캐시된 경우 스킵
-            if (allStats[year]) {
-                console.log(`✅ ${year}년 데이터는 이미 캐시됨`);
-                continue;
-            }
-
-            console.log(`📥 ${year}년 데이터 로딩 중...`);
-            const response = await requestGas('getStats', { year: year });
-            const stats = response.stats;
-
-            // 캐시에 저장
-            allStats[year] = stats;
-            console.log(`✅ ${year}년 데이터 캐시 완료`);
-
-            // 너무 빠르게 연속 요청하지 않도록 짧은 딜레이
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-        } catch (error) {
-            console.error(`❌ ${year}년 데이터 프리로딩 실패:`, error);
-            // 에러가 나도 계속 진행
-        }
-    }
-
-    console.log('✅ 모든 연도 데이터 프리로딩 완료');
-}
-*/
 
 // ==================== 연도 및 데이터 로드 관리 ====================
 
@@ -1036,9 +1014,8 @@ function createMonthTabButton(month) {
 }
 
 function getCurrentMonthFromStats(weeklyStats) {
-    if (weeklyStats.length === 0) return null;
-    const lastStat = weeklyStats[weeklyStats.length - 1];
-    return parseInt(lastStat.fullDate.substring(5, 7));
+    // 데이터 유무와 관계없이 현재 월 반환
+    return new Date().getMonth() + 1;
 }
 
 function filterWeeklyStatsByMonth(month, weeklyStats) {
