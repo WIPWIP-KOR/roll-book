@@ -56,7 +56,7 @@ function doGet(e) {
       case 'getAttendanceDays':
           return getAttendanceDays(callback);
       case 'recalculateLateStatus':
-          return recalculateLateStatus(callback);
+          return recalculateLateStatus(e.parameter.startDate, e.parameter.endDate, callback);
 
       // 데이터/정보 조회
       case 'getMembers':
@@ -305,7 +305,7 @@ function getAttendanceDays(callback) {
 // ==================== 출석 처리 (연도별 시트 적용) ====================
 
 function processAttendance(data, e, callback) {
-  const { name, team, season, latitude, longitude, userAgent } = data;
+  const { name, team, season, latitude, longitude, deviceId } = data;
 
   if (!name || !team || !season || !latitude || !longitude) {
     return createResponse(false, '필수 정보가 누락되었습니다.', null, callback);
@@ -333,10 +333,11 @@ function processAttendance(data, e, callback) {
     return createResponse(false, `출석 불가 지역입니다. (${Math.round(distance)}m 떨어짐)`, null, callback);
   }
 
-  const ipAddress = getClientIP(e);
+  // 📱 클라이언트에서 전송한 기기 고유 식별자 사용 (대리 출석 방지)
+  const clientDeviceId = deviceId || 'unknown';
 
   // 💡 현재 연도 시트만 확인하여 중복 체크
-  if (isDuplicateAttendance(name, ipAddress)) {
+  if (isDuplicateAttendance(name, clientDeviceId)) {
     return createResponse(false, '이미 오늘 출석하셨습니다.', null, callback);
   }
 
@@ -364,7 +365,7 @@ function processAttendance(data, e, callback) {
   }
 
   // 💡 현재 연도 시트에 기록 (시즌 정보 및 지각 여부 포함)
-  saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance, lateStatus.isLate);
+  saveAttendanceRecord(name, team, season, latitude, longitude, clientDeviceId, distance, lateStatus.isLate);
   updateMember(name, team, season);
 
   // 지각 여부에 따라 다른 메시지 반환
@@ -462,8 +463,10 @@ function checkLateStatus() {
 
 /**
  * 중복 출석 체크 (현재 연도 시트만 확인)
+ * - 같은 이름으로 오늘 출석했는지 확인
+ * - 같은 기기(deviceId)로 오늘 출석했는지 확인 (대리 출석 방지)
  */
-function isDuplicateAttendance(name, ipAddress) {
+function isDuplicateAttendance(name, deviceId) {
   const sheet = getAttendanceSheet(new Date().getFullYear());
   if (!sheet || sheet.getLastRow() <= 1) return false;
 
@@ -475,14 +478,15 @@ function isDuplicateAttendance(name, ipAddress) {
   for (let i = 1; i < data.length; i++) {
     const rowDate = data[i][0];
     const rowName = data[i][2];
-    const rowIP = data[i][8];   // IP주소 컬럼 (시즌 컬럼 추가로 인해 8번째 인덱스)
+    const rowDeviceId = data[i][9];   // 기기ID 컬럼 (10번째 컬럼, 인덱스 9)
 
     if (!rowDate) continue;
 
     const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 
     if (rowDateStr === todayStr) {
-      if (rowName === name || rowIP === ipAddress) {
+      // 같은 이름이거나 같은 기기로 출석 시도 시 중복으로 판단
+      if (rowName === name || (deviceId && deviceId !== 'unknown' && rowDeviceId === deviceId)) {
         return true;
       }
     }
@@ -493,7 +497,7 @@ function isDuplicateAttendance(name, ipAddress) {
 /**
  * 출석 기록 저장 (현재 연도 시트에 저장, 시즌 정보 및 지각 여부 포함)
  */
-function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress, distance, isLate) {
+function saveAttendanceRecord(name, team, season, latitude, longitude, deviceId, distance, isLate) {
   const currentYear = new Date().getFullYear();
   let sheet = getAttendanceSheet(currentYear);
 
@@ -505,7 +509,7 @@ function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress
   }
 
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['날짜', '요일', '이름', '팀', '시즌', '출석시간', '지각여부', '위도', '경도', 'IP주소', '거리(m)']);
+    sheet.appendRow(['날짜', '요일', '이름', '팀', '시즌', '출석시간', '지각여부', '위도', '경도', '기기ID', '거리(m)']);
   }
 
   const now = new Date();
@@ -523,7 +527,7 @@ function saveAttendanceRecord(name, team, season, latitude, longitude, ipAddress
     isLate ? '지각' : '정상',  // 지각 여부
     latitude,
     longitude,
-    ipAddress,
+    deviceId,  // 기기 고유 식별자 (대리 출석 방지)
     Math.round(distance)
   ]);
 }
@@ -1057,18 +1061,8 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-function getClientIP(e) {
-  try {
-    const headers = JSON.stringify(e);
-    return Utilities.computeDigest(
-      Utilities.DigestAlgorithm.MD5,
-      headers,
-      Utilities.Charset.UTF_8
-    ).map(byte => (byte & 0xFF).toString(16).padStart(2, '0')).join('').substring(0, 16);
-  } catch (error) {
-    return 'unknown';
-  }
-}
+// 📱 getClientIP 함수 삭제됨 - 클라이언트에서 전송하는 deviceId로 대체
+// FingerprintJS 기반 기기 식별자를 사용하여 대리 출석 방지
 
 function createResponse(success, message, data, callback) {
   const response = {
@@ -1332,11 +1326,22 @@ function runAllMigrations() {
 }
 
 /**
- * 기존 출석 기록의 지각 여부를 재계산하여 업데이트
- * Google Apps Script 편집기에서 이 함수를 실행하거나 관리자 페이지에서 호출하세요.
+ * 기존 출석 기록의 지각 여부를 재계산하여 업데이트 (날짜 범위 지정 가능)
+ * @param {string} startDate - 시작일 (YYYY-MM-DD 형식)
+ * @param {string} endDate - 종료일 (YYYY-MM-DD 형식)
+ * @param {string} callback - JSONP 콜백
  */
-function recalculateLateStatus(callback) {
+function recalculateLateStatus(startDate, endDate, callback) {
   try {
+    // 날짜 유효성 검사
+    if (!startDate || !endDate) {
+      const message = '⚠️ 시작일과 종료일을 모두 지정해주세요.';
+      Logger.log(message);
+      return createResponse(false, message, null, callback);
+    }
+
+    Logger.log('재계산 기간: ' + startDate + ' ~ ' + endDate);
+
     // 지각 기준 시간 가져오기
     const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
     const lateRow = findSettingRow(sheet, '지각 기준 시간');
@@ -1370,7 +1375,7 @@ function recalculateLateStatus(callback) {
     if (attendanceSheets.length === 0) {
       const message = '📋 처리할 출석 기록이 없습니다.';
       Logger.log(message);
-      return createResponse(true, message, { updatedCount: 0 }, callback);
+      return createResponse(true, message, { updatedCount: 0, totalProcessed: 0 }, callback);
     }
 
     let totalUpdated = 0;
@@ -1388,12 +1393,13 @@ function recalculateLateStatus(callback) {
 
       const data = attendanceSheet.getDataRange().getValues();
 
-      // 헤더 확인 (출석시간과 지각여부 컬럼 위치 찾기)
+      // 헤더 확인 (날짜, 출석시간, 지각여부 컬럼 위치 찾기)
       const headers = data[0];
+      const dateColIndex = headers.indexOf('날짜');
       const timeColIndex = headers.indexOf('출석시간');
       const lateColIndex = headers.indexOf('지각여부');
 
-      if (timeColIndex === -1 || lateColIndex === -1) {
+      if (dateColIndex === -1 || timeColIndex === -1 || lateColIndex === -1) {
         Logger.log('  ⚠️ 필요한 컬럼을 찾을 수 없습니다.');
         return;
       }
@@ -1401,10 +1407,24 @@ function recalculateLateStatus(callback) {
       // 데이터 행 처리 (1부터 시작 - 0은 헤더)
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
+        const rowDate = row[dateColIndex];
         let attendanceTime = row[timeColIndex];
         const currentLateStatus = row[lateColIndex];
 
-        if (!attendanceTime) continue;
+        if (!rowDate || !attendanceTime) continue;
+
+        // 날짜를 YYYY-MM-DD 형식으로 변환
+        let rowDateStr = '';
+        if (rowDate instanceof Date) {
+          rowDateStr = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        } else if (typeof rowDate === 'string') {
+          rowDateStr = rowDate;
+        }
+
+        // 날짜 범위 필터링
+        if (rowDateStr < startDate || rowDateStr > endDate) {
+          continue; // 범위 밖이면 건너뛰기
+        }
 
         totalProcessed++;
 
@@ -1430,12 +1450,12 @@ function recalculateLateStatus(callback) {
         if (currentLateStatus !== newLateStatus) {
           attendanceSheet.getRange(i + 1, lateColIndex + 1).setValue(newLateStatus);
           totalUpdated++;
-          Logger.log(`  행 ${i + 1}: ${timeStr} -> ${newLateStatus} (이전: ${currentLateStatus})`);
+          Logger.log(`  행 ${i + 1} (${rowDateStr}): ${timeStr} -> ${newLateStatus} (이전: ${currentLateStatus})`);
         }
       }
     });
 
-    const message = `✅ 재계산 완료!\n총 ${totalProcessed}개 기록 중 ${totalUpdated}개 업데이트됨`;
+    const message = `✅ 재계산 완료! (${startDate} ~ ${endDate})\n총 ${totalProcessed}개 기록 중 ${totalUpdated}개 업데이트됨`;
     Logger.log('\n' + message);
 
     return createResponse(true, message, {

@@ -19,6 +19,63 @@ let membersList = [];
 let statusLoaded = false; // 출석현황 로딩 여부
 let currentSeason = null; // 현재 시즌 정보
 let pendingAttendanceRequest = { name: '', team: '' }; // 출석 요청 대기 중인 정보
+let deviceId = null; // 기기 고유 식별자
+
+// 기기 고유 식별자 생성 (FingerprintJS + localStorage 조합)
+async function initDeviceId() {
+    try {
+        // 1. localStorage에 저장된 ID가 있으면 먼저 확인
+        const storedId = localStorage.getItem('device_id');
+
+        // 2. FingerprintJS로 브라우저 핑거프린트 생성
+        if (typeof FingerprintJS !== 'undefined') {
+            const fp = await FingerprintJS.load();
+            const result = await fp.get();
+            const visitorId = result.visitorId; // 핑거프린트 기반 ID
+
+            if (storedId) {
+                // 저장된 ID가 있으면 핑거프린트와 조합해서 사용
+                deviceId = storedId;
+            } else {
+                // 없으면 새로 생성하고 저장
+                deviceId = 'DEV_' + visitorId + '_' + Date.now().toString(36);
+                localStorage.setItem('device_id', deviceId);
+            }
+
+            // 핑거프린트도 별도 저장 (localStorage 삭제 감지용)
+            const storedFingerprint = localStorage.getItem('device_fingerprint');
+            if (!storedFingerprint) {
+                localStorage.setItem('device_fingerprint', visitorId);
+            } else if (storedFingerprint !== visitorId) {
+                // 핑거프린트가 다르면 (다른 기기에서 localStorage 복사 시도)
+                // 새로운 ID 생성
+                deviceId = 'DEV_' + visitorId + '_' + Date.now().toString(36);
+                localStorage.setItem('device_id', deviceId);
+                localStorage.setItem('device_fingerprint', visitorId);
+            }
+        } else {
+            // FingerprintJS 로드 실패 시 fallback
+            if (storedId) {
+                deviceId = storedId;
+            } else {
+                deviceId = 'DEV_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
+                localStorage.setItem('device_id', deviceId);
+            }
+        }
+
+        console.log('📱 Device ID initialized:', deviceId.substring(0, 20) + '...');
+    } catch (error) {
+        console.error('Device ID 초기화 오류:', error);
+        // 오류 시 기본 fallback
+        const storedId = localStorage.getItem('device_id');
+        if (storedId) {
+            deviceId = storedId;
+        } else {
+            deviceId = 'DEV_FALLBACK_' + Date.now().toString(36);
+            localStorage.setItem('device_id', deviceId);
+        }
+    }
+}
 
 // 현재 시즌 판단 함수
 function getCurrentSeason() {
@@ -44,7 +101,7 @@ function getCurrentSeason() {
 }
 
 // 초기화
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // 💡 jQuery 로드 여부 확인
     if (typeof jQuery === 'undefined') {
         showMessage('오류: jQuery 라이브러리가 로드되지 않았습니다.', 'error');
@@ -53,6 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 💡 설정 확인
     console.log('📋 CONFIG.GAS_URL:', CONFIG.GAS_URL);
+
+    // 📱 기기 식별자 초기화 (대리 출석 방지)
+    await initDeviceId();
 
     // 현재 시즌 설정 및 표시
     currentSeason = getCurrentSeason();
@@ -359,7 +419,7 @@ function processAttendance() {
         season: currentSeason.season, // 상반기 또는 하반기
         latitude: userPosition.latitude,
         longitude: userPosition.longitude,
-        userAgent: navigator.userAgent // IP 대체를 위한 정보
+        deviceId: deviceId || 'unknown' // 📱 기기 고유 식별자 (대리 출석 방지)
     };
 
     $.ajax({
@@ -1131,7 +1191,8 @@ function submitAttendanceRequest() {
         season: currentSeason.season,
         latitude: userPosition ? userPosition.latitude : '',
         longitude: userPosition ? userPosition.longitude : '',
-        reason: reason
+        reason: reason,
+        deviceId: deviceId || 'unknown' // 📱 기기 고유 식별자
     };
 
     $.ajax({
