@@ -55,6 +55,12 @@ function doGet(e) {
           return createResponse(saveDaysSuccess, saveDaysSuccess ? null : 'Failed to save attendance days', null, callback);
       case 'getAttendanceDays':
           return getAttendanceDays(callback);
+      case 'saveAttendanceRadius':
+          const radius = e.parameter.radius;
+          const saveRadiusSuccess = saveAttendanceRadius(radius);
+          return createResponse(saveRadiusSuccess, saveRadiusSuccess ? null : 'Failed to save attendance radius', null, callback);
+      case 'getAttendanceRadius':
+          return getAttendanceRadius(callback);
       case 'recalculateLateStatus':
           return recalculateLateStatus(e.parameter.startDate, e.parameter.endDate, callback);
 
@@ -302,6 +308,49 @@ function getAttendanceDays(callback) {
     }
 }
 
+/**
+ * 출석 인정 거리 설정 저장
+ */
+function saveAttendanceRadius(radiusValue) {
+    try {
+        const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+        let row = findSettingRow(sheet, '출석 인정 거리');
+
+        if (!row) {
+            sheet.appendRow(['출석 인정 거리', radiusValue]);
+        } else {
+            sheet.getRange(row, 2).setValue(radiusValue);
+        }
+
+        Logger.log(`Attendance radius saved: ${radiusValue}m`);
+        return true;
+    } catch (e) {
+        Logger.log('Error in saveAttendanceRadius: ' + e.toString());
+        return false;
+    }
+}
+
+/**
+ * 출석 인정 거리 설정 불러오기
+ */
+function getAttendanceRadius(callback) {
+    try {
+        const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+        const row = findSettingRow(sheet, '출석 인정 거리');
+        const radiusValue = row ? sheet.getRange(row, 2).getValue() : null;
+
+        // 숫자로 변환 (문자열로 저장되었을 경우 대비)
+        const radius = radiusValue !== null && radiusValue !== '' ? parseInt(radiusValue, 10) : 50; // 기본값 50m
+
+        return createResponse(true, null, {
+            radius: radius
+        }, callback);
+    } catch (e) {
+        Logger.log('Error in getAttendanceRadius: ' + e.toString());
+        return createResponse(false, e.toString(), null, callback);
+    }
+}
+
 // ==================== 출석 처리 (연도별 시트 적용) ====================
 
 function processAttendance(data, e, callback) {
@@ -329,8 +378,11 @@ function processAttendance(data, e, callback) {
     targetLocation.latitude, targetLocation.longitude
   );
 
-  if (distance > REQUIRED_RADIUS) {
-    return createResponse(false, `출석 불가 지역입니다. (${Math.round(distance)}m 떨어짐)`, null, callback);
+  // 💡 설정된 출석 인정 거리 가져오기
+  const requiredRadius = getAttendanceRadiusValue();
+
+  if (distance > requiredRadius) {
+    return createResponse(false, `출석 불가 지역입니다. (${Math.round(distance)}m 떨어짐, 허용 거리: ${requiredRadius}m)`, null, callback);
   }
 
   // 📱 클라이언트에서 전송한 기기 고유 식별자 사용 (대리 출석 방지)
@@ -1043,6 +1095,41 @@ function getAllowedDays() {
     } catch (e) {
         Logger.log('Error in getAllowedDays: ' + e.toString());
         return []; // 오류 시 모든 요일 허용
+    }
+}
+
+/**
+ * 출석 인정 거리 값 가져오기 (헬퍼 함수)
+ * @returns {number} 출석 인정 거리 (미터), 설정이 없으면 기본값 50m 반환
+ */
+function getAttendanceRadiusValue() {
+    try {
+        const sheet = getOrCreateSheet(SHEET_NAMES.SETTINGS);
+        const row = findSettingRow(sheet, '출석 인정 거리');
+
+        if (!row) {
+            Logger.log('출석 인정 거리 설정이 없습니다. 기본값 50m 사용');
+            return 50; // 기본값
+        }
+
+        const radiusValue = sheet.getRange(row, 2).getValue();
+        if (radiusValue === null || radiusValue === '') {
+            Logger.log('출석 인정 거리 값이 비어있습니다. 기본값 50m 사용');
+            return 50; // 기본값
+        }
+
+        // 숫자로 변환
+        const radius = parseInt(radiusValue, 10);
+        if (isNaN(radius)) {
+            Logger.log('출석 인정 거리 값이 유효하지 않습니다. 기본값 50m 사용');
+            return 50; // 기본값
+        }
+
+        Logger.log('출석 인정 거리: ' + radius + 'm');
+        return radius;
+    } catch (e) {
+        Logger.log('Error in getAttendanceRadiusValue: ' + e.toString() + '. 기본값 50m 사용');
+        return 50; // 오류 시 기본값
     }
 }
 

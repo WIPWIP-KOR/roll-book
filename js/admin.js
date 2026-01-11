@@ -575,6 +575,100 @@ async function loadAttendanceTime() {
 }
 
 /**
+ * 출석 인정 거리 설정 저장
+ */
+async function saveAttendanceRadius() {
+    const radius = document.getElementById('attendanceRadius').value;
+    const messageEl = document.getElementById('attendanceRadiusMessage');
+
+    // 입력 검증
+    if (!radius || radius === '') {
+        messageEl.textContent = '거리를 입력해주세요.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    const radiusNum = parseInt(radius, 10);
+    if (isNaN(radiusNum) || radiusNum < 10 || radiusNum > 500) {
+        messageEl.textContent = '거리는 10m~500m 사이로 설정해주세요.';
+        messageEl.className = 'message-area error';
+        return;
+    }
+
+    try {
+        const response = await requestGas('saveAttendanceRadius', {
+            radius: radiusNum
+        });
+
+        if (response.success) {
+            messageEl.textContent = '✅ 출석 인정 거리 설정이 저장되었습니다.';
+            messageEl.className = 'message-area success';
+
+            // 현재 설정 표시 업데이트
+            document.getElementById('currentRadius').textContent = radiusNum + 'm';
+
+            // 3초 후 메시지 제거
+            setTimeout(() => {
+                messageEl.textContent = '';
+                messageEl.className = 'message-area';
+            }, 3000);
+        } else {
+            messageEl.textContent = '❌ 저장에 실패했습니다: ' + (response.message || '알 수 없는 오류');
+            messageEl.className = 'message-area error';
+        }
+    } catch (error) {
+        messageEl.textContent = '❌ 저장 중 오류가 발생했습니다: ' + error;
+        messageEl.className = 'message-area error';
+    }
+}
+
+/**
+ * 출석 인정 거리 설정 불러오기
+ */
+async function loadAttendanceRadius() {
+    try {
+        console.log('📍 출석 인정 거리 설정 로드 시작...');
+        const response = await requestGas('getAttendanceRadius');
+
+        console.log('✅ 출석 인정 거리 설정 응답:', response);
+
+        if (response.success && response.radius !== undefined && response.radius !== null) {
+            const radius = response.radius;
+
+            // 현재 설정 표시 업데이트
+            document.getElementById('currentRadius').textContent = radius + 'm';
+
+            // 입력 필드에 값 설정
+            document.getElementById('attendanceRadius').value = radius;
+
+            console.log('✅ 출석 인정 거리 설정 로드 완료:', radius);
+        } else {
+            // 설정이 없을 때 기본값 50m 사용
+            console.log('ℹ️ 출석 인정 거리 설정이 없습니다. 기본값 50m 사용');
+            document.getElementById('currentRadius').textContent = '50m';
+            document.getElementById('attendanceRadius').value = 50;
+        }
+    } catch (error) {
+        console.error('❌ 출석 인정 거리 설정 로드 오류:', error);
+
+        // 오류 시 기본값 사용
+        document.getElementById('currentRadius').textContent = '50m';
+        document.getElementById('attendanceRadius').value = 50;
+
+        // 사용자에게 오류 표시
+        const messageEl = document.getElementById('attendanceRadiusMessage');
+        if (messageEl) {
+            messageEl.textContent = '⚠️ 설정을 불러오는 중 오류가 발생했습니다: ' + error;
+            messageEl.className = 'message-area error';
+            setTimeout(() => {
+                messageEl.textContent = '';
+                messageEl.className = 'message-area';
+            }, 5000);
+        }
+    }
+}
+
+/**
  * 출석 가능 요일 설정 저장
  */
 async function saveAttendanceDays() {
@@ -857,9 +951,10 @@ async function loadSettingsTab() {
     console.log('⚙️ 설정 탭 데이터 로드 시작...');
 
     try {
-        // 출석 시간 설정 및 요일 설정 항상 로드 (최신 데이터 표시)
+        // 출석 시간 설정, 거리 설정, 요일 설정 항상 로드 (최신 데이터 표시)
         await Promise.all([
             loadAttendanceTime(),
+            loadAttendanceRadius(),
             loadAttendanceDays()
         ]);
 
@@ -1445,6 +1540,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveAttendanceDaysBtn = document.getElementById('saveAttendanceDaysBtn');
     if (saveAttendanceDaysBtn) {
         saveAttendanceDaysBtn.addEventListener('click', saveAttendanceDays);
+    }
+
+    const saveAttendanceRadiusBtn = document.getElementById('saveAttendanceRadiusBtn');
+    if (saveAttendanceRadiusBtn) {
+        saveAttendanceRadiusBtn.addEventListener('click', saveAttendanceRadius);
     }
 
     // 출석 가능 요일 체크박스 - label의 기본 동작 사용
