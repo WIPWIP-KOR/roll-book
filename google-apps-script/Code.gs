@@ -140,6 +140,8 @@ function doPost(e) {
         return processAttendance(data, e, callback);
       case 'saveLocation':
         return saveLocation(data, callback);
+      case 'submitAttendanceRequest':
+        return submitAttendanceRequest(data, callback);
       default:
         return createResponse(false, 'Invalid action', null, callback);
     }
