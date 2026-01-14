@@ -1318,41 +1318,54 @@ function displayRandomAttendees(attendees) {
  * 출석 요청 제출
  */
 function submitAttendanceRequest() {
+    console.log('🚀 [디버그] submitAttendanceRequest 함수 시작');
+
     // 저장된 이름과 팀 정보 사용
     const name = pendingAttendanceRequest.name;
     const team = pendingAttendanceRequest.team;
+    console.log('🚀 [디버그] 이름:', name, '팀:', team);
 
     if (!name || !team) {
+        console.log('❌ [디버그] 이름/팀 정보 없음');
         showMessage('이름과 팀 정보가 없습니다. 다시 시도해주세요.', 'error');
         return;
     }
 
     // 사진 촬영 여부 확인
+    console.log('🚀 [디버그] capturedPhotoData:', capturedPhotoData ? '있음' : '없음');
     if (!capturedPhotoData) {
+        console.log('❌ [디버그] 사진 없음');
         showMessage('사진을 촬영해주세요.', 'error');
         return;
     }
 
     // 선택된 동료 (랜덤 인원이 있는 경우만)
     let selectedPerson = '';
+    console.log('🚀 [디버그] randomAttendeesData.length:', randomAttendeesData.length);
     if (randomAttendeesData.length > 0) {
         const selectedPersonRadio = document.querySelector('input[name="selectedPerson"]:checked');
+        console.log('🚀 [디버그] selectedPersonRadio:', selectedPersonRadio);
         if (!selectedPersonRadio) {
+            console.log('❌ [디버그] 동료 선택 안 됨');
             showMessage('함께 사진 찍을 사람을 선택해주세요.', 'error');
             return;
         }
         selectedPerson = selectedPersonRadio.value;
+        console.log('🚀 [디버그] selectedPerson:', selectedPerson);
     }
 
     // 선택된 라디오 버튼 값 가져오기
     const selectedRadio = document.querySelector('input[name="requestReason"]:checked');
+    console.log('🚀 [디버그] selectedRadio:', selectedRadio);
     let reason = '';
 
     if (selectedRadio) {
         if (selectedRadio.value === '기타') {
             // "기타" 선택 시 직접 입력한 내용 사용
             const customReason = document.getElementById('requestReasonCustom').value.trim();
+            console.log('🚀 [디버그] customReason:', customReason);
             if (!customReason) {
+                console.log('❌ [디버그] 기타 사유 입력 안 됨');
                 showMessage('사유를 직접 입력해주세요.', 'error');
                 return;
             }
@@ -1362,11 +1375,15 @@ function submitAttendanceRequest() {
             reason = selectedRadio.value;
         }
     }
+    console.log('🚀 [디버그] reason:', reason);
 
     if (!reason) {
+        console.log('❌ [디버그] 사유 없음');
         showMessage('사유를 선택해주세요.', 'error');
         return;
     }
+
+    console.log('✅ [디버그] 모든 검증 통과, 전송 시작');
 
     const submitBtn = document.getElementById('submitRequestBtn');
     submitBtn.disabled = true;
