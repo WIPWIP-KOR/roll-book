@@ -23,8 +23,17 @@ const CACHE_TTL_SECONDS = 21600; // 회원 목록 캐시 만료 시간 (6시간)
  * GET 요청 처리 (주요 액션 및 통계 연도 처리)
  */
 function doGet(e) {
+  // e 또는 e.parameter가 없는 경우 처리
+  if (!e || !e.parameter) {
+    Logger.log('❌ [doGet] e 또는 e.parameter가 없음');
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: 'Invalid request: missing parameters'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   Logger.log('요청 파라미터(e.parameter): ' + JSON.stringify(e.parameter));
-  
+
   const action = e.parameter.action;
   const callback = e.parameter.callback;
 
@@ -129,11 +138,26 @@ function doGet(e) {
  * POST 요청 처리 (doGet으로 대부분 통합되었으나 유지)
  */
 function doPost(e) {
-  let callback = e.parameter.callback;
+  // e가 없는 경우 처리
+  if (!e) {
+    Logger.log('❌ [doPost] e가 없음');
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: 'Invalid request: missing event object'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  let callback = e.parameter ? e.parameter.callback : null;
 
   try {
+    // postData가 없는 경우 처리
+    if (!e.postData || !e.postData.contents) {
+      Logger.log('❌ [doPost] postData가 없음');
+      return createResponse(false, 'Invalid request: missing post data', null, callback);
+    }
+
     const data = JSON.parse(e.postData.contents);
-    const action = data.action || e.parameter.action;
+    const action = data.action || (e.parameter ? e.parameter.action : null);
 
     switch(action) {
       case 'attend':
