@@ -1904,10 +1904,16 @@ function uploadPhotoToDrive(photoData, requestId, name) {
 
     Logger.log(`📸 [Base64 파싱 완료] 데이터 길이: ${base64Data.length} bytes`);
 
+    // 파일명에 날짜와 시간 추가
+    const now = new Date();
+    const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMdd');
+    const timeStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HHmm');
+    const fileName = `${dateStr}_${timeStr}_${name}_${requestId}.jpg`;
+
     // Base64를 Blob으로 변환
     const decodedData = Utilities.base64Decode(base64Data);
-    const blob = Utilities.newBlob(decodedData, 'image/jpeg', `${requestId}_${name}.jpg`);
-    Logger.log(`📸 [Blob 생성 완료] 파일명: ${requestId}_${name}.jpg`);
+    const blob = Utilities.newBlob(decodedData, 'image/jpeg', fileName);
+    Logger.log(`📸 [Blob 생성 완료] 파일명: ${fileName}`);
 
     // 폴더 생성 또는 가져오기 (출석요청사진 폴더)
     const folders = DriveApp.getFoldersByName('출석요청사진');
@@ -1928,8 +1934,8 @@ function uploadPhotoToDrive(photoData, requestId, name) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     Logger.log(`🔓 [공개 권한 설정 완료]`);
 
-    // 공개 URL 반환
-    const fileUrl = `https://drive.google.com/uc?id=${file.getId()}`;
+    // 이미지 직접 표시용 URL (export=view 파라미터 추가)
+    const fileUrl = `https://drive.google.com/uc?export=view&id=${file.getId()}`;
 
     Logger.log(`✅ [사진 업로드 완료] URL: ${fileUrl}`);
 
