@@ -1395,10 +1395,19 @@ function submitAttendanceRequest() {
     })
     .then(response => response.json())
     .then(data => {
+        // 백엔드 로그를 콘솔에 출력
+        if (data.logs && data.logs.length > 0) {
+            console.log('🔍 [백엔드 로그 시작] ====================================');
+            data.logs.forEach(log => console.log(log));
+            console.log('🔍 [백엔드 로그 끝] ====================================');
+        }
+
         if (data.success) {
+            console.log('✅ [출석 요청 성공]', data);
             showMessage('✅ 출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', 'success');
             hideRequestModal();
         } else {
+            console.error('❌ [출석 요청 실패]', data);
             showMessage('❌ ' + (data.message || '요청 제출에 실패했습니다.'), 'error');
         }
         submitBtn.disabled = false;
