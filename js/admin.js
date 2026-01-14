@@ -14,11 +14,6 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBA
 // 인증 토큰 유효 시간 (30분)
 const AUTH_TOKEN_DURATION = 30 * 60 * 1000; 
 
-// 카카오 지도 API의 클라이언트 키 (admin.js 파일의 HTML에 스크립트 태그로 포함되어야 함)
-// let map; // 전역 변수 지도 객체 (HTML에서 초기화될 예정)
-// let marker; // 전역 변수 마커 객체 (HTML에서 초기화될 예정)
-
-
 // ==================== 탭 상태 관리 ====================
 
 // 각 탭의 로딩 상태 추적
@@ -1030,7 +1025,6 @@ function displaySearchResults(places) {
  */
 function selectPlace(lat, lng, name) {
     console.log('📍 장소 선택:', { lat, lng, name });
-    alert('장소 선택: ' + name); // 디버깅용
 
     // 입력 필드 업데이트
     const latInput = document.getElementById('latitude');
@@ -1044,10 +1038,8 @@ function selectPlace(lat, lng, name) {
         lngInput.value = lng;
         nameInput.value = name;
         console.log('✅ 입력 필드 업데이트 완료');
-        alert('입력 필드 업데이트 완료!'); // 디버깅용
     } else {
         console.error('❌ 입력 필드를 찾을 수 없습니다!');
-        alert('입력 필드를 찾을 수 없습니다!'); // 디버깅용
     }
 
     // 지도와 마커가 있으면 위치 업데이트

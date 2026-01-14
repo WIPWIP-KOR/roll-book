@@ -44,15 +44,15 @@ const CacheManager = (function() {
      * localStorage에 데이터 저장 (TTL 포함)
      */
     function set(key, data, customTTL = null) {
-        try {
-            const ttl = customTTL || TTL_CONFIG[key] || DEFAULT_TTL;
-            const cacheData = {
-                data: data,
-                timestamp: Date.now(),
-                ttl: ttl
-            };
+        const ttl = customTTL || TTL_CONFIG[key] || DEFAULT_TTL;
+        const cacheData = {
+            data: data,
+            timestamp: Date.now(),
+            ttl: ttl
+        };
+        const cacheKey = getCacheKey(key);
 
-            const cacheKey = getCacheKey(key);
+        try {
             localStorage.setItem(cacheKey, JSON.stringify(cacheData));
 
             console.log(`✅ 캐시 저장: ${cacheKey} (TTL: ${ttl / 1000}초)`);
@@ -64,7 +64,7 @@ const CacheManager = (function() {
                 clearExpired();
                 // 재시도
                 try {
-                    localStorage.setItem(getCacheKey(key), JSON.stringify(cacheData));
+                    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
                     return true;
                 } catch (retryError) {
                     console.error('❌ 재시도 실패:', retryError);
