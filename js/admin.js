@@ -1781,6 +1781,8 @@ async function loadAttendanceRequests() {
 function displayAttendanceRequests(requests) {
     const container = document.getElementById('attendanceRequestsList');
 
+    console.log(`📋 [출석 요청 표시] 총 ${requests.length}개 요청`);
+
     if (requests.length === 0) {
         container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">대기 중인 출석 요청이 없습니다. 🎉</p>';
         return;
@@ -1789,6 +1791,10 @@ function displayAttendanceRequests(requests) {
     let html = '';
 
     requests.forEach(request => {
+        console.log(`📋 [요청 처리] ID: ${request.requestId}, 이름: ${request.name}`);
+        console.log(`📸 [사진 URL] "${request.photoUrl}"`);
+        console.log(`👤 [선택한 동료] "${request.selectedPerson || '없음'}"`);
+
         const requestDateTime = new Date(request.requestDateTime);
         const displayDate = requestDateTime.toLocaleString('ko-KR', {
             month: 'long',
@@ -1801,6 +1807,8 @@ function displayAttendanceRequests(requests) {
         const photoButton = request.photoUrl ?
             `<button class="btn-secondary" style="margin-right: 10px;" onclick="viewPhoto('${request.requestId}', '${request.name}', '${request.selectedPerson || ''}', '${request.photoUrl}')">📸 사진 보기</button>`
             : '';
+
+        console.log(`🔘 [사진 버튼] ${request.photoUrl ? '표시됨' : '표시 안 됨'}`);
 
         // 선택한 동료 정보 표시
         const selectedPersonInfo = request.selectedPerson ?
