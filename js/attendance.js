@@ -1417,10 +1417,11 @@ function submitAttendanceRequest() {
     });
 
     // POST 방식으로 전송 (이미지 데이터가 크므로)
+    // Content-Type을 text/plain으로 설정하여 CORS preflight 회피
     fetch(CONFIG.GAS_URL, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'text/plain'
         },
         body: JSON.stringify(dataToSend)
     })
