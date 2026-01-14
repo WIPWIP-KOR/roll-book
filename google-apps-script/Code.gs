@@ -95,6 +95,8 @@ function doGet(e) {
         return manualAttend(e.parameter, callback);
 
       // 💡 출석 요청 관련
+      case 'getRandomAttendees':
+        return getRandomAttendees(e.parameter, callback);
       case 'submitAttendanceRequest':
         return submitAttendanceRequest(e.parameter, callback);
       case 'getAttendanceRequests':
@@ -1784,13 +1786,122 @@ function updateMemberForManualAttendance(name, team, season, year) {
 // ==================== 출석 요청 관리 ====================
 
 /**
+ * 오늘 출석한 지각하지 않은 사람 중 랜덤으로 최대 3명 선택
+ * @param {object} data - { season } (현재 시즌 정보)
+ * @param {function} callback - JSONP 콜백 함수
+ */
+function getRandomAttendees(data, callback) {
+  try {
+    const { season } = data;
+
+    // 오늘 날짜 가져오기
+    const today = new Date();
+    const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+    // 출석 시트 가져오기
+    const sheet = getAttendanceSheet(today.getFullYear());
+
+    if (!sheet || sheet.getLastRow() <= 1) {
+      return createResponse(true, null, { attendees: [] }, callback);
+    }
+
+    const data_rows = sheet.getDataRange().getValues();
+    const attendees = [];
+
+    // 오늘 출석한 사람 중 지각하지 않은 사람 필터링
+    for (let i = 1; i < data_rows.length; i++) {
+      const rowDate = data_rows[i][0];
+      const name = data_rows[i][2];
+      const rowSeason = data_rows[i][4];
+      const lateStatus = data_rows[i][6];
+
+      if (!rowDate) continue;
+
+      const rowDateStr = Utilities.formatDate(new Date(rowDate), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+      // 오늘 날짜, 같은 시즌, 지각하지 않은 사람만 선택
+      if (rowDateStr === todayStr && rowSeason === season && lateStatus !== '지각') {
+        attendees.push(name);
+      }
+    }
+
+    // 중복 제거
+    const uniqueAttendees = [...new Set(attendees)];
+
+    // 랜덤 섞기 (Fisher-Yates 알고리즘)
+    for (let i = uniqueAttendees.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [uniqueAttendees[i], uniqueAttendees[j]] = [uniqueAttendees[j], uniqueAttendees[i]];
+    }
+
+    // 최대 3명 선택
+    const selectedAttendees = uniqueAttendees.slice(0, 3);
+
+    Logger.log(`랜덤 인원 선택 완료: ${selectedAttendees.join(', ')} (총 ${uniqueAttendees.length}명 중)`);
+
+    return createResponse(true, null, { attendees: selectedAttendees }, callback);
+
+  } catch (e) {
+    Logger.log('랜덤 인원 조회 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * Base64로 인코딩된 사진을 Google Drive에 업로드
+ * @param {string} photoData - Base64 인코딩된 이미지 데이터 (data:image/png;base64,... 형식)
+ * @param {string} requestId - 요청 ID
+ * @param {string} name - 요청자 이름
+ * @returns {string} - 업로드된 파일의 공개 URL
+ */
+function uploadPhotoToDrive(photoData, requestId, name) {
+  try {
+    // Base64 데이터에서 헤더 제거
+    const base64Data = photoData.split(',')[1];
+    if (!base64Data) {
+      throw new Error('올바른 이미지 데이터가 아닙니다.');
+    }
+
+    // Base64를 Blob으로 변환
+    const decodedData = Utilities.base64Decode(base64Data);
+    const blob = Utilities.newBlob(decodedData, 'image/jpeg', `${requestId}_${name}.jpg`);
+
+    // 폴더 생성 또는 가져오기 (출석요청사진 폴더)
+    const folders = DriveApp.getFoldersByName('출석요청사진');
+    let folder;
+    if (folders.hasNext()) {
+      folder = folders.next();
+    } else {
+      folder = DriveApp.createFolder('출석요청사진');
+    }
+
+    // 파일 생성
+    const file = folder.createFile(blob);
+
+    // 파일 공개 설정 (링크가 있는 모든 사용자가 볼 수 있음)
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    // 공개 URL 반환
+    const fileUrl = `https://drive.google.com/uc?id=${file.getId()}`;
+
+    Logger.log(`사진 업로드 완료: ${fileUrl}`);
+
+    return fileUrl;
+
+  } catch (e) {
+    Logger.log('사진 업로드 오류: ' + e.toString());
+    throw e;
+  }
+}
+
+/**
  * 출석 요청 제출
- * @param {object} data - { name, team, season, latitude, longitude, reason }
+ * @param {object} data - { name, team, season, latitude, longitude, reason, photoData, selectedPerson }
  * @param {function} callback - JSONP 콜백 함수
  */
 function submitAttendanceRequest(data, callback) {
   try {
-    const { name, team, season, latitude, longitude, reason } = data;
+    const { name, team, season, latitude, longitude, reason, photoData, selectedPerson } = data;
 
     // 필수 파라미터 검증
     if (!name || !team || !season || !reason) {
@@ -1814,9 +1925,9 @@ function submitAttendanceRequest(data, callback) {
     // 출석 요청 시트 가져오기 또는 생성
     const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE_REQUESTS);
 
-    // 헤더가 없으면 추가
+    // 헤더가 없으면 추가 (사진 URL과 선택한 동료 컬럼 추가)
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['요청ID', '요청일시', '이름', '팀', '시즌', '위도', '경도', '사유', '상태', '처리일시']);
+      sheet.appendRow(['요청ID', '요청일시', '이름', '팀', '시즌', '위도', '경도', '사유', '상태', '처리일시', '사진URL', '선택한동료']);
     }
 
     // 오늘 이미 요청한 적이 있는지 확인
@@ -1839,6 +1950,17 @@ function submitAttendanceRequest(data, callback) {
     // 요청 ID 생성 (타임스탬프 기반)
     const requestId = 'REQ_' + Date.now();
 
+    // 사진 업로드 (있는 경우)
+    let photoUrl = '';
+    if (photoData) {
+      try {
+        photoUrl = uploadPhotoToDrive(photoData, requestId, name);
+      } catch (photoError) {
+        Logger.log('사진 업로드 오류: ' + photoError.toString());
+        // 사진 업로드 실패 시 요청은 계속 진행 (선택사항)
+      }
+    }
+
     // 요청 저장
     sheet.appendRow([
       requestId,
@@ -1850,10 +1972,12 @@ function submitAttendanceRequest(data, callback) {
       longitude || '',
       reason,
       '대기', // 상태: 대기/승인/거부
-      ''     // 처리일시
+      '',     // 처리일시
+      photoUrl || '', // 사진 URL
+      selectedPerson || '' // 선택한 동료 이름
     ]);
 
-    Logger.log(`출석 요청 제출 완료: ${name}, ${requestId}`);
+    Logger.log(`출석 요청 제출 완료: ${name}, ${requestId}, 사진: ${photoUrl ? '있음' : '없음'}`);
 
     return createResponse(true, '출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', { requestId: requestId }, callback);
 
@@ -1893,7 +2017,9 @@ function getAttendanceRequests(callback) {
           latitude: row[5],
           longitude: row[6],
           reason: row[7],
-          status: row[8]
+          status: row[8],
+          photoUrl: row[10] || '', // 사진 URL
+          selectedPerson: row[11] || '' // 선택한 동료
         });
       }
     }
