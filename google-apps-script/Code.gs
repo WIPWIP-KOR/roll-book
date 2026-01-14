@@ -174,6 +174,16 @@ function doPost(e) {
   }
 }
 
+/**
+ * OPTIONS 요청 처리 (CORS preflight)
+ */
+function doOptions(e) {
+  return ContentService
+    .createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT)
+    .setContent('OK');
+}
+
 // ==================== 관리자 비밀번호 관리 (기존 로직 유지) ====================
 
 function checkAdminStatus() {
