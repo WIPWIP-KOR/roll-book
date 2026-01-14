@@ -1372,6 +1372,10 @@ function submitAttendanceRequest() {
     submitBtn.disabled = true;
     submitBtn.textContent = '제출 중...';
 
+    // 디버깅: 사진 데이터 확인
+    console.log('📸 [프론트엔드] capturedPhotoData 확인:', capturedPhotoData ? `있음 (길이: ${capturedPhotoData.length} bytes)` : '없음');
+    console.log('👤 [프론트엔드] selectedPerson:', selectedPerson || '없음');
+
     const dataToSend = {
         action: 'submitAttendanceRequest',
         name: name,
@@ -1384,6 +1388,16 @@ function submitAttendanceRequest() {
         photoData: capturedPhotoData, // 📸 사진 데이터 (Base64)
         selectedPerson: selectedPerson // 👤 선택한 동료 이름
     };
+
+    console.log('📦 [프론트엔드] 전송할 데이터:', {
+        action: dataToSend.action,
+        name: dataToSend.name,
+        team: dataToSend.team,
+        season: dataToSend.season,
+        reason: dataToSend.reason,
+        photoDataLength: dataToSend.photoData ? dataToSend.photoData.length : 0,
+        selectedPerson: dataToSend.selectedPerson
+    });
 
     // POST 방식으로 전송 (이미지 데이터가 크므로)
     fetch(CONFIG.GAS_URL, {
