@@ -23,8 +23,17 @@ const CACHE_TTL_SECONDS = 21600; // 회원 목록 캐시 만료 시간 (6시간)
  * GET 요청 처리 (주요 액션 및 통계 연도 처리)
  */
 function doGet(e) {
+  // e 또는 e.parameter가 없는 경우 처리
+  if (!e || !e.parameter) {
+    Logger.log('❌ [doGet] e 또는 e.parameter가 없음');
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: 'Invalid request: missing parameters'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   Logger.log('요청 파라미터(e.parameter): ' + JSON.stringify(e.parameter));
-  
+
   const action = e.parameter.action;
   const callback = e.parameter.callback;
 
@@ -129,11 +138,26 @@ function doGet(e) {
  * POST 요청 처리 (doGet으로 대부분 통합되었으나 유지)
  */
 function doPost(e) {
-  let callback = e.parameter.callback;
+  // e가 없는 경우 처리
+  if (!e) {
+    Logger.log('❌ [doPost] e가 없음');
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: 'Invalid request: missing event object'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  let callback = e.parameter ? e.parameter.callback : null;
 
   try {
+    // postData가 없는 경우 처리
+    if (!e.postData || !e.postData.contents) {
+      Logger.log('❌ [doPost] postData가 없음');
+      return createResponse(false, 'Invalid request: missing post data', null, callback);
+    }
+
     const data = JSON.parse(e.postData.contents);
-    const action = data.action || e.parameter.action;
+    const action = data.action || (e.parameter ? e.parameter.action : null);
 
     switch(action) {
       case 'attend':
@@ -1914,22 +1938,29 @@ function uploadPhotoToDrive(photoData, requestId, name) {
  * @param {function} callback - JSONP 콜백 함수
  */
 function submitAttendanceRequest(data, callback) {
+  const logs = []; // 브라우저 콘솔에 보낼 로그 배열
+
   try {
     const { name, team, season, latitude, longitude, reason, photoData, selectedPerson } = data;
 
+    logs.push(`📝 [출석 요청 시작] 이름: ${name}, 팀: ${team}, 시즌: ${season}`);
+
     // 필수 파라미터 검증
     if (!name || !team || !season || !reason) {
-      return createResponse(false, '필수 정보가 누락되었습니다.', null, callback);
+      logs.push(`❌ [검증 실패] 필수 정보 누락`);
+      return createResponse(false, '필수 정보가 누락되었습니다.', { logs: logs }, callback);
     }
 
     // 팀 검증
     if (!['A', 'B', 'C'].includes(team)) {
-      return createResponse(false, '올바른 팀을 선택해주세요.', null, callback);
+      logs.push(`❌ [검증 실패] 올바르지 않은 팀: ${team}`);
+      return createResponse(false, '올바른 팀을 선택해주세요.', { logs: logs }, callback);
     }
 
     // 시즌 검증
     if (!['상반기', '하반기'].includes(season)) {
-      return createResponse(false, '올바른 시즌을 선택해주세요.', null, callback);
+      logs.push(`❌ [검증 실패] 올바르지 않은 시즌: ${season}`);
+      return createResponse(false, '올바른 시즌을 선택해주세요.', { logs: logs }, callback);
     }
 
     const now = new Date();
@@ -1938,10 +1969,12 @@ function submitAttendanceRequest(data, callback) {
 
     // 출석 요청 시트 가져오기 또는 생성
     const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE_REQUESTS);
+    logs.push(`📋 [시트 확인] 출석요청 시트 준비 완료`);
 
     // 헤더가 없으면 추가 (사진 URL과 선택한 동료 컬럼 추가)
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(['요청ID', '요청일시', '이름', '팀', '시즌', '위도', '경도', '사유', '상태', '처리일시', '사진URL', '선택한동료']);
+      logs.push(`📋 [시트 헤더] 새로 생성됨`);
     }
 
     // 오늘 이미 요청한 적이 있는지 확인
@@ -1957,29 +1990,36 @@ function submitAttendanceRequest(data, callback) {
 
       // 오늘 날짜에 대기 중인 요청이 있으면 중복
       if (rowDateStr === requestDate && rowName === name && rowStatus === '대기') {
-        return createResponse(false, '오늘 이미 출석 요청을 제출하셨습니다.', null, callback);
+        logs.push(`❌ [중복 요청] 오늘 이미 요청 존재`);
+        return createResponse(false, '오늘 이미 출석 요청을 제출하셨습니다.', { logs: logs }, callback);
       }
     }
 
     // 요청 ID 생성 (타임스탬프 기반)
     const requestId = 'REQ_' + Date.now();
+    logs.push(`📝 [요청ID 생성] ${requestId}`);
     Logger.log(`📝 [출석 요청] 요청ID: ${requestId}, 이름: ${name}, 팀: ${team}, 시즌: ${season}`);
 
     // 사진 업로드 (있는 경우)
     let photoUrl = '';
     if (photoData) {
+      logs.push(`📸 [사진 데이터] 있음 (길이: ${photoData.length} bytes), 업로드 시작`);
       Logger.log(`📸 [사진 데이터 확인] 사진 있음, 업로드 시작`);
       try {
         photoUrl = uploadPhotoToDrive(photoData, requestId, name);
+        logs.push(`✅ [사진 업로드 성공] URL: ${photoUrl}`);
         Logger.log(`✅ [사진 업로드 성공] URL: ${photoUrl}`);
       } catch (photoError) {
+        logs.push(`❌ [사진 업로드 실패] ${photoError.toString()}`);
         Logger.log(`❌ [사진 업로드 실패] ${photoError.toString()}`);
         // 사진 업로드 실패 시 요청은 계속 진행 (선택사항)
       }
     } else {
+      logs.push(`⚠️ [사진 데이터] 없음 (photoData가 비어있음)`);
       Logger.log(`⚠️ [사진 데이터 없음] photoData가 비어있음`);
     }
 
+    logs.push(`💾 [시트 저장 준비] 사진URL: "${photoUrl}", 선택한동료: "${selectedPerson || ''}"`);
     Logger.log(`💾 [시트 저장] 사진URL: "${photoUrl}", 선택한동료: "${selectedPerson || ''}"`);
 
     // 요청 저장
@@ -1998,13 +2038,16 @@ function submitAttendanceRequest(data, callback) {
       selectedPerson || '' // 선택한 동료 이름
     ]);
 
+    logs.push(`✅ [출석 요청 완료] 요청ID: ${requestId}, 사진: ${photoUrl ? '있음' : '없음'}`);
     Logger.log(`✅ [출석 요청 제출 완료] ${name}, ${requestId}, 사진: ${photoUrl ? '있음 (' + photoUrl + ')' : '없음'}`);
 
-    return createResponse(true, '출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', { requestId: requestId }, callback);
+    return createResponse(true, '출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', { requestId: requestId, logs: logs }, callback);
 
   } catch (e) {
+    logs.push(`❌ [심각한 오류] ${e.toString()}`);
+    logs.push(`❌ [오류 스택] ${e.stack || '스택 없음'}`);
     Logger.log('출석 요청 제출 오류: ' + e.toString());
-    return createResponse(false, e.toString(), null, callback);
+    return createResponse(false, e.toString(), { logs: logs }, callback);
   }
 }
 
