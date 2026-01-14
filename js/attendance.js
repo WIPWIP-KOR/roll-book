@@ -1081,23 +1081,60 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * 촬영한 사진 처리
+ * 촬영한 사진 처리 (리사이징 포함)
  */
 function handlePhotoCapture(file) {
     const reader = new FileReader();
 
     reader.onload = function(e) {
-        const photoData = e.target.result; // Base64 데이터
-        capturedPhotoData = photoData;
+        const img = new Image();
+        img.onload = function() {
+            // 이미지 리사이징 (최대 800x600)
+            const maxWidth = 800;
+            const maxHeight = 600;
+            let width = img.width;
+            let height = img.height;
 
-        // 미리보기 표시
-        const previewEl = document.getElementById('photoPreview');
-        const previewImg = document.getElementById('photoPreviewImage');
+            // 비율 유지하면서 리사이징
+            if (width > height) {
+                if (width > maxWidth) {
+                    height = Math.round(height * maxWidth / width);
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width = Math.round(width * maxHeight / height);
+                    height = maxHeight;
+                }
+            }
 
-        previewImg.src = photoData;
-        previewEl.style.display = 'block';
+            // Canvas로 리사이징
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
 
-        console.log('📸 사진 촬영 완료');
+            // JPEG 품질 0.7로 압축
+            const photoData = canvas.toDataURL('image/jpeg', 0.7);
+            capturedPhotoData = photoData;
+
+            // 미리보기 표시
+            const previewEl = document.getElementById('photoPreview');
+            const previewImg = document.getElementById('photoPreviewImage');
+
+            previewImg.src = photoData;
+            previewEl.style.display = 'block';
+
+            console.log('📸 사진 촬영 완료 (리사이징됨)');
+        };
+
+        img.onerror = function() {
+            console.error('이미지 로드 오류');
+            showMessage('이미지를 불러오는데 실패했습니다.', 'error');
+        };
+
+        img.src = e.target.result;
     };
 
     reader.onerror = function(error) {
@@ -1348,25 +1385,26 @@ function submitAttendanceRequest() {
         selectedPerson: selectedPerson // 👤 선택한 동료 이름
     };
 
-    $.ajax({
-        url: CONFIG.GAS_URL,
-        data: dataToSend,
-        dataType: 'jsonp',
-        success: function(data) {
-            if (data.success) {
-                showMessage('✅ 출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', 'success');
-                hideRequestModal();
-            } else {
-                showMessage(`❌ ${data.message || '출석 요청 실패'}`, 'error');
-            }
+    // POST 방식으로 전송 (이미지 데이터가 크므로)
+    fetch(CONFIG.GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors', // Google Apps Script는 CORS를 지원하지 않음
+        headers: {
+            'Content-Type': 'application/json'
         },
-        error: function(jqXHR, textStatus, errorThrown) {
-            console.error('출석 요청 에러:', textStatus, errorThrown);
-            showMessage('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
-        },
-        complete: function() {
-            submitBtn.disabled = false;
-            submitBtn.textContent = '요청 제출';
-        }
+        body: JSON.stringify(dataToSend)
+    })
+    .then(() => {
+        // no-cors 모드에서는 응답을 읽을 수 없으므로, 성공으로 간주
+        showMessage('✅ 출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', 'success');
+        hideRequestModal();
+        submitBtn.disabled = false;
+        submitBtn.textContent = '요청 제출';
+    })
+    .catch((error) => {
+        console.error('출석 요청 에러:', error);
+        showMessage('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '요청 제출';
     });
 }
