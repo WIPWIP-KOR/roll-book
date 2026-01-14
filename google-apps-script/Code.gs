@@ -1858,40 +1858,52 @@ function getRandomAttendees(data, callback) {
  */
 function uploadPhotoToDrive(photoData, requestId, name) {
   try {
+    Logger.log(`📸 [사진 업로드 시작] 요청ID: ${requestId}, 이름: ${name}`);
+    Logger.log(`📸 [사진 데이터 길이] ${photoData ? photoData.length : 0} bytes`);
+
     // Base64 데이터에서 헤더 제거
     const base64Data = photoData.split(',')[1];
     if (!base64Data) {
+      Logger.log('❌ [사진 업로드 실패] Base64 데이터 헤더가 올바르지 않음');
       throw new Error('올바른 이미지 데이터가 아닙니다.');
     }
+
+    Logger.log(`📸 [Base64 파싱 완료] 데이터 길이: ${base64Data.length} bytes`);
 
     // Base64를 Blob으로 변환
     const decodedData = Utilities.base64Decode(base64Data);
     const blob = Utilities.newBlob(decodedData, 'image/jpeg', `${requestId}_${name}.jpg`);
+    Logger.log(`📸 [Blob 생성 완료] 파일명: ${requestId}_${name}.jpg`);
 
     // 폴더 생성 또는 가져오기 (출석요청사진 폴더)
     const folders = DriveApp.getFoldersByName('출석요청사진');
     let folder;
     if (folders.hasNext()) {
       folder = folders.next();
+      Logger.log(`📁 [폴더 찾음] 출석요청사진 폴더 ID: ${folder.getId()}`);
     } else {
       folder = DriveApp.createFolder('출석요청사진');
+      Logger.log(`📁 [폴더 생성] 출석요청사진 폴더 ID: ${folder.getId()}`);
     }
 
     // 파일 생성
     const file = folder.createFile(blob);
+    Logger.log(`📸 [파일 생성 완료] 파일 ID: ${file.getId()}`);
 
     // 파일 공개 설정 (링크가 있는 모든 사용자가 볼 수 있음)
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    Logger.log(`🔓 [공개 권한 설정 완료]`);
 
     // 공개 URL 반환
     const fileUrl = `https://drive.google.com/uc?id=${file.getId()}`;
 
-    Logger.log(`사진 업로드 완료: ${fileUrl}`);
+    Logger.log(`✅ [사진 업로드 완료] URL: ${fileUrl}`);
 
     return fileUrl;
 
   } catch (e) {
-    Logger.log('사진 업로드 오류: ' + e.toString());
+    Logger.log(`❌ [사진 업로드 오류] ${e.toString()}`);
+    Logger.log(`❌ [오류 스택] ${e.stack}`);
     throw e;
   }
 }
@@ -1951,17 +1963,24 @@ function submitAttendanceRequest(data, callback) {
 
     // 요청 ID 생성 (타임스탬프 기반)
     const requestId = 'REQ_' + Date.now();
+    Logger.log(`📝 [출석 요청] 요청ID: ${requestId}, 이름: ${name}, 팀: ${team}, 시즌: ${season}`);
 
     // 사진 업로드 (있는 경우)
     let photoUrl = '';
     if (photoData) {
+      Logger.log(`📸 [사진 데이터 확인] 사진 있음, 업로드 시작`);
       try {
         photoUrl = uploadPhotoToDrive(photoData, requestId, name);
+        Logger.log(`✅ [사진 업로드 성공] URL: ${photoUrl}`);
       } catch (photoError) {
-        Logger.log('사진 업로드 오류: ' + photoError.toString());
+        Logger.log(`❌ [사진 업로드 실패] ${photoError.toString()}`);
         // 사진 업로드 실패 시 요청은 계속 진행 (선택사항)
       }
+    } else {
+      Logger.log(`⚠️ [사진 데이터 없음] photoData가 비어있음`);
     }
+
+    Logger.log(`💾 [시트 저장] 사진URL: "${photoUrl}", 선택한동료: "${selectedPerson || ''}"`);
 
     // 요청 저장
     sheet.appendRow([
@@ -1979,7 +1998,7 @@ function submitAttendanceRequest(data, callback) {
       selectedPerson || '' // 선택한 동료 이름
     ]);
 
-    Logger.log(`출석 요청 제출 완료: ${name}, ${requestId}, 사진: ${photoUrl ? '있음' : '없음'}`);
+    Logger.log(`✅ [출석 요청 제출 완료] ${name}, ${requestId}, 사진: ${photoUrl ? '있음 (' + photoUrl + ')' : '없음'}`);
 
     return createResponse(true, '출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', { requestId: requestId }, callback);
 
@@ -1995,14 +2014,18 @@ function submitAttendanceRequest(data, callback) {
  */
 function getAttendanceRequests(callback) {
   try {
+    Logger.log(`📋 [출석 요청 조회 시작]`);
     const sheet = getOrCreateSheet(SHEET_NAMES.ATTENDANCE_REQUESTS);
 
     if (sheet.getLastRow() <= 1) {
+      Logger.log(`📋 [조회 결과] 요청 없음 (헤더만 존재)`);
       return createResponse(true, null, { requests: [] }, callback);
     }
 
     const data = sheet.getDataRange().getValues();
     const requests = [];
+
+    Logger.log(`📋 [시트 데이터] 총 ${data.length - 1}개 행 확인`);
 
     // 헤더 제외하고 데이터 행만 처리
     for (let i = 1; i < data.length; i++) {
@@ -2010,7 +2033,7 @@ function getAttendanceRequests(callback) {
 
       // 대기 중인 요청만 반환
       if (row[8] === '대기') {
-        requests.push({
+        const requestData = {
           requestId: row[0],
           requestDateTime: row[1],
           name: row[2],
@@ -2022,7 +2045,11 @@ function getAttendanceRequests(callback) {
           status: row[8],
           photoUrl: row[10] || '', // 사진 URL
           selectedPerson: row[11] || '' // 선택한 동료
-        });
+        };
+
+        Logger.log(`📋 [요청 발견] ID: ${row[0]}, 이름: ${row[2]}, 사진URL: "${row[10] || '없음'}", 선택한동료: "${row[11] || '없음'}"`);
+
+        requests.push(requestData);
       }
     }
 
@@ -2031,12 +2058,13 @@ function getAttendanceRequests(callback) {
       return new Date(b.requestDateTime) - new Date(a.requestDateTime);
     });
 
-    Logger.log(`대기 중인 출석 요청: ${requests.length}개`);
+    Logger.log(`✅ [조회 완료] 대기 중인 출석 요청: ${requests.length}개`);
+    Logger.log(`📋 [전체 요청 목록] ${JSON.stringify(requests.map(r => ({id: r.requestId, name: r.name, photoUrl: r.photoUrl ? '있음' : '없음'})))}`);
 
     return createResponse(true, null, { requests: requests }, callback);
 
   } catch (e) {
-    Logger.log('출석 요청 조회 오류: ' + e.toString());
+    Logger.log(`❌ [출석 요청 조회 오류] ${e.toString()}`);
     return createResponse(false, e.toString(), null, callback);
   }
 }
