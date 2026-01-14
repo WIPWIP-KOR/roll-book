@@ -20,6 +20,8 @@ let statusLoaded = false; // 출석현황 로딩 여부
 let currentSeason = null; // 현재 시즌 정보
 let pendingAttendanceRequest = { name: '', team: '' }; // 출석 요청 대기 중인 정보
 let deviceId = null; // 기기 고유 식별자
+let capturedPhotoData = null; // 촬영한 사진 데이터 (Base64)
+let randomAttendeesData = []; // 랜덤으로 선택된 출석자 목록
 
 // 기기 고유 식별자 생성 (FingerprintJS + localStorage 조합)
 async function initDeviceId() {
@@ -1048,7 +1050,63 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    // 카메라 촬영 버튼 이벤트 리스너
+    const takePictureBtn = document.getElementById('takePictureBtn');
+    const photoCapture = document.getElementById('photoCapture');
+    const retakePictureBtn = document.getElementById('retakePictureBtn');
+
+    if (takePictureBtn && photoCapture) {
+        takePictureBtn.addEventListener('click', () => {
+            photoCapture.click();
+        });
+    }
+
+    if (photoCapture) {
+        photoCapture.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handlePhotoCapture(file);
+            }
+        });
+    }
+
+    if (retakePictureBtn) {
+        retakePictureBtn.addEventListener('click', () => {
+            capturedPhotoData = null;
+            document.getElementById('photoPreview').style.display = 'none';
+            photoCapture.value = '';
+        });
+    }
 });
+
+/**
+ * 촬영한 사진 처리
+ */
+function handlePhotoCapture(file) {
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        const photoData = e.target.result; // Base64 데이터
+        capturedPhotoData = photoData;
+
+        // 미리보기 표시
+        const previewEl = document.getElementById('photoPreview');
+        const previewImg = document.getElementById('photoPreviewImage');
+
+        previewImg.src = photoData;
+        previewEl.style.display = 'block';
+
+        console.log('📸 사진 촬영 완료');
+    };
+
+    reader.onerror = function(error) {
+        console.error('사진 읽기 오류:', error);
+        showMessage('사진을 불러오는데 실패했습니다.', 'error');
+    };
+
+    reader.readAsDataURL(file);
+}
 
 // ==================== 출석 요청 관련 함수 ====================
 
@@ -1117,7 +1175,14 @@ function showRequestModal() {
             customReasonTextarea.value = '';
         }
 
+        // 사진 관련 상태 초기화
+        capturedPhotoData = null;
+        document.getElementById('photoPreview').style.display = 'none';
+
         modal.style.display = 'flex';
+
+        // 랜덤 인원 조회 API 호출
+        loadRandomAttendees();
     }
 }
 
@@ -1144,6 +1209,75 @@ function hideRequestModal() {
 }
 
 /**
+ * 랜덤 인원 조회 API 호출
+ */
+function loadRandomAttendees() {
+    const loadingEl = document.getElementById('randomPersonLoading');
+    const listEl = document.getElementById('randomPersonList');
+    const emptyEl = document.getElementById('emptyFieldMessage');
+
+    // 로딩 표시
+    loadingEl.style.display = 'block';
+    listEl.style.display = 'none';
+    emptyEl.style.display = 'none';
+
+    $.ajax({
+        url: CONFIG.GAS_URL,
+        data: {
+            action: 'getRandomAttendees',
+            season: currentSeason.season
+        },
+        dataType: 'jsonp',
+        success: function(data) {
+            loadingEl.style.display = 'none';
+
+            if (data.success && data.attendees) {
+                randomAttendeesData = data.attendees;
+                displayRandomAttendees(data.attendees);
+            } else {
+                showMessage('❌ 출석자 목록을 불러오는데 실패했습니다.', 'error');
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            loadingEl.style.display = 'none';
+            console.error('랜덤 인원 조회 에러:', textStatus, errorThrown);
+            showMessage('네트워크 오류가 발생했습니다.', 'error');
+        }
+    });
+}
+
+/**
+ * 랜덤 인원 목록 표시
+ */
+function displayRandomAttendees(attendees) {
+    const listEl = document.getElementById('randomPersonList');
+    const emptyEl = document.getElementById('emptyFieldMessage');
+    const optionsContainer = document.getElementById('randomPersonOptions');
+
+    if (attendees.length === 0) {
+        // 출석한 사람이 없으면 빈 풋살장 안내 표시
+        listEl.style.display = 'none';
+        emptyEl.style.display = 'block';
+    } else {
+        // 출석한 사람이 있으면 목록 표시
+        emptyEl.style.display = 'none';
+        listEl.style.display = 'block';
+
+        // 라디오 버튼 생성
+        optionsContainer.innerHTML = '';
+        attendees.forEach((person, index) => {
+            const label = document.createElement('label');
+            label.className = 'reason-option';
+            label.innerHTML = `
+                <input type="radio" name="selectedPerson" value="${person}" ${index === 0 ? 'checked' : ''}>
+                <span>👤 ${person}</span>
+            `;
+            optionsContainer.appendChild(label);
+        });
+    }
+}
+
+/**
  * 출석 요청 제출
  */
 function submitAttendanceRequest() {
@@ -1154,6 +1288,23 @@ function submitAttendanceRequest() {
     if (!name || !team) {
         showMessage('이름과 팀 정보가 없습니다. 다시 시도해주세요.', 'error');
         return;
+    }
+
+    // 사진 촬영 여부 확인
+    if (!capturedPhotoData) {
+        showMessage('사진을 촬영해주세요.', 'error');
+        return;
+    }
+
+    // 선택된 동료 (랜덤 인원이 있는 경우만)
+    let selectedPerson = '';
+    if (randomAttendeesData.length > 0) {
+        const selectedPersonRadio = document.querySelector('input[name="selectedPerson"]:checked');
+        if (!selectedPersonRadio) {
+            showMessage('함께 사진 찍을 사람을 선택해주세요.', 'error');
+            return;
+        }
+        selectedPerson = selectedPersonRadio.value;
     }
 
     // 선택된 라디오 버튼 값 가져오기
@@ -1192,7 +1343,9 @@ function submitAttendanceRequest() {
         latitude: userPosition ? userPosition.latitude : '',
         longitude: userPosition ? userPosition.longitude : '',
         reason: reason,
-        deviceId: deviceId || 'unknown' // 📱 기기 고유 식별자
+        deviceId: deviceId || 'unknown', // 📱 기기 고유 식별자
+        photoData: capturedPhotoData, // 📸 사진 데이터 (Base64)
+        selectedPerson: selectedPerson // 👤 선택한 동료 이름
     };
 
     $.ajax({

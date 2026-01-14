@@ -1553,6 +1553,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (refreshRequestsBtn) {
         refreshRequestsBtn.addEventListener('click', loadAttendanceRequests);
     }
+
+    // 사진 모달 닫기 이벤트 리스너
+    const closePhotoModalBtn = document.getElementById('closePhotoModal');
+    if (closePhotoModalBtn) {
+        closePhotoModalBtn.addEventListener('click', closePhotoModal);
+    }
+
+    // 사진 모달 배경 클릭 시 닫기
+    const photoModal = document.getElementById('photoViewModal');
+    if (photoModal) {
+        photoModal.addEventListener('click', (e) => {
+            if (e.target === photoModal) {
+                closePhotoModal();
+            }
+        });
+    }
 });
 
 // 3. 카카오 지도 API가 로드되면 initMap 함수를 호출해야 합니다.
@@ -1781,6 +1797,19 @@ function displayAttendanceRequests(requests) {
             minute: '2-digit'
         });
 
+        // 사진 보기 버튼 (사진이 있는 경우에만)
+        const photoButton = request.photoUrl ?
+            `<button class="btn-secondary" style="margin-right: 10px;" onclick="viewPhoto('${request.requestId}', '${request.name}', '${request.selectedPerson || ''}', '${request.photoUrl}')">📸 사진 보기</button>`
+            : '';
+
+        // 선택한 동료 정보 표시
+        const selectedPersonInfo = request.selectedPerson ?
+            `<div class="request-info-row">
+                <span class="request-label">선택한 동료:</span>
+                <span class="request-value">👤 ${request.selectedPerson}</span>
+            </div>`
+            : '';
+
         html += `
             <div class="request-card">
                 <div class="request-header">
@@ -1796,11 +1825,13 @@ function displayAttendanceRequests(requests) {
                         <span class="request-label">시즌:</span>
                         <span class="request-value">${request.season}</span>
                     </div>
+                    ${selectedPersonInfo}
                 </div>
                 <div class="request-reason">
                     <strong>사유:</strong> ${request.reason}
                 </div>
                 <div class="request-actions">
+                    ${photoButton}
                     <button class="btn-approve" onclick="approveRequest('${request.requestId}')">✅ 승인</button>
                     <button class="btn-reject" onclick="rejectRequest('${request.requestId}')">❌ 거부</button>
                 </div>
@@ -1857,4 +1888,40 @@ async function rejectRequest(requestId) {
         alert('❌ 오류 발생: ' + error);
         console.error('출석 요청 거부 오류:', error);
     }
+}
+
+/**
+ * 사진 보기 모달 표시
+ */
+function viewPhoto(requestId, requesterName, selectedPerson, photoUrl) {
+    const modal = document.getElementById('photoViewModal');
+    const photoImg = document.getElementById('photoViewImage');
+    const noPhotoMsg = document.getElementById('noPhotoMessage');
+    const requesterEl = document.getElementById('photoRequester');
+    const selectedPersonEl = document.getElementById('photoSelectedPerson');
+
+    // 요청자 정보 표시
+    requesterEl.textContent = requesterName;
+    selectedPersonEl.textContent = selectedPerson || '(빈 풋살장 사진)';
+
+    if (photoUrl) {
+        // 사진 있음
+        photoImg.src = photoUrl;
+        photoImg.style.display = 'block';
+        noPhotoMsg.style.display = 'none';
+    } else {
+        // 사진 없음
+        photoImg.style.display = 'none';
+        noPhotoMsg.style.display = 'block';
+    }
+
+    modal.style.display = 'flex';
+}
+
+/**
+ * 사진 보기 모달 닫기
+ */
+function closePhotoModal() {
+    const modal = document.getElementById('photoViewModal');
+    modal.style.display = 'none';
 }
