@@ -256,6 +256,43 @@
                     </div>
                 </div>
 
+                <!-- 출석 인정 거리 설정 -->
+                <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
+                    <h3 style="margin-bottom: 20px; color: #333;">📍 출석 인정 거리 설정</h3>
+
+                    <!-- 현재 설정 표시 -->
+                    <div class="current-radius-settings" id="currentRadiusSettings">
+                        <div class="settings-card">
+                            <h4 style="margin: 0 0 15px 0; color: #667eea; font-size: 1em;">📌 현재 설정</h4>
+                            <div class="setting-row">
+                                <span class="setting-label">출석 인정 거리</span>
+                                <span class="setting-value" id="currentRadius">50m</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 거리 변경 폼 -->
+                    <div style="margin-top: 25px;">
+                        <h4 style="margin: 0 0 15px 0; color: #333; font-size: 1em;">🔧 거리 변경</h4>
+
+                        <div class="form-group">
+                            <label for="attendanceRadius">출석 인정 거리 (미터)</label>
+                            <input type="number" id="attendanceRadius" min="10" max="500" step="10" value="50"
+                                   style="padding: 12px 16px; font-size: 1.1em; font-weight: 600; border: 2px solid #e0e0e0; border-radius: 8px; width: 150px;">
+                            <span style="margin-left: 10px; color: #666; font-size: 0.95em;">미터</span>
+                        </div>
+
+                        <button id="saveAttendanceRadiusBtn" class="btn-primary">💾 변경사항 저장</button>
+                        <p id="attendanceRadiusMessage" class="message-area"></p>
+                    </div>
+
+                    <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <p style="color: #666; font-size: 0.9em; margin: 0;">
+                            💡 설정한 거리 내에서만 출석이 가능합니다. 권장 범위: 30~100m (기본값: 50m)
+                        </p>
+                    </div>
+                </div>
+
                 <!-- 출석 가능 요일 설정 -->
                 <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
                     <h3 style="margin-bottom: 20px; color: #333;">📅 출석 가능 요일 설정</h3>
