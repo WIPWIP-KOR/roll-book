@@ -1388,16 +1388,19 @@ function submitAttendanceRequest() {
     // POST 방식으로 전송 (이미지 데이터가 크므로)
     fetch(CONFIG.GAS_URL, {
         method: 'POST',
-        mode: 'no-cors', // Google Apps Script는 CORS를 지원하지 않음
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(dataToSend)
     })
-    .then(() => {
-        // no-cors 모드에서는 응답을 읽을 수 없으므로, 성공으로 간주
-        showMessage('✅ 출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', 'success');
-        hideRequestModal();
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('✅ 출석 요청이 제출되었습니다. 관리자 승인을 기다려주세요.', 'success');
+            hideRequestModal();
+        } else {
+            showMessage('❌ ' + (data.message || '요청 제출에 실패했습니다.'), 'error');
+        }
         submitBtn.disabled = false;
         submitBtn.textContent = '요청 제출';
     })
