@@ -1538,3 +1538,83 @@ body {
     background: linear-gradient(135deg, #cd7f32 0%, #b87333 100%);
     color: white;
 }
+
+/* 상세보기 화살표 */
+.detail-arrow {
+    font-size: 1.5em;
+    color: #ccc;
+    margin-left: auto;
+    padding-left: 10px;
+}
+
+.hall-of-fame-item:hover .detail-arrow {
+    color: #667eea;
+}
+
+/* +N 더보기 태그 */
+.season-tag.more {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+/* ==================== 명예의 전당 상세 팝업 ==================== */
+
+.hof-detail-modal {
+    max-width: 400px;
+}
+
+.hof-detail-body {
+    padding: 25px;
+    text-align: center;
+}
+
+.hof-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.hof-detail-rank {
+    font-size: 2.5em;
+}
+
+.hof-detail-name {
+    font-size: 1.6em;
+    font-weight: 700;
+    color: #333;
+}
+
+.hof-detail-wins {
+    font-size: 1.1em;
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    margin-bottom: 25px;
+}
+
+.hof-detail-section {
+    text-align: left;
+}
+
+.hof-detail-section h4 {
+    font-size: 0.95em;
+    color: #666;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.hof-detail-seasons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.hof-detail-seasons .season-tag {
+    font-size: 0.9em;
+    padding: 6px 12px;
+}
