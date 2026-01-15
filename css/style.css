@@ -1367,3 +1367,129 @@ body {
     color: #667eea;
     font-weight: 600;
 }
+
+/* ==================== 명예의 전당 스타일 ==================== */
+
+/* 헤더 */
+.hall-of-fame-header {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.hall-of-fame-header h3 {
+    font-size: 1.4em;
+    color: #333;
+    margin: 0 0 8px 0;
+}
+
+.hall-of-fame-desc {
+    font-size: 0.9em;
+    color: #666;
+    margin: 0;
+}
+
+/* 빈 상태 */
+.hall-of-fame-empty {
+    text-align: center;
+    padding: 40px 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
+}
+
+.hall-of-fame-empty p {
+    margin: 8px 0;
+    font-size: 1.1em;
+}
+
+/* 랭킹 리스트 */
+.hall-of-fame-rankings {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 랭킹 아이템 */
+.hall-of-fame-item {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.hall-of-fame-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 1등 스타일 */
+.hall-of-fame-item.gold {
+    background: linear-gradient(135deg, #fff9e6 0%, #fff3cc 100%);
+    border-color: #ffd700;
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+}
+
+/* 2등 스타일 */
+.hall-of-fame-item.silver {
+    background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+    border-color: #c0c0c0;
+    box-shadow: 0 4px 12px rgba(192, 192, 192, 0.3);
+}
+
+/* 3등 스타일 */
+.hall-of-fame-item.bronze {
+    background: linear-gradient(135deg, #fff5eb 0%, #ffe8d4 100%);
+    border-color: #cd7f32;
+    box-shadow: 0 4px 12px rgba(205, 127, 50, 0.3);
+}
+
+/* 순위 배지 */
+.rank-badge {
+    font-size: 2em;
+    margin-right: 16px;
+    min-width: 50px;
+    text-align: center;
+}
+
+.rank-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: #e0e0e0;
+    border-radius: 50%;
+    font-size: 0.6em;
+    font-weight: 700;
+    color: #666;
+}
+
+/* 플레이어 정보 */
+.player-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.player-name {
+    font-size: 1.15em;
+    font-weight: 600;
+    color: #333;
+}
+
+.win-count {
+    font-size: 0.95em;
+    color: #667eea;
+    font-weight: 500;
+}
+
+/* 1등 플레이어 강조 */
+.hall-of-fame-item.gold .player-name {
+    color: #b8860b;
+}
+
+.hall-of-fame-item.gold .win-count {
+    color: #daa520;
+}

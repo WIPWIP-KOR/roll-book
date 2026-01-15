@@ -18,7 +18,8 @@ const CacheManager = (function() {
         LAST_WEEK_ATTENDANCE: 'last_week_attendance',
         LOCATION: 'location',
         STATS: 'stats', // year를 suffix로 사용
-        AVAILABLE_YEARS: 'available_years'
+        AVAILABLE_YEARS: 'available_years',
+        HALL_OF_FAME: 'hall_of_fame'
     };
 
     // TTL 설정 (밀리초)
@@ -28,7 +29,8 @@ const CacheManager = (function() {
         [CACHE_KEYS.LAST_WEEK_ATTENDANCE]: 10 * 60 * 1000,  // 10분
         [CACHE_KEYS.LOCATION]: 60 * 60 * 1000,         // 1시간
         [CACHE_KEYS.STATS]: 30 * 60 * 1000,            // 30분
-        [CACHE_KEYS.AVAILABLE_YEARS]: 60 * 60 * 1000   // 1시간
+        [CACHE_KEYS.AVAILABLE_YEARS]: 60 * 60 * 1000,  // 1시간
+        [CACHE_KEYS.HALL_OF_FAME]: 10 * 60 * 1000      // 10분
     };
 
     // ==================== localStorage 캐싱 ====================
