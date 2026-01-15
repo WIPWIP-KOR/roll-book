@@ -1523,11 +1523,15 @@ function loadHallOfFame(forceReload = false) {
     });
 }
 
+// 명예의 전당 데이터 저장 (팝업에서 사용)
+let hallOfFameData = [];
+
 /**
  * 명예의 전당 데이터를 화면에 표시
  */
 function displayHallOfFame(hallOfFame) {
     const container = document.getElementById('hallOfFameContent');
+    hallOfFameData = hallOfFame; // 팝업용 데이터 저장
 
     if (hallOfFame.length === 0) {
         container.innerHTML = `
@@ -1560,11 +1564,11 @@ function displayHallOfFame(hallOfFame) {
             rankClass = '';
         }
 
-        // 우승 시즌 정보 포맷팅 (예: 24상(A), 24하(B))
-        const seasonsText = formatSeasons(player.seasons);
+        // 우승 시즌 정보 포맷팅 (최대 8개까지만 표시)
+        const seasonsText = formatSeasons(player.seasons, 8);
 
         html += `
-            <div class="hall-of-fame-item ${rankClass}">
+            <div class="hall-of-fame-item ${rankClass}" onclick="showHallOfFameDetail(${index})" style="cursor: pointer;">
                 <div class="rank-badge">${rankIcon}</div>
                 <div class="player-info">
                     <div class="player-name-row">
@@ -1573,6 +1577,7 @@ function displayHallOfFame(hallOfFame) {
                     </div>
                     <div class="season-tags">${seasonsText}</div>
                 </div>
+                <div class="detail-arrow">›</div>
             </div>
         `;
     });
@@ -1584,11 +1589,16 @@ function displayHallOfFame(hallOfFame) {
 /**
  * 우승 시즌 정보를 압축 형식으로 포맷팅
  * 예: [{season: "2024상반기", team: "A팀"}] -> "24상(A)"
+ * @param {Array} seasons - 시즌 배열
+ * @param {number} maxDisplay - 최대 표시 개수 (null이면 전체 표시)
  */
-function formatSeasons(seasons) {
+function formatSeasons(seasons, maxDisplay = null) {
     if (!seasons || seasons.length === 0) return '';
 
-    return seasons.map(s => {
+    const displaySeasons = maxDisplay ? seasons.slice(0, maxDisplay) : seasons;
+    const remaining = maxDisplay ? seasons.length - maxDisplay : 0;
+
+    let html = displaySeasons.map(s => {
         // 시즌 문자열 또는 객체 처리
         if (typeof s === 'string') {
             // 구버전 호환 (시즌만 있는 경우)
@@ -1600,6 +1610,13 @@ function formatSeasons(seasons) {
             return `<span class="season-tag">${shortSeason}(${shortTeam})</span>`;
         }
     }).join('');
+
+    // 8개 초과 시 +N 표시
+    if (remaining > 0) {
+        html += `<span class="season-tag more">+${remaining}</span>`;
+    }
+
+    return html;
 }
 
 /**
@@ -1624,3 +1641,60 @@ function shortenTeam(team) {
     if (!team) return '';
     return team.replace('팀', '');
 }
+
+/**
+ * 명예의 전당 상세 팝업 표시
+ */
+function showHallOfFameDetail(index) {
+    const player = hallOfFameData[index];
+    if (!player) return;
+
+    const modal = document.getElementById('hallOfFameDetailModal');
+    if (!modal) return;
+
+    // 순위 아이콘
+    let rankIcon = '';
+    if (player.rank === 1) rankIcon = '🥇';
+    else if (player.rank === 2) rankIcon = '🥈';
+    else if (player.rank === 3) rankIcon = '🥉';
+    else rankIcon = `${player.rank}위`;
+
+    // 전체 시즌 정보 (제한 없이)
+    const allSeasonsText = formatSeasons(player.seasons, null);
+
+    // 모달 콘텐츠 업데이트
+    document.getElementById('hofDetailRank').textContent = rankIcon;
+    document.getElementById('hofDetailName').textContent = player.name;
+    document.getElementById('hofDetailWins').textContent = `${player.wins}회 우승`;
+    document.getElementById('hofDetailSeasons').innerHTML = allSeasonsText;
+
+    modal.style.display = 'flex';
+}
+
+/**
+ * 명예의 전당 상세 팝업 숨기기
+ */
+function hideHallOfFameDetail() {
+    const modal = document.getElementById('hallOfFameDetailModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// 명예의 전당 팝업 이벤트 리스너
+window.addEventListener('DOMContentLoaded', () => {
+    const hofModal = document.getElementById('hallOfFameDetailModal');
+    const hofCloseBtn = document.getElementById('closeHofDetailModal');
+
+    if (hofCloseBtn) {
+        hofCloseBtn.addEventListener('click', hideHallOfFameDetail);
+    }
+
+    if (hofModal) {
+        hofModal.addEventListener('click', (e) => {
+            if (e.target === hofModal) {
+                hideHallOfFameDetail();
+            }
+        });
+    }
+});

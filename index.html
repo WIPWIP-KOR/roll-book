@@ -94,6 +94,27 @@
         </div>
     </div>
 
+    <!-- 명예의 전당 상세 팝업 -->
+    <div id="hallOfFameDetailModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content hof-detail-modal">
+            <div class="modal-header">
+                <h2>🏆 우승 기록</h2>
+                <button id="closeHofDetailModal" class="modal-close-btn">×</button>
+            </div>
+            <div class="modal-body hof-detail-body">
+                <div class="hof-detail-header">
+                    <span id="hofDetailRank" class="hof-detail-rank">🥇</span>
+                    <span id="hofDetailName" class="hof-detail-name">이름</span>
+                </div>
+                <div id="hofDetailWins" class="hof-detail-wins">0회 우승</div>
+                <div class="hof-detail-section">
+                    <h4>우승 시즌</h4>
+                    <div id="hofDetailSeasons" class="hof-detail-seasons"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 하단 네비게이션 -->
     <nav class="bottom-nav">
         <a href="index.html" class="nav-item active">
