@@ -1560,7 +1560,7 @@ body {
 /* ==================== 명예의 전당 상세 팝업 ==================== */
 
 .hof-detail-modal {
-    max-width: 400px;
+    max-width: 420px;
 }
 
 .hof-detail-body {
@@ -1611,10 +1611,10 @@ body {
 .hof-detail-seasons {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
 }
 
 .hof-detail-seasons .season-tag {
-    font-size: 0.9em;
-    padding: 6px 12px;
+    font-size: 0.85em;
+    padding: 5px 10px;
 }
