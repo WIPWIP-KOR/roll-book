@@ -1948,8 +1948,8 @@ function uploadPhotoToDrive(photoData, requestId, name) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     Logger.log(`🔓 [공개 권한 설정 완료]`);
 
-    // 이미지 직접 표시용 URL (usercontent.google.com 사용)
-    const fileUrl = `https://drive.usercontent.google.com/download?id=${file.getId()}&export=view`;
+    // 이미지 직접 표시용 URL (썸네일 URL 사용 - CORS 문제 해결)
+    const fileUrl = `https://lh3.googleusercontent.com/d/${file.getId()}=s1600`;
 
     Logger.log(`✅ [사진 업로드 완료] URL: ${fileUrl}`);
 

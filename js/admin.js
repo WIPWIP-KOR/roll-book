@@ -1913,19 +1913,34 @@ function viewPhoto(requestId, requesterName, selectedPerson, photoUrl) {
     selectedPersonEl.textContent = selectedPerson || '(빈 풋살장 사진)';
 
     if (photoUrl) {
-        // 기존 URL 형식을 새 형식으로 변환
+        // 기존 URL 형식을 썸네일 URL로 변환 (CORS 문제 해결)
         let displayUrl = photoUrl;
+        let fileId = null;
 
-        // drive.google.com/uc 형식을 drive.usercontent.google.com 형식으로 변환
-        if (photoUrl.includes('drive.google.com/uc')) {
-            // URL에서 파일 ID 추출
+        // 이미 썸네일 URL이면 그대로 사용
+        if (photoUrl.includes('lh3.googleusercontent.com')) {
+            displayUrl = photoUrl;
+        }
+        // drive.google.com/uc 형식에서 파일 ID 추출
+        else if (photoUrl.includes('drive.google.com/uc')) {
             const match = photoUrl.match(/[?&]id=([^&]+)/);
             if (match && match[1]) {
-                const fileId = match[1];
-                displayUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=view`;
-                console.log('📸 [URL 변환] 기존:', photoUrl);
-                console.log('📸 [URL 변환] 새:', displayUrl);
+                fileId = match[1];
             }
+        }
+        // drive.usercontent.google.com 형식에서 파일 ID 추출
+        else if (photoUrl.includes('drive.usercontent.google.com')) {
+            const match = photoUrl.match(/[?&]id=([^&]+)/);
+            if (match && match[1]) {
+                fileId = match[1];
+            }
+        }
+
+        // 파일 ID를 추출했으면 썸네일 URL로 변환
+        if (fileId) {
+            displayUrl = `https://lh3.googleusercontent.com/d/${fileId}=s1600`;
+            console.log('📸 [URL 변환] 기존:', photoUrl);
+            console.log('📸 [URL 변환] 썸네일:', displayUrl);
         }
 
         // 사진 있음
