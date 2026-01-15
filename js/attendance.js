@@ -643,6 +643,12 @@ function displayTodayStatus(attendance) {
         return;
     }
 
+    // 출석 시간순으로 정렬 (오름차순)
+    const sortedAttendance = [...attendance].sort((a, b) => {
+        if (!a.time || !b.time) return 0;
+        return a.time.localeCompare(b.time);
+    });
+
     let html = `
         <table class="table">
             <thead>
@@ -656,7 +662,7 @@ function displayTodayStatus(attendance) {
             <tbody>
     `;
 
-    attendance.forEach(record => {
+    sortedAttendance.forEach(record => {
         const lateStatus = record.isLate ?
             '<span style="color: #ff9800; font-weight: 600;">⏰ 지각</span>' :
             '<span style="color: #4caf50; font-weight: 600;">✅ 정상</span>';
@@ -672,7 +678,7 @@ function displayTodayStatus(attendance) {
     });
 
     html += '</tbody></table>';
-    html += `<p style="text-align: center; color: #666; margin-top: 15px;">총 ${attendance.length}명 출석</p>`;
+    html += `<p style="text-align: center; color: #666; margin-top: 15px;">총 ${sortedAttendance.length}명 출석</p>`;
 
     container.innerHTML = html;
 }
@@ -745,6 +751,12 @@ function displayLastWeekStatus(attendance, date) {
         return;
     }
 
+    // 출석 시간순으로 정렬 (오름차순)
+    const sortedAttendance = [...attendance].sort((a, b) => {
+        if (!a.time || !b.time) return 0;
+        return a.time.localeCompare(b.time);
+    });
+
     let html = `
         <p style="margin-bottom: 10px; color: #666; font-size: 14px;">${date} (토)</p>
         <table class="table">
@@ -759,7 +771,7 @@ function displayLastWeekStatus(attendance, date) {
             <tbody>
     `;
 
-    attendance.forEach(record => {
+    sortedAttendance.forEach(record => {
         const lateStatus = record.isLate ?
             '<span style="color: #ff9800; font-weight: 600;">⏰ 지각</span>' :
             '<span style="color: #4caf50; font-weight: 600;">✅ 정상</span>';
@@ -775,7 +787,7 @@ function displayLastWeekStatus(attendance, date) {
     });
 
     html += '</tbody></table>';
-    html += `<p style="text-align: center; color: #666; margin-top: 15px;">총 ${attendance.length}명 출석</p>`;
+    html += `<p style="text-align: center; color: #666; margin-top: 15px;">총 ${sortedAttendance.length}명 출석</p>`;
 
     container.innerHTML = html;
 }
