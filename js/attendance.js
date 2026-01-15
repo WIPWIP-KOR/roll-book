@@ -17,6 +17,7 @@ const locationText = document.getElementById('locationText');
 let userPosition = null;
 let membersList = [];
 let statusLoaded = false; // 출석현황 로딩 여부
+let hallOfFameLoaded = false; // 명예의 전당 로딩 여부
 let currentSeason = null; // 현재 시즌 정보
 let pendingAttendanceRequest = { name: '', team: '' }; // 출석 요청 대기 중인 정보
 let deviceId = null; // 기기 고유 식별자
@@ -517,6 +518,11 @@ function switchTab(tabName) {
     if (tabName === 'status' && !statusLoaded) {
         loadTodayStatus();
         loadLastWeekStatus();
+    }
+
+    // 명예의 전당 탭이 선택되면 데이터 로드 (최초 1회만)
+    if (tabName === 'hallOfFame' && !hallOfFameLoaded) {
+        loadHallOfFame();
     }
 }
 
@@ -1448,4 +1454,123 @@ function submitAttendanceRequest() {
         submitBtn.disabled = false;
         submitBtn.textContent = '요청 제출';
     });
+}
+
+// ==================== 명예의 전당 ====================
+
+/**
+ * 명예의 전당 데이터를 서버에서 불러와 표시합니다.
+ */
+function loadHallOfFame(forceReload = false) {
+    const container = document.getElementById('hallOfFameContent');
+
+    // 1. 강제 새로고침이 아니면 캐시 확인
+    if (!forceReload) {
+        const cached = CacheManager.get(CacheManager.KEYS.HALL_OF_FAME);
+        if (cached) {
+            console.log('✅ 명예의 전당 캐시에서 로드');
+            displayHallOfFame(cached);
+            hallOfFameLoaded = true;
+            return;
+        }
+    }
+
+    // 2. 캐시 없거나 강제 새로고침 시 서버에서 로드
+    console.log('📡 명예의 전당 서버에서 로드 중...');
+
+    // 로딩 중 표시
+    container.innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="margin-top: 15px; color: #666;">명예의 전당을 불러오는 중...</p>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+
+    const requestUrl = `${CONFIG.GAS_URL}?action=getHallOfFame`;
+    console.log('🔗 요청 URL:', requestUrl);
+
+    $.ajax({
+        url: requestUrl,
+        dataType: 'jsonp',
+        success: function(data) {
+            console.log('명예의 전당 응답:', data);
+
+            if (data && data.success && data.hallOfFame !== undefined) {
+                displayHallOfFame(data.hallOfFame);
+
+                // 캐시에 저장 (10분 TTL)
+                CacheManager.set(CacheManager.KEYS.HALL_OF_FAME, data.hallOfFame);
+
+                if (!forceReload) {
+                    hallOfFameLoaded = true;
+                }
+            } else {
+                console.error('명예의 전당 로딩 실패:', data);
+                const errorMsg = data && data.message ? data.message : '명예의 전당을 불러오는데 실패했습니다.';
+                container.innerHTML = `<p class="text-danger">${errorMsg}</p>`;
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('명예의 전당 로딩 에러:', textStatus, errorThrown);
+            container.innerHTML = '<p class="text-danger">네트워크 오류가 발생했습니다.</p>';
+        }
+    });
+}
+
+/**
+ * 명예의 전당 데이터를 화면에 표시
+ */
+function displayHallOfFame(hallOfFame) {
+    const container = document.getElementById('hallOfFameContent');
+
+    if (hallOfFame.length === 0) {
+        container.innerHTML = `
+            <div class="hall-of-fame-empty">
+                <p>🏆 아직 우승 기록이 없습니다.</p>
+                <p class="text-secondary">정기전에서 우승하면 이곳에 기록됩니다!</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '<div class="hall-of-fame-rankings">';
+
+    hallOfFame.forEach((player, index) => {
+        // 순위별 메달/아이콘
+        let rankIcon = '';
+        let rankClass = '';
+
+        if (player.rank === 1) {
+            rankIcon = '🥇';
+            rankClass = 'gold';
+        } else if (player.rank === 2) {
+            rankIcon = '🥈';
+            rankClass = 'silver';
+        } else if (player.rank === 3) {
+            rankIcon = '🥉';
+            rankClass = 'bronze';
+        } else {
+            rankIcon = `<span class="rank-number">${player.rank}</span>`;
+            rankClass = '';
+        }
+
+        html += `
+            <div class="hall-of-fame-item ${rankClass}">
+                <div class="rank-badge">${rankIcon}</div>
+                <div class="player-info">
+                    <span class="player-name">${player.name}</span>
+                    <span class="win-count">${player.wins}회 우승</span>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
 }

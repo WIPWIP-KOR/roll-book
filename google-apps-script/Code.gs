@@ -10,7 +10,8 @@ const SHEET_NAMES = {
   MEMBERS: '회원목록',
   LOCATION: '위치설정',
   SETTINGS: '설정',
-  ATTENDANCE_REQUESTS: '출석요청' // 출석 요청 시트
+  ATTENDANCE_REQUESTS: '출석요청', // 출석 요청 시트
+  SEASON_WINNERS: '시즌별우승팀' // 명예의 전당 (시즌 | 우승팀 | 선수목록)
 };
 
 const PASSWORD_CELL = 'B2'; // 설정 시트에서 비밀번호를 저장할 셀
@@ -95,6 +96,10 @@ function doGet(e) {
       // 💡 통계 페이지 초기 로드 시 필요한 연도 목록 조회
       case 'getAvailableYears':
         return getAvailableYears(callback);
+
+      // 💡 명예의 전당
+      case 'getHallOfFame':
+        return getHallOfFame(callback);
 
       // 💡 수동 출석 관련
       case 'getUncheckedMembers':
@@ -2353,4 +2358,111 @@ function saveApprovedAttendanceRecord(name, team, season, targetDate, year, requ
   ]);
 
   Logger.log(`승인된 출석 기록 저장: ${name}, ${targetDate}, 출석시간: ${requestTime}, 지각여부: ${isLate ? '지각' : '정상'}`);
+}
+
+// ==================== 명예의 전당 ====================
+
+/**
+ * 명예의 전당 데이터 조회
+ * - 시즌별우승팀 시트에서 우승 기록을 가져와 선수별 우승 횟수 계산
+ * - 올해 출석 기록이 있는 회원만 표시
+ */
+function getHallOfFame(callback) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const currentYear = new Date().getFullYear();
+
+    // 1. 시즌별우승팀 시트 가져오기
+    const winnersSheet = ss.getSheetByName(SHEET_NAMES.SEASON_WINNERS);
+    if (!winnersSheet) {
+      Logger.log('시즌별우승팀 시트가 없습니다.');
+      return createResponse(true, null, { hallOfFame: [] }, callback);
+    }
+
+    const winnersData = winnersSheet.getDataRange().getValues();
+    if (winnersData.length <= 1) {
+      // 헤더만 있거나 데이터 없음
+      return createResponse(true, null, { hallOfFame: [] }, callback);
+    }
+
+    // 2. 올해 출석 기록이 있는 회원 목록 가져오기
+    const attendanceSheet = getAttendanceSheet(currentYear);
+    const activeMembers = new Set();
+
+    if (attendanceSheet) {
+      const attendanceData = attendanceSheet.getDataRange().getValues();
+      // 헤더 제외하고 이름(3번째 컬럼, 인덱스 2) 추출
+      for (let i = 1; i < attendanceData.length; i++) {
+        const name = String(attendanceData[i][2] || '').trim();
+        if (name) {
+          activeMembers.add(name);
+        }
+      }
+    }
+
+    Logger.log(`올해(${currentYear}) 출석한 회원 수: ${activeMembers.size}`);
+
+    // 3. 선수별 우승 횟수 계산
+    const winCounts = {};
+    const winDetails = {}; // 우승 시즌 상세 정보
+
+    // 헤더 제외하고 데이터 처리 (시즌 | 우승팀 | 선수목록)
+    for (let i = 1; i < winnersData.length; i++) {
+      const season = String(winnersData[i][0] || '').trim();
+      const teamName = String(winnersData[i][1] || '').trim();
+      const playerList = String(winnersData[i][2] || '').trim();
+
+      if (!playerList) continue;
+
+      // 선수목록 파싱 (쉼표로 구분)
+      const players = playerList.split(',').map(p => p.trim()).filter(p => p);
+
+      for (const player of players) {
+        if (!winCounts[player]) {
+          winCounts[player] = 0;
+          winDetails[player] = [];
+        }
+        winCounts[player]++;
+        winDetails[player].push(season);
+      }
+    }
+
+    // 4. 올해 출석한 회원만 필터링하고 우승 횟수로 정렬
+    const hallOfFame = [];
+
+    for (const [name, count] of Object.entries(winCounts)) {
+      // 올해 출석 기록이 있는 사람만 포함
+      if (activeMembers.has(name)) {
+        hallOfFame.push({
+          name: name,
+          wins: count,
+          seasons: winDetails[name]
+        });
+      }
+    }
+
+    // 우승 횟수 내림차순 정렬
+    hallOfFame.sort((a, b) => b.wins - a.wins);
+
+    // 순위 부여 (동점자 처리)
+    let rank = 1;
+    let prevWins = -1;
+    let sameRankCount = 0;
+
+    for (let i = 0; i < hallOfFame.length; i++) {
+      if (hallOfFame[i].wins !== prevWins) {
+        rank = i + 1;
+        prevWins = hallOfFame[i].wins;
+      }
+      hallOfFame[i].rank = rank;
+    }
+
+    Logger.log(`명예의 전당 데이터: ${hallOfFame.length}명`);
+
+    return createResponse(true, null, { hallOfFame: hallOfFame }, callback);
+
+  } catch (e) {
+    Logger.log('명예의 전당 조회 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
 }

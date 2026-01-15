@@ -26,6 +26,7 @@
         <div class="tab-container">
             <button class="tab-btn active" data-tab="attend">📝 출석하기</button>
             <button class="tab-btn" data-tab="status">📊 출석현황</button>
+            <button class="tab-btn" data-tab="hallOfFame">🏆 명예의전당</button>
         </div>
 
         <!-- 출석하기 탭 -->
@@ -71,6 +72,19 @@
                 <h3 style="margin: 30px 0 15px 0; color: #333;">📅 지난주 출석 현황</h3>
                 <div id="lastWeekStatus" class="attendance-list">
                     <p class="text-secondary">지난주 출석 현황을 불러오는 중...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 명예의 전당 탭 -->
+        <div class="tab-content" id="hallOfFameTab">
+            <div class="tab-content-wrapper">
+                <div class="hall-of-fame-header">
+                    <h3>🏆 정기전 명예의 전당</h3>
+                    <p class="hall-of-fame-desc">상반기/하반기 정기전 우승 기록</p>
+                </div>
+                <div id="hallOfFameContent" class="hall-of-fame-list">
+                    <p class="text-secondary">명예의 전당 탭을 클릭하면 데이터를 불러옵니다.</p>
                 </div>
             </div>
         </div>
