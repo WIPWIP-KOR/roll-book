@@ -1913,8 +1913,23 @@ function viewPhoto(requestId, requesterName, selectedPerson, photoUrl) {
     selectedPersonEl.textContent = selectedPerson || '(빈 풋살장 사진)';
 
     if (photoUrl) {
+        // 기존 URL 형식을 새 형식으로 변환
+        let displayUrl = photoUrl;
+
+        // drive.google.com/uc 형식을 drive.usercontent.google.com 형식으로 변환
+        if (photoUrl.includes('drive.google.com/uc')) {
+            // URL에서 파일 ID 추출
+            const match = photoUrl.match(/[?&]id=([^&]+)/);
+            if (match && match[1]) {
+                const fileId = match[1];
+                displayUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=view`;
+                console.log('📸 [URL 변환] 기존:', photoUrl);
+                console.log('📸 [URL 변환] 새:', displayUrl);
+            }
+        }
+
         // 사진 있음
-        photoImg.src = photoUrl;
+        photoImg.src = displayUrl;
         photoImg.style.display = 'block';
         noPhotoMsg.style.display = 'none';
     } else {
