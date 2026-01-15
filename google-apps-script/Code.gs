@@ -2404,7 +2404,7 @@ function getHallOfFame(callback) {
 
     // 3. 선수별 우승 횟수 계산
     const winCounts = {};
-    const winDetails = {}; // 우승 시즌 상세 정보
+    const winDetails = {}; // 우승 시즌 상세 정보 (시즌 + 팀)
 
     // 헤더 제외하고 데이터 처리 (시즌 | 우승팀 | 선수목록)
     for (let i = 1; i < winnersData.length; i++) {
@@ -2423,7 +2423,8 @@ function getHallOfFame(callback) {
           winDetails[player] = [];
         }
         winCounts[player]++;
-        winDetails[player].push(season);
+        // 시즌과 팀 정보를 함께 저장
+        winDetails[player].push({ season: season, team: teamName });
       }
     }
 
