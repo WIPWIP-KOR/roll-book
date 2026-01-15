@@ -1560,12 +1560,18 @@ function displayHallOfFame(hallOfFame) {
             rankClass = '';
         }
 
+        // 우승 시즌 정보 포맷팅 (예: 24상(A), 24하(B))
+        const seasonsText = formatSeasons(player.seasons);
+
         html += `
             <div class="hall-of-fame-item ${rankClass}">
                 <div class="rank-badge">${rankIcon}</div>
                 <div class="player-info">
-                    <span class="player-name">${player.name}</span>
-                    <span class="win-count">${player.wins}회 우승</span>
+                    <div class="player-name-row">
+                        <span class="player-name">${player.name}</span>
+                        <span class="win-count">${player.wins}회</span>
+                    </div>
+                    <div class="season-tags">${seasonsText}</div>
                 </div>
             </div>
         `;
@@ -1573,4 +1579,48 @@ function displayHallOfFame(hallOfFame) {
 
     html += '</div>';
     container.innerHTML = html;
+}
+
+/**
+ * 우승 시즌 정보를 압축 형식으로 포맷팅
+ * 예: [{season: "2024상반기", team: "A팀"}] -> "24상(A)"
+ */
+function formatSeasons(seasons) {
+    if (!seasons || seasons.length === 0) return '';
+
+    return seasons.map(s => {
+        // 시즌 문자열 또는 객체 처리
+        if (typeof s === 'string') {
+            // 구버전 호환 (시즌만 있는 경우)
+            return `<span class="season-tag">${shortenSeason(s)}</span>`;
+        } else {
+            // 새버전 (시즌 + 팀)
+            const shortSeason = shortenSeason(s.season);
+            const shortTeam = shortenTeam(s.team);
+            return `<span class="season-tag">${shortSeason}(${shortTeam})</span>`;
+        }
+    }).join('');
+}
+
+/**
+ * 시즌명 압축 (2024상반기 -> 24상)
+ */
+function shortenSeason(season) {
+    if (!season) return '';
+    // 연도 2자리 + 상/하
+    const match = season.match(/(\d{2})(\d{2})(상반기|하반기|상|하)/);
+    if (match) {
+        const year = match[2];
+        const half = match[3].startsWith('상') ? '상' : '하';
+        return `${year}${half}`;
+    }
+    return season;
+}
+
+/**
+ * 팀명 압축 (A팀 -> A)
+ */
+function shortenTeam(team) {
+    if (!team) return '';
+    return team.replace('팀', '');
 }

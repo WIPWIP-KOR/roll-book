@@ -1470,7 +1470,14 @@ body {
 .player-info {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
+    flex: 1;
+}
+
+.player-name-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .player-name {
@@ -1480,8 +1487,28 @@ body {
 }
 
 .win-count {
-    font-size: 0.95em;
-    color: #667eea;
+    font-size: 0.8em;
+    color: white;
+    font-weight: 600;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 3px 10px;
+    border-radius: 12px;
+}
+
+/* 시즌 태그 */
+.season-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.season-tag {
+    display: inline-block;
+    font-size: 0.78em;
+    color: #555;
+    background: rgba(102, 126, 234, 0.12);
+    padding: 3px 8px;
+    border-radius: 6px;
     font-weight: 500;
 }
 
@@ -1491,5 +1518,23 @@ body {
 }
 
 .hall-of-fame-item.gold .win-count {
-    color: #daa520;
+    background: linear-gradient(135deg, #ffd700 0%, #daa520 100%);
+    color: #333;
+}
+
+.hall-of-fame-item.gold .season-tag {
+    background: rgba(255, 215, 0, 0.2);
+    color: #8b6914;
+}
+
+/* 2등 플레이어 */
+.hall-of-fame-item.silver .win-count {
+    background: linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%);
+    color: #333;
+}
+
+/* 3등 플레이어 */
+.hall-of-fame-item.bronze .win-count {
+    background: linear-gradient(135deg, #cd7f32 0%, #b87333 100%);
+    color: white;
 }
