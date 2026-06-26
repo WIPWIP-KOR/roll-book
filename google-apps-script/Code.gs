@@ -1572,11 +1572,20 @@ function recalculateLateStatus(startDate, endDate, callback) {
 
         if (!timeStr) continue;
 
-        // 지각 여부 계산
-        const shouldBeLate = timeStr >= lateTime;
+        // 지각 여부 계산 (분 단위 숫자 비교로 정상↔지각 양방향 재계산)
+        const timeMinutes = timeToMinutes(timeStr);
+        const lateMinutes = timeToMinutes(lateTime);
+
+        // 시간 변환 실패 시 건너뛰기 (잘못된 값으로 덮어쓰지 않도록)
+        if (timeMinutes === null || lateMinutes === null) {
+          Logger.log(`  행 ${i + 1} (${rowDateStr}): 시간 변환 실패 - 출석시간=${timeStr}, 지각기준=${lateTime}`);
+          continue;
+        }
+
+        const shouldBeLate = timeMinutes >= lateMinutes;
         const newLateStatus = shouldBeLate ? '지각' : '정상';
 
-        // 현재 값과 다르면 업데이트
+        // 현재 값과 다르면 업데이트 (지각→정상, 정상→지각 모두 반영)
         if (currentLateStatus !== newLateStatus) {
           attendanceSheet.getRange(i + 1, lateColIndex + 1).setValue(newLateStatus);
           totalUpdated++;
