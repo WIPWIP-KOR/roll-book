@@ -22,6 +22,7 @@
             <button class="tab-btn" data-tab="qrcode">📱 QR코드</button>
             <button class="tab-btn" data-tab="members">👥 회원목록</button>
             <button class="tab-btn" data-tab="manual">✅ 출석승인</button>
+            <button class="tab-btn" data-tab="winner">🏆 우승팀</button>
             <button class="tab-btn" data-tab="settings">⚙️ 설정</button>
         </div>
 
@@ -160,6 +161,50 @@
         </div>
 
         <!-- 설정 탭 -->
+        <!-- 우승팀 탭 -->
+        <div class="tab-content" id="winnerTab">
+            <div class="tab-content-wrapper">
+                <h3 style="margin-bottom: 8px; color: #333;">🏆 대회 우승팀 등록</h3>
+                <p style="color: #666; font-size: 0.9em; margin: 0 0 20px 0;">
+                    상반기/하반기 대회 우승팀을 등록하면, 해당 시즌 우승팀 소속 선수들의 우승 횟수에 자동으로 반영됩니다.
+                </p>
+
+                <div class="form-group">
+                    <label for="winnerYear">연도</label>
+                    <select id="winnerYear" class="time-select" style="min-width: 120px;"></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="winnerSeason">시즌</label>
+                    <select id="winnerSeason" class="time-select" style="min-width: 120px;">
+                        <option value="상반기">상반기</option>
+                        <option value="하반기">하반기</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="winnerTeam">우승팀</label>
+                    <select id="winnerTeam" class="time-select" style="min-width: 120px;">
+                        <option value="">팀 선택</option>
+                    </select>
+                </div>
+
+                <!-- 선택한 팀 선수 미리보기 -->
+                <div id="winnerTeamPreview" style="margin: 5px 0 20px 0; padding: 12px 15px; background: #f8f9fa; border-radius: 8px; color: #555; font-size: 0.9em; display: none;"></div>
+
+                <button id="saveWinnerBtn" class="btn-primary">🏆 우승팀 등록</button>
+                <p id="winnerMessage" class="message-area"></p>
+
+                <!-- 등록된 우승 기록 목록 -->
+                <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
+                    <h3 style="margin-bottom: 20px; color: #333;">📜 등록된 우승 기록</h3>
+                    <div id="winnerList">
+                        <p style="color: #999; text-align: center; padding: 20px;">불러오는 중...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="tab-content" id="settingsTab">
             <div class="tab-content-wrapper">
                 <h3 style="margin-bottom: 20px; color: #333;">🔑 관리자 비밀번호 설정</h3>

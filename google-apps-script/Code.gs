@@ -76,7 +76,7 @@ function doGet(e) {
 
       // 데이터/정보 조회
       case 'getMembers':
-        return getMembers(callback);
+        return getMembers(callback, e.parameter.year);
       case 'getLocation':
         return getLocation(callback);
       case 'getTodayAttendance':
@@ -100,6 +100,14 @@ function doGet(e) {
       // 💡 명예의 전당
       case 'getHallOfFame':
         return getHallOfFame(callback);
+
+      // 💡 시즌별 우승팀 관리 (관리자)
+      case 'getSeasonWinners':
+        return getSeasonWinners(callback);
+      case 'saveSeasonWinner':
+        return saveSeasonWinner(e.parameter.year, e.parameter.season, e.parameter.team, callback);
+      case 'deleteSeasonWinner':
+        return deleteSeasonWinner(e.parameter.season, callback);
 
       // 💡 수동 출석 관련
       case 'getUncheckedMembers':
@@ -2473,6 +2481,164 @@ function getHallOfFame(callback) {
 
   } catch (e) {
     Logger.log('명예의 전당 조회 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+// ==================== 시즌별 우승팀 관리 ====================
+
+/**
+ * 시즌별우승팀 시트 가져오기 (없으면 헤더와 함께 생성)
+ * 컬럼: 시즌 | 우승팀 | 선수목록
+ */
+function getOrCreateSeasonWinnersSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.SEASON_WINNERS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.SEASON_WINNERS);
+    sheet.appendRow(['시즌', '우승팀', '선수목록']);
+  } else if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['시즌', '우승팀', '선수목록']);
+  }
+  return sheet;
+}
+
+/**
+ * 시즌(상반기/하반기) 대회 우승팀 저장
+ * - 해당 연도 회원 목록에서 우승팀 소속 선수를 찾아 선수목록을 구성
+ * - 시즌별우승팀 시트에 저장 → getHallOfFame에서 선수별 우승 횟수에 자동 반영
+ * - 같은 연도+시즌 기록이 이미 있으면 갱신(중복 집계 방지)
+ * @param {string|number} year - 대회 연도
+ * @param {string} season - 상반기 또는 하반기
+ * @param {string} team - 우승팀 (예: A, B, C)
+ * @param {function} callback - JSONP 콜백
+ */
+function saveSeasonWinner(year, season, team, callback) {
+  try {
+    const targetYear = parseInt(year, 10) || new Date().getFullYear();
+    season = String(season || '').trim();
+    team = String(team || '').trim();
+
+    if (!['상반기', '하반기'].includes(season)) {
+      return createResponse(false, '⚠️ 시즌은 상반기 또는 하반기여야 합니다.', null, callback);
+    }
+    if (!team) {
+      return createResponse(false, '⚠️ 우승팀을 선택해주세요.', null, callback);
+    }
+
+    // 해당 연도 회원 목록에서 우승팀 소속 선수 추출
+    const members = getMembers(null, targetYear);
+    const players = [];
+    members.forEach(m => {
+      const memberTeam = (season === '상반기') ? m.firstHalfTeam : m.secondHalfTeam;
+      if (String(memberTeam || '').trim() === team) {
+        const name = String(m.name || '').trim();
+        if (name) players.push(name);
+      }
+    });
+
+    if (players.length === 0) {
+      return createResponse(false, `⚠️ ${targetYear}년 ${season}에 '${team}'팀 소속 선수가 없습니다. 회원 팀 배정을 확인해주세요.`, null, callback);
+    }
+
+    const seasonLabel = `${targetYear} ${season}`;
+    const playerList = players.join(', ');
+
+    const sheet = getOrCreateSeasonWinnersSheet();
+    const data = sheet.getDataRange().getValues();
+
+    // 같은 연도+시즌 기록이 있으면 갱신, 없으면 추가 (중복 집계 방지)
+    let updated = false;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === seasonLabel) {
+        sheet.getRange(i + 1, 2).setValue(team);
+        sheet.getRange(i + 1, 3).setValue(playerList);
+        updated = true;
+        break;
+      }
+    }
+    if (!updated) {
+      sheet.appendRow([seasonLabel, team, playerList]);
+    }
+
+    Logger.log(`우승팀 저장: ${seasonLabel} - ${team}팀 (${players.length}명) ${updated ? '갱신' : '추가'}`);
+
+    const verb = updated ? '갱신' : '저장';
+    return createResponse(true, `✅ ${seasonLabel} 우승팀(${team}) ${verb} 완료! ${players.length}명의 우승 횟수에 반영되었습니다.`, {
+      season: seasonLabel,
+      team: team,
+      playerCount: players.length,
+      players: players,
+      updated: updated
+    }, callback);
+
+  } catch (e) {
+    Logger.log('우승팀 저장 오류: ' + e.toString());
+    return createResponse(false, '❌ 우승팀 저장 중 오류: ' + e.toString(), null, callback);
+  }
+}
+
+/**
+ * 저장된 시즌별 우승팀 기록 목록 조회
+ */
+function getSeasonWinners(callback) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAMES.SEASON_WINNERS);
+    if (!sheet || sheet.getLastRow() <= 1) {
+      return createResponse(true, null, { winners: [] }, callback);
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const winners = [];
+    for (let i = 1; i < data.length; i++) {
+      const season = String(data[i][0] || '').trim();
+      if (!season) continue;
+      const team = String(data[i][1] || '').trim();
+      const playerList = String(data[i][2] || '').trim();
+      const players = playerList ? playerList.split(',').map(p => p.trim()).filter(p => p) : [];
+      winners.push({ season: season, team: team, players: players, playerCount: players.length });
+    }
+
+    // 최신 시즌부터 정렬 (라벨 역순)
+    winners.sort((a, b) => String(b.season).localeCompare(String(a.season)));
+
+    return createResponse(true, null, { winners: winners }, callback);
+  } catch (e) {
+    Logger.log('우승팀 목록 조회 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 시즌별 우승팀 기록 삭제
+ * @param {string} seasonLabel - 삭제할 시즌 라벨 (예: "2026 상반기")
+ */
+function deleteSeasonWinner(seasonLabel, callback) {
+  try {
+    seasonLabel = String(seasonLabel || '').trim();
+    if (!seasonLabel) {
+      return createResponse(false, '⚠️ 삭제할 시즌을 지정해주세요.', null, callback);
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAMES.SEASON_WINNERS);
+    if (!sheet) {
+      return createResponse(false, '⚠️ 시즌별우승팀 시트가 없습니다.', null, callback);
+    }
+
+    const data = sheet.getDataRange().getValues();
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][0]).trim() === seasonLabel) {
+        sheet.deleteRow(i + 1);
+        Logger.log(`우승팀 기록 삭제: ${seasonLabel}`);
+        return createResponse(true, `✅ ${seasonLabel} 우승 기록이 삭제되었습니다.`, null, callback);
+      }
+    }
+
+    return createResponse(false, '⚠️ 해당 시즌 기록을 찾을 수 없습니다.', null, callback);
+  } catch (e) {
+    Logger.log('우승팀 삭제 오류: ' + e.toString());
     return createResponse(false, e.toString(), null, callback);
   }
 }

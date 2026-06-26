@@ -487,6 +487,241 @@ async function recalculateLateStatus() {
     }
 }
 
+// ==================== 대회 우승팀 관리 ====================
+
+// 현재 연도+시즌의 회원 목록 캐시 (팀 드롭다운/미리보기에 사용)
+let winnerMembersCache = [];
+
+/**
+ * 우승팀 탭 로드: 연도 목록, 팀 드롭다운, 우승 기록 목록 초기화
+ */
+async function loadWinnerTab() {
+    await populateWinnerYears();
+    await refreshWinnerTeams();
+    await loadWinnerList();
+}
+
+/**
+ * 연도 드롭다운 채우기 (출석 기록이 있는 연도 + 올해)
+ */
+async function populateWinnerYears() {
+    const yearSelect = document.getElementById('winnerYear');
+    if (!yearSelect) return;
+    // 이미 채워져 있으면 스킵 (재진입 시 선택값 유지)
+    if (yearSelect.options.length > 0) return;
+
+    const currentYear = new Date().getFullYear();
+    let years = [];
+
+    try {
+        const response = await requestGas('getAvailableYears');
+        years = response.availableYears || [];
+    } catch (error) {
+        console.error('연도 목록 조회 실패:', error);
+    }
+
+    // 올해가 목록에 없으면 추가
+    if (!years.includes(currentYear)) {
+        years.unshift(currentYear);
+    }
+    years.sort((a, b) => b - a);
+
+    yearSelect.innerHTML = '';
+    years.forEach(year => {
+        const opt = document.createElement('option');
+        opt.value = year;
+        opt.textContent = `${year}년`;
+        yearSelect.appendChild(opt);
+    });
+    yearSelect.value = currentYear;
+}
+
+/**
+ * 선택한 연도의 회원 목록을 불러와 팀 드롭다운을 갱신
+ */
+async function refreshWinnerTeams() {
+    const yearSelect = document.getElementById('winnerYear');
+    const seasonSelect = document.getElementById('winnerSeason');
+    const teamSelect = document.getElementById('winnerTeam');
+    if (!yearSelect || !seasonSelect || !teamSelect) return;
+
+    const year = yearSelect.value;
+    const season = seasonSelect.value;
+
+    teamSelect.innerHTML = '<option value="">팀 선택</option>';
+
+    try {
+        const response = await requestGas('getMembers', { year: year });
+        winnerMembersCache = response.members || [];
+    } catch (error) {
+        console.error('회원 목록 조회 실패:', error);
+        winnerMembersCache = [];
+    }
+
+    // 선택한 시즌의 팀 목록(중복 제거) 추출
+    const teamKey = (season === '상반기') ? 'firstHalfTeam' : 'secondHalfTeam';
+    const teams = new Set();
+    winnerMembersCache.forEach(m => {
+        const t = String(m[teamKey] || '').trim();
+        if (t) teams.add(t);
+    });
+
+    Array.from(teams).sort().forEach(team => {
+        const opt = document.createElement('option');
+        opt.value = team;
+        opt.textContent = `${team}팀`;
+        teamSelect.appendChild(opt);
+    });
+
+    updateWinnerTeamPreview();
+}
+
+/**
+ * 선택한 팀에 속한 선수 미리보기 표시
+ */
+function updateWinnerTeamPreview() {
+    const seasonSelect = document.getElementById('winnerSeason');
+    const teamSelect = document.getElementById('winnerTeam');
+    const preview = document.getElementById('winnerTeamPreview');
+    if (!seasonSelect || !teamSelect || !preview) return;
+
+    const season = seasonSelect.value;
+    const team = teamSelect.value;
+
+    if (!team) {
+        preview.style.display = 'none';
+        preview.innerHTML = '';
+        return;
+    }
+
+    const teamKey = (season === '상반기') ? 'firstHalfTeam' : 'secondHalfTeam';
+    const players = winnerMembersCache
+        .filter(m => String(m[teamKey] || '').trim() === team)
+        .map(m => String(m.name || '').trim())
+        .filter(n => n);
+
+    preview.style.display = 'block';
+    if (players.length === 0) {
+        preview.innerHTML = `⚠️ <strong>${team}팀</strong> 소속 선수가 없습니다.`;
+    } else {
+        preview.innerHTML = `👥 <strong>${team}팀</strong> 소속 ${players.length}명: ${players.join(', ')}`;
+    }
+}
+
+/**
+ * 우승팀 저장
+ */
+async function saveSeasonWinner() {
+    const yearSelect = document.getElementById('winnerYear');
+    const seasonSelect = document.getElementById('winnerSeason');
+    const teamSelect = document.getElementById('winnerTeam');
+    const messageEl = document.getElementById('winnerMessage');
+    const btn = document.getElementById('saveWinnerBtn');
+
+    const year = yearSelect.value;
+    const season = seasonSelect.value;
+    const team = teamSelect.value;
+
+    messageEl.style.color = '';
+
+    if (!team) {
+        messageEl.style.color = '#dc3545';
+        messageEl.textContent = '우승팀을 선택해주세요.';
+        return;
+    }
+
+    if (!confirm(`${year}년 ${season} 우승팀을 '${team}팀'으로 등록하시겠습니까?\n해당 팀 선수들의 우승 횟수에 반영됩니다.`)) {
+        return;
+    }
+
+    try {
+        btn.disabled = true;
+        btn.textContent = '⏳ 등록 중...';
+
+        const response = await requestGas('saveSeasonWinner', {
+            year: year,
+            season: season,
+            team: team
+        });
+
+        messageEl.style.color = '#28a745';
+        messageEl.textContent = response.message || '✅ 우승팀이 등록되었습니다.';
+
+        await loadWinnerList();
+    } catch (error) {
+        messageEl.style.color = '#dc3545';
+        messageEl.textContent = '❌ ' + (typeof error === 'string' ? error : '우승팀 등록에 실패했습니다.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🏆 우승팀 등록';
+    }
+}
+
+/**
+ * 등록된 우승 기록 목록 표시
+ */
+async function loadWinnerList() {
+    const listEl = document.getElementById('winnerList');
+    if (!listEl) return;
+
+    listEl.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">불러오는 중...</p>';
+
+    let winners = [];
+    try {
+        const response = await requestGas('getSeasonWinners');
+        winners = response.winners || [];
+    } catch (error) {
+        console.error('우승 기록 조회 실패:', error);
+        listEl.innerHTML = '<p style="color: #dc3545; text-align: center; padding: 20px;">우승 기록을 불러오지 못했습니다.</p>';
+        return;
+    }
+
+    if (winners.length === 0) {
+        listEl.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">등록된 우승 기록이 없습니다.</p>';
+        return;
+    }
+
+    listEl.innerHTML = winners.map(w => {
+        const players = (w.players || []).join(', ');
+        const safeSeason = w.season.replace(/'/g, "\\'");
+        return `
+            <div style="padding: 15px; margin-bottom: 12px; background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <span style="font-weight: 700; color: #333;">🏆 ${w.season}</span>
+                        <span style="margin-left: 8px; padding: 2px 10px; background: #667eea; color: #fff; border-radius: 12px; font-size: 0.85em;">${w.team}팀</span>
+                        <span style="margin-left: 8px; color: #888; font-size: 0.85em;">${w.playerCount}명</span>
+                    </div>
+                    <button class="btn-secondary" style="padding: 6px 12px; font-size: 0.85em;" onclick="deleteSeasonWinner('${safeSeason}')">🗑️ 삭제</button>
+                </div>
+                <div style="margin-top: 10px; color: #666; font-size: 0.9em;">${players || '선수 정보 없음'}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * 우승 기록 삭제
+ */
+async function deleteSeasonWinner(season) {
+    if (!confirm(`'${season}' 우승 기록을 삭제하시겠습니까?\n해당 선수들의 우승 횟수에서 차감됩니다.`)) {
+        return;
+    }
+
+    const messageEl = document.getElementById('winnerMessage');
+    messageEl.style.color = '';
+
+    try {
+        const response = await requestGas('deleteSeasonWinner', { season: season });
+        messageEl.style.color = '#28a745';
+        messageEl.textContent = response.message || '✅ 삭제되었습니다.';
+        await loadWinnerList();
+    } catch (error) {
+        messageEl.style.color = '#dc3545';
+        messageEl.textContent = '❌ ' + (typeof error === 'string' ? error : '삭제에 실패했습니다.');
+    }
+}
+
 /**
  * 현재 설정 표시 업데이트
  */
@@ -1241,6 +1476,9 @@ function switchTab(tabName) {
         case 'manual':
             loadManualTab();
             break;
+        case 'winner':
+            loadWinnerTab();
+            break;
         case 'settings':
             // 설정 탭: 출석 시간 설정 및 요일 설정 로드
             loadSettingsTab();
@@ -1552,6 +1790,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshRequestsBtn = document.getElementById('refreshRequestsBtn');
     if (refreshRequestsBtn) {
         refreshRequestsBtn.addEventListener('click', loadAttendanceRequests);
+    }
+
+    // 우승팀 관련 이벤트 리스너
+    const saveWinnerBtn = document.getElementById('saveWinnerBtn');
+    if (saveWinnerBtn) {
+        saveWinnerBtn.addEventListener('click', saveSeasonWinner);
+    }
+    const winnerYearSelect = document.getElementById('winnerYear');
+    if (winnerYearSelect) {
+        winnerYearSelect.addEventListener('change', refreshWinnerTeams);
+    }
+    const winnerSeasonSelect = document.getElementById('winnerSeason');
+    if (winnerSeasonSelect) {
+        winnerSeasonSelect.addEventListener('change', refreshWinnerTeams);
+    }
+    const winnerTeamSelect = document.getElementById('winnerTeam');
+    if (winnerTeamSelect) {
+        winnerTeamSelect.addEventListener('change', updateWinnerTeamPreview);
     }
 
     // 사진 모달 닫기 이벤트 리스너
