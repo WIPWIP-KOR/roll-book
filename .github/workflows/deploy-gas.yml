@@ -2,6 +2,7 @@ name: Deploy Apps Script (GAS)
 
 # google-apps-script/ 아래 코드가 main에 머지되면 clasp로 자동 푸시 + 재배포한다.
 # (프론트엔드는 GitHub Pages가 자동 배포하므로 별도 처리 불필요)
+# 자동배포 인증 검증을 위한 실행 트리거.
 on:
   push:
     branches: [main]
