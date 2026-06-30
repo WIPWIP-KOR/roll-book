@@ -34,6 +34,24 @@
 
                 <hr style="margin: 36px 0; border: none; border-top: 2px solid #e0e0e0;">
 
+                <!-- 팀 배정 -->
+                <div class="section-header">
+                    <h3 style="margin: 0; color: #333;">🧩 팀 배정</h3>
+                    <button id="loadTeamAssignBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.9em;">🔄 조회</button>
+                </div>
+                <div style="margin: 10px 0 12px 0; display:flex; align-items:center; gap:8px;">
+                    <label for="teamAssignSeason" style="color:#666;">시즌</label>
+                    <select id="teamAssignSeason" class="time-select" style="min-width:110px;">
+                        <option value="상반기">상반기</option>
+                        <option value="하반기">하반기</option>
+                    </select>
+                </div>
+                <div id="teamAssignArea">
+                    <p class="text-secondary">조회 버튼을 눌러 팀 배정 현황을 불러오세요.</p>
+                </div>
+
+                <hr style="margin: 36px 0; border: none; border-top: 2px solid #e0e0e0;">
+
                 <h3 style="margin: 0 0 15px 0; color: #333;">✅ 출석 승인 관리</h3>
 
                 <div class="info-box" style="margin-bottom: 20px;">

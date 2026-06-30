@@ -11,7 +11,8 @@ const SHEET_NAMES = {
   LOCATION: '위치설정',
   SETTINGS: '설정',
   ATTENDANCE_REQUESTS: '출석요청', // 출석 요청 시트
-  SEASON_WINNERS: '시즌별우승팀' // 명예의 전당 (시즌 | 우승팀 | 선수목록)
+  SEASON_WINNERS: '시즌별우승팀', // 명예의 전당 (시즌 | 우승팀 | 선수목록)
+  TEAM_COACHES: '팀감독' // 팀 감독 (시즌 | 팀 | 감독)
 };
 
 const PASSWORD_CELL = 'B2'; // 설정 시트에서 비밀번호를 저장할 셀
@@ -76,7 +77,7 @@ function doGet(e) {
 
       // 데이터/정보 조회
       case 'getMembers':
-        return getMembers(callback, e.parameter.year);
+        return getMembers(callback, e.parameter.year, e.parameter.fresh);
 
       // 💡 관리자 선수(회원) 관리
       case 'addMember':
@@ -85,6 +86,14 @@ function doGet(e) {
         return adminUpdateMember(e.parameter.originalName, e.parameter.newName, e.parameter.firstHalfTeam, e.parameter.secondHalfTeam, callback);
       case 'deleteMember':
         return adminDeleteMember(e.parameter.name, callback);
+
+      // 💡 팀 배정 / 감독
+      case 'getTeamAssignment':
+        return getTeamAssignment(e.parameter.season, callback);
+      case 'assignTeam':
+        return assignTeam(e.parameter.name, e.parameter.season, e.parameter.team, callback);
+      case 'setTeamCoach':
+        return setTeamCoach(e.parameter.season, e.parameter.team, e.parameter.coach, callback);
       case 'getLocation':
         return getLocation(callback);
       case 'getTodayAttendance':
@@ -863,6 +872,151 @@ function renameMemberEverywhere(oldName, newName, year) {
   return count;
 }
 
+// ==================== 팀 배정 / 감독 관리 ====================
+
+/** 팀감독 시트 가져오기 (없으면 헤더와 함께 생성) — 컬럼: 시즌 | 팀 | 감독 */
+function getOrCreateTeamCoachSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.TEAM_COACHES);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.TEAM_COACHES);
+    sheet.appendRow(['시즌', '팀', '감독']);
+  } else if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['시즌', '팀', '감독']);
+  }
+  return sheet;
+}
+
+/**
+ * 팀 배정 현황 조회
+ * - 미배정(해당 시즌 팀 없음) 회원, 팀별 소속 회원, 팀별 감독
+ */
+function getTeamAssignment(season, callback) {
+  try {
+    season = String(season || '').trim();
+    if (!['상반기', '하반기'].includes(season)) {
+      return createResponse(false, '⚠️ 시즌은 상반기 또는 하반기여야 합니다.', null, callback);
+    }
+
+    const currentYear = new Date().getFullYear();
+    const members = getMembers(null, currentYear, true); // 캐시 우회(최신)
+    const teamKey = (season === '상반기') ? 'firstHalfTeam' : 'secondHalfTeam';
+
+    const unassigned = [];
+    const teams = { A: [], B: [], C: [] };
+    members.forEach(m => {
+      const t = String(m[teamKey] || '').trim();
+      const name = String(m.name || '').trim();
+      if (!name) return;
+      if (t === 'A' || t === 'B' || t === 'C') {
+        teams[t].push(name);
+      } else {
+        unassigned.push(name);
+      }
+    });
+
+    // 감독 정보
+    const seasonLabel = formatSeasonLabel(currentYear, season);
+    const coaches = { A: '', B: '', C: '' };
+    const coachSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAMES.TEAM_COACHES);
+    if (coachSheet && coachSheet.getLastRow() > 1) {
+      const cdata = coachSheet.getDataRange().getValues();
+      for (let i = 1; i < cdata.length; i++) {
+        if (seasonSortKey(cdata[i][0]) === seasonSortKey(seasonLabel)) {
+          const t = String(cdata[i][1] || '').trim();
+          if (coaches.hasOwnProperty(t)) coaches[t] = String(cdata[i][2] || '').trim();
+        }
+      }
+    }
+
+    return createResponse(true, null, {
+      season: seasonLabel,
+      unassigned: unassigned,
+      teams: teams,
+      coaches: coaches
+    }, callback);
+  } catch (e) {
+    Logger.log('팀 배정 조회 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 회원을 특정 팀에 배정 (해당 시즌 팀 컬럼 갱신). team='' 이면 배정 해제
+ */
+function assignTeam(name, season, team, callback) {
+  try {
+    name = String(name || '').trim();
+    season = String(season || '').trim();
+    team = String(team || '').trim();
+    if (!name) return createResponse(false, '⚠️ 대상 선수를 지정해주세요.', null, callback);
+    if (!['상반기', '하반기'].includes(season)) {
+      return createResponse(false, '⚠️ 시즌이 올바르지 않습니다.', null, callback);
+    }
+    if (team !== '' && !['A', 'B', 'C'].includes(team)) {
+      return createResponse(false, '⚠️ 팀은 A/B/C 중 하나여야 합니다.', null, callback);
+    }
+
+    const currentYear = new Date().getFullYear();
+    const sheet = getMemberSheet(currentYear);
+    if (!sheet) return createResponse(false, '⚠️ 회원 목록 시트가 없습니다.', null, callback);
+
+    const data = sheet.getDataRange().getValues();
+    const col = (season === '상반기') ? 2 : 3; // B=상반기팀, C=하반기팀
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === name) {
+        sheet.getRange(i + 1, col).setValue(team);
+        CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${currentYear}`);
+        Logger.log(`팀 배정: ${name} → ${season} ${team || '(해제)'}`);
+        return createResponse(true, `✅ ${name} → ${team ? team + '팀' : '배정 해제'}`, null, callback);
+      }
+    }
+    return createResponse(false, `⚠️ '${name}' 선수를 찾을 수 없습니다.`, null, callback);
+  } catch (e) {
+    Logger.log('팀 배정 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 팀 감독 지정 (시즌+팀 단위 upsert). coach='' 이면 해제
+ */
+function setTeamCoach(season, team, coach, callback) {
+  try {
+    season = String(season || '').trim();
+    team = String(team || '').trim();
+    coach = String(coach || '').trim();
+    if (!['상반기', '하반기'].includes(season)) {
+      return createResponse(false, '⚠️ 시즌이 올바르지 않습니다.', null, callback);
+    }
+    if (!['A', 'B', 'C'].includes(team)) {
+      return createResponse(false, '⚠️ 팀은 A/B/C 중 하나여야 합니다.', null, callback);
+    }
+
+    const currentYear = new Date().getFullYear();
+    const seasonLabel = formatSeasonLabel(currentYear, season);
+    const sheet = getOrCreateTeamCoachSheet();
+    const data = sheet.getDataRange().getValues();
+
+    let found = false;
+    for (let i = 1; i < data.length; i++) {
+      if (seasonSortKey(data[i][0]) === seasonSortKey(seasonLabel) && String(data[i][1]).trim() === team) {
+        sheet.getRange(i + 1, 1).setValue(seasonLabel);
+        sheet.getRange(i + 1, 3).setValue(coach);
+        found = true;
+        break;
+      }
+    }
+    if (!found) sheet.appendRow([seasonLabel, team, coach]);
+
+    Logger.log(`팀 감독: ${seasonLabel} ${team}팀 → ${coach || '(해제)'}`);
+    return createResponse(true, `✅ ${team}팀 감독: ${coach || '(해제)'}`, null, callback);
+  } catch (e) {
+    Logger.log('팀 감독 지정 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
 // ==================== 위치 관리 (기존 로직 유지) ====================
 
 function saveLocation(data, callback) {
@@ -908,13 +1062,14 @@ function getTargetLocation() {
  * @param {function} callback - JSONP 콜백 함수 (옵션)
  * @param {number} year - 조회할 연도 (옵션, 기본값: 현재 연도)
  */
-function getMembers(callback, year) {
+function getMembers(callback, year, fresh) {
   const targetYear = year || new Date().getFullYear();
   const cache = CacheService.getScriptCache();
   const CACHE_KEY = `ALL_MEMBERS_DATA_${targetYear}`; // 💡 연도별 캐시 키
+  const skipCache = (fresh === true || fresh === '1' || fresh === 'true'); // 캐시 우회(시트 직독)
 
-  // 1. 캐시에서 데이터 로드 시도
-  let membersJson = cache.get(CACHE_KEY);
+  // 1. 캐시에서 데이터 로드 시도 (fresh 요청 시 건너뜀)
+  let membersJson = skipCache ? null : cache.get(CACHE_KEY);
 
   if (membersJson) {
       Logger.log(`Members data for ${targetYear} loaded from cache.`);

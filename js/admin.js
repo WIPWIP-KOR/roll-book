@@ -550,7 +550,7 @@ async function refreshWinnerTeams() {
     teamSelect.innerHTML = '<option value="">팀 선택</option>';
 
     try {
-        const response = await requestGas('getMembers', { year: year });
+        const response = await requestGas('getMembers', { year: year, fresh: 1 });
         winnerMembersCache = response.members || [];
     } catch (error) {
         console.error('회원 목록 조회 실패:', error);
@@ -1124,8 +1124,117 @@ async function loadAdminData() {
 async function loadManageTab() {
     // 탭 진입 시 자동 조회하지 않고, 각 섹션의 조회 버튼으로 불러온다
     renderMembersInitial();
+    setupTeamAssignSection();
     setupManualSection();
     setupWinnerSection();
+}
+
+// ==================== 팀 배정 ====================
+let teamAssignData = null;
+
+function currentSeasonForAssign() {
+    const sel = document.getElementById('teamAssignSeason');
+    if (sel && sel.value) return sel.value;
+    return (new Date().getMonth() + 1) <= 6 ? '상반기' : '하반기';
+}
+
+/** 팀 배정 섹션 초기 세팅 (시즌 기본값 = 현재 시즌, 목록은 조회 버튼으로) */
+function setupTeamAssignSection() {
+    const sel = document.getElementById('teamAssignSeason');
+    if (sel && !sel.dataset.init) {
+        sel.value = (new Date().getMonth() + 1) <= 6 ? '상반기' : '하반기';
+        sel.dataset.init = '1';
+    }
+    const area = document.getElementById('teamAssignArea');
+    if (area) area.innerHTML = '<p class="text-secondary">조회 버튼을 눌러 팀 배정 현황을 불러오세요.</p>';
+}
+
+async function loadTeamAssignment() {
+    const area = document.getElementById('teamAssignArea');
+    const season = currentSeasonForAssign();
+    if (area) area.innerHTML = '<p class="text-secondary">불러오는 중...</p>';
+    try {
+        const r = await requestGas('getTeamAssignment', { season: season });
+        teamAssignData = r;
+        renderTeamAssignment(r);
+    } catch (e) {
+        if (area) area.innerHTML = `<p class="text-danger">조회 실패: ${typeof e === 'string' ? e : '오류'}</p>`;
+    }
+}
+
+function escJs(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+function renderTeamAssignment(d) {
+    const area = document.getElementById('teamAssignArea');
+    if (!area) return;
+    const teams = d.teams || { A: [], B: [], C: [] };
+    const coaches = d.coaches || {};
+    const unassigned = d.unassigned || [];
+
+    // 팀별 카드 + 감독 지정
+    let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">`;
+    ['A', 'B', 'C'].forEach(t => {
+        const mem = teams[t] || [];
+        const coach = coaches[t] || '';
+        const list = mem.slice();
+        if (coach && list.indexOf(coach) === -1) list.push(coach); // 팀 밖 감독도 옵션에 포함
+        let opts = '<option value="">(감독 없음)</option>';
+        list.forEach(n => { opts += `<option value="${n}" ${n === coach ? 'selected' : ''}>${n}</option>`; });
+        html += `
+            <div style="flex:1;min-width:170px;border:1px solid #e0e0e0;border-radius:10px;padding:12px;">
+                <div style="font-weight:700;color:#667eea;margin-bottom:6px;">${t}팀 <span style="color:#888;font-weight:400;font-size:0.85em;">(${mem.length}명)</span></div>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+                    <span style="font-size:0.85em;color:#666;">감독</span>
+                    <select id="coach-${t}" style="flex:1;padding:6px;border:1px solid #ccc;border-radius:6px;">${opts}</select>
+                    <button class="btn-secondary" style="padding:4px 10px;font-size:0.85em;" onclick="saveTeamCoach('${t}')">지정</button>
+                </div>
+                <div style="font-size:0.85em;color:#555;">${mem.length ? mem.join(', ') : '소속 없음'}</div>
+            </div>`;
+    });
+    html += `</div>`;
+
+    // 미배정 회원
+    html += `<h4 style="margin:0 0 10px 0;color:#333;">미배정 회원 <span style="color:#888;font-weight:400;font-size:0.85em;">(${unassigned.length}명)</span></h4>`;
+    if (unassigned.length === 0) {
+        html += `<p class="text-secondary">✅ 모든 회원이 팀에 배정되었습니다.</p>`;
+    } else {
+        html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
+        unassigned.forEach(n => {
+            const e = escJs(n);
+            html += `
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff7e6;border:1px solid #ffe0a3;border-radius:8px;">
+                    <span style="flex:1;font-weight:600;">${n}</span>
+                    <button class="btn-secondary" style="padding:4px 14px;" onclick="assignMemberTeam('${e}','A')">A</button>
+                    <button class="btn-secondary" style="padding:4px 14px;" onclick="assignMemberTeam('${e}','B')">B</button>
+                    <button class="btn-secondary" style="padding:4px 14px;" onclick="assignMemberTeam('${e}','C')">C</button>
+                </div>`;
+        });
+        html += `</div>`;
+    }
+
+    area.innerHTML = html;
+}
+
+async function assignMemberTeam(name, team) {
+    const season = currentSeasonForAssign();
+    try {
+        await requestGas('assignTeam', { name: name, season: season, team: team });
+        await loadTeamAssignment();
+    } catch (e) {
+        alert('배정 실패: ' + (typeof e === 'string' ? e : '오류가 발생했습니다.'));
+    }
+}
+
+async function saveTeamCoach(team) {
+    const season = currentSeasonForAssign();
+    const sel = document.getElementById('coach-' + team);
+    const coach = sel ? sel.value : '';
+    try {
+        await requestGas('setTeamCoach', { season: season, team: team, coach: coach });
+        await loadTeamAssignment();
+    } catch (e) {
+        alert('감독 지정 실패: ' + (typeof e === 'string' ? e : '오류가 발생했습니다.'));
+    }
 }
 
 /** 출석 승인 섹션 초기 세팅 (날짜 기본값, 요청목록은 새로고침 버튼으로 조회) */
@@ -1237,7 +1346,8 @@ async function loadMembers(forceReload = false) {
 
         if (!members) {
             console.log('📡 회원 목록 서버에서 로드 중...');
-            const response = await requestGas('getMembers');
+            // forceReload(조회 버튼) 시 서버 캐시까지 우회하여 시트 최신값 조회
+            const response = await requestGas('getMembers', forceReload ? { fresh: 1 } : {});
             members = response.members || [];
             CacheManager.set(CacheManager.KEYS.MEMBERS, members);
         } else {
@@ -1271,11 +1381,10 @@ function addMemberFormHtml() {
             <h4 style="margin: 0 0 12px 0; color: #333;">➕ 선수 등록</h4>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                 <input type="text" id="newMemberName" placeholder="이름" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px;flex:1;min-width:120px;">
-                ${teamSelectHtml('newMemberFirstTeam', '', '상반기팀')}
-                ${teamSelectHtml('newMemberSecondTeam', '', '하반기팀')}
                 <button class="btn-primary" style="padding:8px 16px;" onclick="submitAddMember()">등록</button>
             </div>
-            <p id="addMemberMsg" class="message-area" style="margin:8px 0 0 0;"></p>
+            <p style="margin:8px 0 0 0;color:#888;font-size:0.85em;">팀 배정은 아래 '🧩 팀 배정'에서 합니다.</p>
+            <p id="addMemberMsg" class="message-area" style="margin:6px 0 0 0;"></p>
         </div>
     `;
 }
@@ -1359,8 +1468,6 @@ function renderMembersSection() {
 async function submitAddMember() {
     const nameEl = document.getElementById('newMemberName');
     const name = nameEl.value.trim();
-    const first = document.getElementById('newMemberFirstTeam').value;
-    const second = document.getElementById('newMemberSecondTeam').value;
     const msg = document.getElementById('addMemberMsg');
     msg.style.color = '';
 
@@ -1371,7 +1478,8 @@ async function submitAddMember() {
     }
 
     try {
-        const r = await requestGas('addMember', { name: name, firstHalfTeam: first, secondHalfTeam: second });
+        // 팀 배정은 별도 섹션에서 → 등록 시 팀 미지정
+        const r = await requestGas('addMember', { name: name });
         await loadMembers(true);
         const m = document.getElementById('addMemberMsg');
         if (m) { m.style.color = '#28a745'; m.textContent = r.message || `✅ ${name} 등록됨`; }
@@ -1982,6 +2090,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadWinnerBtn = document.getElementById('loadWinnerBtn');
     if (loadWinnerBtn) {
         loadWinnerBtn.addEventListener('click', loadWinnerTab);
+    }
+    const loadTeamAssignBtn = document.getElementById('loadTeamAssignBtn');
+    if (loadTeamAssignBtn) {
+        loadTeamAssignBtn.addEventListener('click', loadTeamAssignment);
+    }
+    const teamAssignSeason = document.getElementById('teamAssignSeason');
+    if (teamAssignSeason) {
+        teamAssignSeason.addEventListener('change', loadTeamAssignment);
     }
     const saveWinnerBtn = document.getElementById('saveWinnerBtn');
     if (saveWinnerBtn) {
