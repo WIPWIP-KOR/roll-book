@@ -1,7 +1,6 @@
 // 설정
 const CONFIG = {
-    // ⚠️⚠️⚠️ 여기를 실제 Google Apps Script 배포 URL로 변경하세요 ⚠️⚠️⚠️
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbwhl5jaYxeROUK4w8-unbtmeYENfmA7p56DwYC4xO9gunbnoJXPmKdfUnLvd-_k8GHd/exec', // 나중에 변경 필요
+    GAS_URL: GAS_URL, // js/config.js 에서 전역으로 정의 (전 페이지 공통 URL)
     REQUIRED_RADIUS: 50 // 50m 이내만 출석 인정
 };
 

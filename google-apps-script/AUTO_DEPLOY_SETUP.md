@@ -61,11 +61,11 @@ git diff            # 바뀐 내용 확인
 clasp deployments
 ```
 
-출력된 배포 ID 목록을, 워크플로(`.github/workflows/deploy-gas.yml`)의
-`Redeploy ...` step에 적힌 두 ID와 비교하세요.
-- 목록에 없는 ID가 워크플로에 있으면 → 해당 step을 수정/삭제
-- 목록에 있는데 워크플로에 없으면 → step 추가
-(현재 워크플로에는 프론트엔드가 사용하는 두 배포 URL의 ID가 들어 있습니다.)
+출력된 배포 ID 목록에, 워크플로(`.github/workflows/deploy-gas.yml`)의
+`Redeploy ...` step에 적힌 ID가 있는지 확인하세요.
+- 그 ID가 목록에 없으면 → 워크플로의 `-i` 값을 실제 배포 ID로 수정
+- 프론트엔드는 `js/config.js` 의 **단일 URL**을 사용하므로, 그 URL의 배포 ID
+  하나만 재배포하면 됩니다. (URL의 `/macros/s/` 와 `/exec` 사이 문자열이 배포 ID)
 
 ### 7. GitHub Secret 등록
 

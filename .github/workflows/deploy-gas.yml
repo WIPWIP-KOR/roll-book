@@ -40,18 +40,12 @@ jobs:
       - name: Push code to Apps Script
         run: clasp push -f
 
-      # 프론트엔드가 쓰는 배포 URL을 그대로 유지하려면 "기존 배포 ID"를 재배포해야 한다.
-      # (배포 ID는 이미 프론트엔드 JS에 공개돼 있으므로 비밀이 아님 → 워크플로에 직접 기입)
-      # ⚠️ 아래 ID가 현재 스크립트 프로젝트의 배포가 맞는지 `clasp deployments`로 확인하세요.
-      #     맞지 않는 ID가 있으면 해당 step을 수정/삭제하면 됩니다.
-      - name: Redeploy (admin / stats URL)
+      # 프론트엔드(js/config.js)가 쓰는 단일 배포 URL을 그대로 유지하려면
+      # "기존 배포 ID"를 재배포해야 한다. (새 배포로 만들면 URL이 바뀜)
+      # 배포 ID는 이미 프론트엔드 JS에 공개돼 있으므로 비밀이 아님 → 워크플로에 직접 기입.
+      # ⚠️ 이 ID가 현재 스크립트 프로젝트의 배포가 맞는지 `clasp deployments`로 확인하세요.
+      - name: Redeploy (keep same web app URL)
         run: >-
           clasp deploy
           -i AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd
-          -d "CI ${{ github.sha }}"
-
-      - name: Redeploy (attendance URL)
-        run: >-
-          clasp deploy
-          -i AKfycbwhl5jaYxeROUK4w8-unbtmeYENfmA7p56DwYC4xO9gunbnoJXPmKdfUnLvd-_k8GHd
           -d "CI ${{ github.sha }}"
