@@ -77,6 +77,14 @@ function doGet(e) {
       // 데이터/정보 조회
       case 'getMembers':
         return getMembers(callback, e.parameter.year);
+
+      // 💡 관리자 선수(회원) 관리
+      case 'addMember':
+        return adminAddMember(e.parameter.name, e.parameter.firstHalfTeam, e.parameter.secondHalfTeam, callback);
+      case 'updateMember':
+        return adminUpdateMember(e.parameter.originalName, e.parameter.newName, e.parameter.firstHalfTeam, e.parameter.secondHalfTeam, callback);
+      case 'deleteMember':
+        return adminDeleteMember(e.parameter.name, callback);
       case 'getLocation':
         return getLocation(callback);
       case 'getTodayAttendance':
@@ -693,6 +701,166 @@ function updateMember(name, team, season) {
     // 💡 캐시 무효화: 연도별 캐시 키 사용
     CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${currentYear}`);
   }
+}
+
+// ==================== 관리자 선수(회원) 관리 ====================
+
+/**
+ * 선수 등록 (관리자) - 현재 연도 회원 목록 시트에 추가
+ */
+function adminAddMember(name, firstHalfTeam, secondHalfTeam, callback) {
+  try {
+    name = String(name || '').trim();
+    firstHalfTeam = String(firstHalfTeam || '').trim();
+    secondHalfTeam = String(secondHalfTeam || '').trim();
+    if (!name) return createResponse(false, '⚠️ 이름을 입력해주세요.', null, callback);
+
+    const currentYear = new Date().getFullYear();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = getMemberSheet(currentYear);
+    if (!sheet) {
+      sheet = ss.insertSheet(getMemberSheetName(currentYear));
+      sheet.appendRow(['이름', '상반기팀', '하반기팀', '최초등록일', '출석수']);
+    }
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(['이름', '상반기팀', '하반기팀', '최초등록일', '출석수']);
+    }
+
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === name) {
+        return createResponse(false, `⚠️ '${name}' 선수는 이미 등록되어 있습니다.`, null, callback);
+      }
+    }
+
+    const date = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    sheet.appendRow([name, firstHalfTeam, secondHalfTeam, date, 0]);
+    CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${currentYear}`);
+    Logger.log(`선수 등록: ${name} (상:${firstHalfTeam}, 하:${secondHalfTeam})`);
+    return createResponse(true, `✅ '${name}' 선수가 등록되었습니다.`, null, callback);
+  } catch (e) {
+    Logger.log('선수 등록 오류: ' + e.toString());
+    return createResponse(false, '❌ 등록 중 오류: ' + e.toString(), null, callback);
+  }
+}
+
+/**
+ * 선수 정보 수정 (관리자) - 이름/팀 수정. 이름 변경 시 출석기록·우승목록도 반영
+ */
+function adminUpdateMember(originalName, newName, firstHalfTeam, secondHalfTeam, callback) {
+  try {
+    originalName = String(originalName || '').trim();
+    newName = String(newName || '').trim();
+    firstHalfTeam = String(firstHalfTeam || '').trim();
+    secondHalfTeam = String(secondHalfTeam || '').trim();
+    if (!originalName) return createResponse(false, '⚠️ 대상 선수를 지정해주세요.', null, callback);
+    if (!newName) return createResponse(false, '⚠️ 이름을 입력해주세요.', null, callback);
+
+    const currentYear = new Date().getFullYear();
+    const sheet = getMemberSheet(currentYear);
+    if (!sheet) return createResponse(false, '⚠️ 회원 목록 시트가 없습니다.', null, callback);
+
+    const data = sheet.getDataRange().getValues();
+
+    // 이름 변경 시 중복 체크
+    if (newName !== originalName) {
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0]).trim() === newName) {
+          return createResponse(false, `⚠️ '${newName}' 이름이 이미 존재합니다.`, null, callback);
+        }
+      }
+    }
+
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === originalName) { rowIndex = i; break; }
+    }
+    if (rowIndex === -1) return createResponse(false, `⚠️ '${originalName}' 선수를 찾을 수 없습니다.`, null, callback);
+
+    sheet.getRange(rowIndex + 1, 1).setValue(newName);
+    sheet.getRange(rowIndex + 1, 2).setValue(firstHalfTeam);
+    sheet.getRange(rowIndex + 1, 3).setValue(secondHalfTeam);
+
+    // 이름이 바뀌면 올해 출석기록과 시즌별우승팀 선수목록의 이름도 함께 변경 (통계 일치)
+    let updatedRecords = 0;
+    if (newName !== originalName) {
+      updatedRecords = renameMemberEverywhere(originalName, newName, currentYear);
+    }
+
+    CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${currentYear}`);
+    Logger.log(`선수 수정: ${originalName} → ${newName} (출석기록 ${updatedRecords}건 갱신)`);
+    const extra = (newName !== originalName) ? ` (출석기록 ${updatedRecords}건의 이름도 변경됨)` : '';
+    return createResponse(true, `✅ 수정되었습니다.${extra}`, null, callback);
+  } catch (e) {
+    Logger.log('선수 수정 오류: ' + e.toString());
+    return createResponse(false, '❌ 수정 중 오류: ' + e.toString(), null, callback);
+  }
+}
+
+/**
+ * 선수 삭제 (관리자) - 회원 목록에서만 제거 (출석기록은 보존)
+ */
+function adminDeleteMember(name, callback) {
+  try {
+    name = String(name || '').trim();
+    if (!name) return createResponse(false, '⚠️ 삭제할 선수를 지정해주세요.', null, callback);
+
+    const currentYear = new Date().getFullYear();
+    const sheet = getMemberSheet(currentYear);
+    if (!sheet) return createResponse(false, '⚠️ 회원 목록 시트가 없습니다.', null, callback);
+
+    const data = sheet.getDataRange().getValues();
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][0]).trim() === name) {
+        sheet.deleteRow(i + 1);
+        CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${currentYear}`);
+        Logger.log(`선수 삭제: ${name}`);
+        return createResponse(true, `✅ '${name}' 선수가 회원 목록에서 삭제되었습니다.`, null, callback);
+      }
+    }
+    return createResponse(false, `⚠️ '${name}' 선수를 찾을 수 없습니다.`, null, callback);
+  } catch (e) {
+    Logger.log('선수 삭제 오류: ' + e.toString());
+    return createResponse(false, '❌ 삭제 중 오류: ' + e.toString(), null, callback);
+  }
+}
+
+/**
+ * 이름 변경 시 올해 출석기록(이름 컬럼)과 시즌별우승팀 선수목록에 반영
+ * @return {number} 변경된 출석기록 건수
+ */
+function renameMemberEverywhere(oldName, newName, year) {
+  let count = 0;
+
+  // 1) 출석기록_YYYY 의 '이름' 컬럼
+  const attendanceSheet = getAttendanceSheet(year);
+  if (attendanceSheet && attendanceSheet.getLastRow() > 1) {
+    const data = attendanceSheet.getDataRange().getValues();
+    const nameCol = data[0].indexOf('이름');
+    if (nameCol !== -1) {
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][nameCol]).trim() === oldName) {
+          attendanceSheet.getRange(i + 1, nameCol + 1).setValue(newName);
+          count++;
+        }
+      }
+    }
+  }
+
+  // 2) 시즌별우승팀 선수목록
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const winnersSheet = ss.getSheetByName(SHEET_NAMES.SEASON_WINNERS);
+  if (winnersSheet && winnersSheet.getLastRow() > 1) {
+    const wdata = winnersSheet.getDataRange().getValues();
+    for (let i = 1; i < wdata.length; i++) {
+      const players = String(wdata[i][2] || '').split(',').map(p => p.trim()).filter(p => p);
+      let changed = false;
+      const updated = players.map(p => { if (p === oldName) { changed = true; return newName; } return p; });
+      if (changed) winnersSheet.getRange(i + 1, 3).setValue(updated.join(', '));
+    }
+  }
+
+  return count;
 }
 
 // ==================== 위치 관리 (기존 로직 유지) ====================

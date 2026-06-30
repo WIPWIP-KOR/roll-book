@@ -1205,69 +1205,193 @@ async function loadSettingsTab() {
 /**
  * 전체 회원 목록을 서버에서 불러와 테이블에 표시합니다. - 캐싱 적용
  */
-async function loadMembers() {
+let adminMembersList = [];   // 현재 표시 중인 회원 목록 (정렬됨)
+let editingMemberIndex = -1; // 인라인 수정 중인 행 인덱스
+
+async function loadMembers(forceReload = false) {
     const container = document.getElementById('membersList');
 
     try {
-        // 1. 캐시 확인
-        let members = CacheManager.get(CacheManager.KEYS.MEMBERS);
+        let members = forceReload ? null : CacheManager.get(CacheManager.KEYS.MEMBERS);
 
         if (!members) {
             console.log('📡 회원 목록 서버에서 로드 중...');
-            // 💡 GAS에서 캐싱된 회원 목록을 사용하므로, 속도가 빠릅니다.
             const response = await requestGas('getMembers');
-            members = response.members;
-
-            // 캐시에 저장 (10분 TTL)
+            members = response.members || [];
             CacheManager.set(CacheManager.KEYS.MEMBERS, members);
         } else {
             console.log('✅ 회원 목록 캐시에서 로드');
         }
 
-        if (members.length === 0) {
-            container.innerHTML = '<p class="text-secondary">등록된 회원 목록이 없습니다.</p>';
-            return;
-        }
-
-        let html = `
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>이름</th>
-                        <th>상반기 팀</th>
-                        <th>하반기 팀</th>
-                        <th>총 출석수</th>
-                        <th>최초 등록일</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
-        // 총 출석수를 기준으로 내림차순 정렬
-        members.sort((a, b) => b.attendanceCountTotal - a.attendanceCountTotal);
-
-        members.forEach(member => {
-            // attendanceCountTotal은 GAS에서 캐시된 객체에 추가된 필드명입니다.
-            const count = member.attendanceCountTotal !== undefined ? member.attendanceCountTotal : member.attendanceCount;
-            const firstHalfTeam = member.firstHalfTeam || '';
-            const secondHalfTeam = member.secondHalfTeam || '';
-            html += `
-                <tr>
-                    <td>${member.name}</td>
-                    <td>${firstHalfTeam}</td>
-                    <td>${secondHalfTeam}</td>
-                    <td>${count}회</td>
-                    <td>${member.firstDate}</td>
-                </tr>
-            `;
-        });
-
-        html += '</tbody></table>';
-        container.innerHTML = html;
+        // 총 출석수 기준 내림차순 정렬
+        members.sort((a, b) => (b.attendanceCountTotal || 0) - (a.attendanceCountTotal || 0));
+        adminMembersList = members;
+        editingMemberIndex = -1;
+        renderMembersSection();
 
     } catch (error) {
         container.innerHTML = `<p class="text-danger">회원 목록 로드 실패: ${error}</p>`;
         console.error('회원 목록 로드 오류:', error);
+    }
+}
+
+/** 팀 선택 드롭다운 HTML */
+function teamSelectHtml(id, selected, placeholder) {
+    const opts = ['A', 'B', 'C'].map(t =>
+        `<option value="${t}" ${String(selected || '') === t ? 'selected' : ''}>${t}팀</option>`
+    ).join('');
+    return `<select id="${id}" style="padding:8px;border:1px solid #ccc;border-radius:6px;"><option value="">${placeholder}</option>${opts}</select>`;
+}
+
+/** 선수 등록 폼 + 회원 테이블 렌더링 */
+function renderMembersSection() {
+    const container = document.getElementById('membersList');
+    const members = adminMembersList;
+
+    // 선수 등록 폼
+    let html = `
+        <div style="padding: 15px; margin-bottom: 20px; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 10px;">
+            <h4 style="margin: 0 0 12px 0; color: #333;">➕ 선수 등록</h4>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                <input type="text" id="newMemberName" placeholder="이름" style="padding:8px 10px;border:1px solid #ccc;border-radius:6px;flex:1;min-width:120px;">
+                ${teamSelectHtml('newMemberFirstTeam', '', '상반기팀')}
+                ${teamSelectHtml('newMemberSecondTeam', '', '하반기팀')}
+                <button class="btn-primary" style="padding:8px 16px;" onclick="submitAddMember()">등록</button>
+            </div>
+            <p id="addMemberMsg" class="message-area" style="margin:8px 0 0 0;"></p>
+        </div>
+    `;
+
+    if (members.length === 0) {
+        html += '<p class="text-secondary">등록된 선수가 없습니다. 위에서 선수를 등록해주세요.</p>';
+        container.innerHTML = html;
+        return;
+    }
+
+    html += `
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>이름</th><th>상반기</th><th>하반기</th><th>출석</th><th>등록일</th><th>관리</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    members.forEach((member, idx) => {
+        const count = member.attendanceCountTotal !== undefined ? member.attendanceCountTotal : (member.attendanceCount || 0);
+        const first = member.firstHalfTeam || '';
+        const second = member.secondHalfTeam || '';
+
+        if (idx === editingMemberIndex) {
+            // 수정 모드 행
+            html += `
+                <tr style="background:#fffbe6;">
+                    <td><input type="text" id="editMemberName" value="${member.name}" style="padding:6px;border:1px solid #ccc;border-radius:6px;width:90px;"></td>
+                    <td>${teamSelectHtml('editMemberFirstTeam', first, '-')}</td>
+                    <td>${teamSelectHtml('editMemberSecondTeam', second, '-')}</td>
+                    <td>${count}회</td>
+                    <td>${member.firstDate || ''}</td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn-primary" style="padding:4px 10px;font-size:0.85em;" onclick="saveMemberEdit(${idx})">저장</button>
+                        <button class="btn-secondary" style="padding:4px 10px;font-size:0.85em;" onclick="cancelEditMember()">취소</button>
+                    </td>
+                </tr>
+            `;
+        } else {
+            html += `
+                <tr>
+                    <td>${member.name}</td>
+                    <td>${first}</td>
+                    <td>${second}</td>
+                    <td>${count}회</td>
+                    <td>${member.firstDate || ''}</td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn-secondary" style="padding:4px 10px;font-size:0.85em;" onclick="startEditMember(${idx})">✏️ 수정</button>
+                        <button class="btn-secondary" style="padding:4px 10px;font-size:0.85em;color:#dc3545;" onclick="confirmDeleteMember(${idx})">🗑️ 삭제</button>
+                    </td>
+                </tr>
+            `;
+        }
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+/** 선수 등록 */
+async function submitAddMember() {
+    const nameEl = document.getElementById('newMemberName');
+    const name = nameEl.value.trim();
+    const first = document.getElementById('newMemberFirstTeam').value;
+    const second = document.getElementById('newMemberSecondTeam').value;
+    const msg = document.getElementById('addMemberMsg');
+    msg.style.color = '';
+
+    if (!name) {
+        msg.style.color = '#dc3545';
+        msg.textContent = '이름을 입력해주세요.';
+        return;
+    }
+
+    try {
+        const r = await requestGas('addMember', { name: name, firstHalfTeam: first, secondHalfTeam: second });
+        await loadMembers(true);
+        const m = document.getElementById('addMemberMsg');
+        if (m) { m.style.color = '#28a745'; m.textContent = r.message || `✅ ${name} 등록됨`; }
+    } catch (e) {
+        const m = document.getElementById('addMemberMsg');
+        if (m) { m.style.color = '#dc3545'; m.textContent = '❌ ' + (typeof e === 'string' ? e : '등록에 실패했습니다.'); }
+    }
+}
+
+/** 수정 모드 진입 */
+function startEditMember(idx) {
+    editingMemberIndex = idx;
+    renderMembersSection();
+    const el = document.getElementById('editMemberName');
+    if (el) el.focus();
+}
+
+/** 수정 취소 */
+function cancelEditMember() {
+    editingMemberIndex = -1;
+    renderMembersSection();
+}
+
+/** 수정 저장 */
+async function saveMemberEdit(idx) {
+    const original = adminMembersList[idx] && adminMembersList[idx].name;
+    if (!original) return;
+    const newName = document.getElementById('editMemberName').value.trim();
+    const first = document.getElementById('editMemberFirstTeam').value;
+    const second = document.getElementById('editMemberSecondTeam').value;
+
+    if (!newName) { alert('이름을 입력해주세요.'); return; }
+
+    try {
+        await requestGas('updateMember', {
+            originalName: original, newName: newName,
+            firstHalfTeam: first, secondHalfTeam: second
+        });
+        editingMemberIndex = -1;
+        await loadMembers(true);
+    } catch (e) {
+        alert('수정 실패: ' + (typeof e === 'string' ? e : '오류가 발생했습니다.'));
+    }
+}
+
+/** 선수 삭제 */
+async function confirmDeleteMember(idx) {
+    const name = adminMembersList[idx] && adminMembersList[idx].name;
+    if (!name) return;
+    if (!confirm(`'${name}' 선수를 삭제하시겠습니까?\n(출석 기록은 보존되며 회원 목록에서만 제거됩니다)`)) return;
+
+    try {
+        await requestGas('deleteMember', { name: name });
+        await loadMembers(true);
+    } catch (e) {
+        alert('삭제 실패: ' + (typeof e === 'string' ? e : '오류가 발생했습니다.'));
     }
 }
 
