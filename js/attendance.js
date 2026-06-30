@@ -6,7 +6,6 @@ const CONFIG = {
 
 // DOM 요소
 const nameSelect = document.getElementById('nameSelect');
-const nameInput = document.getElementById('nameInput');
 const teamSelect = document.getElementById('teamSelect');
 const attendBtn = document.getElementById('attendBtn');
 const messageDiv = document.getElementById('message');
@@ -134,7 +133,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 이벤트 리스너
     attendBtn.addEventListener('click', processAttendance);
     teamSelect.addEventListener('change', filterMembersByTeam);
-    nameSelect.addEventListener('change', handleNameSelectChange);
 
     // 탭 전환 이벤트 리스너
     initializeTabs();
@@ -343,11 +341,6 @@ function filterMembersByTeam() {
     console.log('📊 현재 시즌:', currentSeason);
     console.log('👥 전체 회원 목록:', membersList);
 
-    // select 표시, input 숨김 (팀 변경 시 항상 select 모드로)
-    nameSelect.style.display = '';
-    nameInput.style.display = 'none';
-    nameInput.value = '';
-
     // 팀이 선택되지 않았으면 전체 목록 표시
     if (!selectedTeam) {
         renderNameSelect(membersList);
@@ -377,26 +370,13 @@ function filterMembersByTeam() {
     nameSelect.value = '';
 }
 
-// 이름 선택 변경 시 처리
-function handleNameSelectChange() {
-    if (nameSelect.value === '__DIRECT_INPUT__') {
-        // 직접 입력 모드로 전환
-        nameSelect.style.display = 'none';
-        nameInput.style.display = '';
-        nameInput.focus();
-    }
-}
-
-
 // 출석 처리
 function processAttendance() {
-    // 직접 입력 모드인지 확인
-    const isDirectInput = nameInput.style.display !== 'none';
-    const name = isDirectInput ? nameInput.value.trim() : nameSelect.value;
+    const name = nameSelect.value;
     const team = teamSelect.value;
 
-    if (!name || !team || name === '__DIRECT_INPUT__') {
-        showMessage('이름과 팀을 모두 선택/입력해주세요.', 'error');
+    if (!name || !team) {
+        showMessage('이름과 팀을 모두 선택해주세요.', 'error');
         return;
     }
 
@@ -1194,12 +1174,11 @@ function hideAttendanceFailModal(clearData = false) {
 function showRequestModal() {
     // 저장된 정보가 없으면 현재 선택된 정보를 사용 (방어 로직)
     if (!pendingAttendanceRequest.name || !pendingAttendanceRequest.team) {
-        const isDirectInput = nameInput.style.display !== 'none';
-        const name = isDirectInput ? nameInput.value.trim() : nameSelect.value;
+        const name = nameSelect.value;
         const team = teamSelect.value;
 
-        if (!name || !team || name === '__DIRECT_INPUT__') {
-            showMessage('이름과 팀을 먼저 선택/입력해주세요.', 'error');
+        if (!name || !team) {
+            showMessage('이름과 팀을 먼저 선택해주세요.', 'error');
             return;
         }
 
