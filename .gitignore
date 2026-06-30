@@ -14,3 +14,7 @@ Thumbs.db
 
 # 임시 파일
 *.tmp
+
+# clasp 인증 정보 (절대 커밋 금지 - GitHub Secret으로만 관리)
+.clasprc.json
+~/.clasprc.json

@@ -8,8 +8,7 @@
 
 // ==================== 설정 ====================
 
-// Google Apps Script 배포 URL로 변경해야 합니다.
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxjmvZWEErrnhyGtgyhrpBAoy8lF_Cw7V9bJNgTBCRQKeFrkROu-tp43uAcSEu9VxBd/exec';
+// GAS_URL 은 js/config.js 에서 전역으로 정의됩니다. (HTML에서 config.js 를 먼저 로드)
 
 // 인증 토큰 유효 시간 (30분)
 const AUTH_TOKEN_DURATION = 30 * 60 * 1000; 
