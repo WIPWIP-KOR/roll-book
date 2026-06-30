@@ -1635,11 +1635,11 @@ function formatSeasons(seasons, maxDisplay = null) {
  */
 function shortenSeason(season) {
     if (!season) return '';
-    // 연도 2자리 + 상/하
-    const match = season.match(/(\d{2})(\d{2})(상반기|하반기|상|하)/);
+    // 다양한 양식 지원: "2026상반기", "2026 상반기", "26년 상반기" → "26상"
+    const match = String(season).match(/(\d{2,4})\s*년?\s*(상|하)/);
     if (match) {
-        const year = match[2];
-        const half = match[3].startsWith('상') ? '상' : '하';
+        const year = match[1].slice(-2); // 끝 2자리
+        const half = match[2];
         return `${year}${half}`;
     }
     return season;

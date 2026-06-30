@@ -2440,9 +2440,14 @@ function getHallOfFame(callback) {
           winDetails[player] = [];
         }
         winCounts[player]++;
-        // 시즌과 팀 정보를 함께 저장
-        winDetails[player].push({ season: season, team: teamName });
+        // 시즌과 팀 정보를 함께 저장 (표시 양식 통일)
+        winDetails[player].push({ season: normalizeSeasonLabel(season), team: teamName });
       }
+    }
+
+    // 선수별 시즌 목록을 최근 시즌이 앞에 오도록 정렬
+    for (const p in winDetails) {
+      winDetails[p].sort((a, b) => seasonSortKey(b.season) - seasonSortKey(a.season));
     }
 
     // 4. 올해 출석한 회원만 필터링하고 우승 횟수로 정렬
@@ -2486,6 +2491,50 @@ function getHallOfFame(callback) {
 }
 
 // ==================== 시즌별 우승팀 관리 ====================
+
+/**
+ * 시즌 라벨에서 연도/시즌 정보 파싱 (구/신 양식 모두 지원)
+ * 예) "2026 상반기", "26년 상반기", "2026상반기" → { year: 2026, half: '상반기' }
+ */
+function parseSeasonInfo(label) {
+  const s = String(label || '');
+  const ym = s.match(/(\d{4}|\d{2})/);
+  let year = null;
+  if (ym) {
+    const n = parseInt(ym[1], 10);
+    year = (ym[1].length === 2) ? 2000 + n : n;
+  }
+  let half = null;
+  if (s.indexOf('상') !== -1) half = '상반기';
+  else if (s.indexOf('하') !== -1) half = '하반기';
+  return { year: year, half: half };
+}
+
+/**
+ * 정렬용 키 (값이 클수록 최근 시즌). 하반기 > 상반기
+ */
+function seasonSortKey(label) {
+  const info = parseSeasonInfo(label);
+  const y = info.year || 0;
+  const h = (info.half === '하반기') ? 2 : (info.half === '상반기' ? 1 : 0);
+  return y * 10 + h;
+}
+
+/**
+ * 표시용 시즌 라벨 (연도 2자리 + 년). 예) (2026, '상반기') → "26년 상반기"
+ */
+function formatSeasonLabel(year, half) {
+  return `${String(year).slice(-2)}년 ${half}`;
+}
+
+/**
+ * 어떤 양식이든 표준 양식("YY년 시즌")으로 변환. 파싱 실패 시 원본 유지
+ */
+function normalizeSeasonLabel(label) {
+  const info = parseSeasonInfo(label);
+  if (info.year && info.half) return formatSeasonLabel(info.year, info.half);
+  return String(label || '').trim();
+}
 
 /**
  * 시즌별우승팀 시트 가져오기 (없으면 헤더와 함께 생성)
@@ -2541,16 +2590,18 @@ function saveSeasonWinner(year, season, team, callback) {
       return createResponse(false, `⚠️ ${targetYear}년 ${season}에 '${team}'팀 소속 선수가 없습니다. 회원 팀 배정을 확인해주세요.`, null, callback);
     }
 
-    const seasonLabel = `${targetYear} ${season}`;
+    const seasonLabel = formatSeasonLabel(targetYear, season); // "26년 상반기" 양식
+    const targetKey = seasonSortKey(seasonLabel);
     const playerList = players.join(', ');
 
     const sheet = getOrCreateSeasonWinnersSheet();
     const data = sheet.getDataRange().getValues();
 
-    // 같은 연도+시즌 기록이 있으면 갱신, 없으면 추가 (중복 집계 방지)
+    // 같은 연도+시즌 기록이 있으면 갱신(라벨도 새 양식으로 통일), 없으면 추가 (중복 집계 방지)
     let updated = false;
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]).trim() === seasonLabel) {
+      if (seasonSortKey(data[i][0]) === targetKey) {
+        sheet.getRange(i + 1, 1).setValue(seasonLabel);
         sheet.getRange(i + 1, 2).setValue(team);
         sheet.getRange(i + 1, 3).setValue(playerList);
         updated = true;
@@ -2592,16 +2643,17 @@ function getSeasonWinners(callback) {
     const data = sheet.getDataRange().getValues();
     const winners = [];
     for (let i = 1; i < data.length; i++) {
-      const season = String(data[i][0] || '').trim();
-      if (!season) continue;
+      const rawSeason = String(data[i][0] || '').trim();
+      if (!rawSeason) continue;
+      const season = normalizeSeasonLabel(rawSeason); // 표시는 "YY년 시즌" 양식으로 통일
       const team = String(data[i][1] || '').trim();
       const playerList = String(data[i][2] || '').trim();
       const players = playerList ? playerList.split(',').map(p => p.trim()).filter(p => p) : [];
       winners.push({ season: season, team: team, players: players, playerCount: players.length });
     }
 
-    // 최신 시즌부터 정렬 (라벨 역순)
-    winners.sort((a, b) => String(b.season).localeCompare(String(a.season)));
+    // 최신 시즌부터 정렬 (연도/시즌 기준)
+    winners.sort((a, b) => seasonSortKey(b.season) - seasonSortKey(a.season));
 
     return createResponse(true, null, { winners: winners }, callback);
   } catch (e) {
@@ -2627,9 +2679,11 @@ function deleteSeasonWinner(seasonLabel, callback) {
       return createResponse(false, '⚠️ 시즌별우승팀 시트가 없습니다.', null, callback);
     }
 
+    // 구/신 양식 모두 매칭되도록 파싱 키로 비교
+    const targetKey = seasonSortKey(seasonLabel);
     const data = sheet.getDataRange().getValues();
     for (let i = data.length - 1; i >= 1; i--) {
-      if (String(data[i][0]).trim() === seasonLabel) {
+      if (targetKey !== 0 && seasonSortKey(data[i][0]) === targetKey) {
         sheet.deleteRow(i + 1);
         Logger.log(`우승팀 기록 삭제: ${seasonLabel}`);
         return createResponse(true, `✅ ${seasonLabel} 우승 기록이 삭제되었습니다.`, null, callback);
