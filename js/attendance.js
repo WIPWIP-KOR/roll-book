@@ -333,12 +333,7 @@ function renderNameSelect(members) {
         option.textContent = member.name;
         nameSelect.appendChild(option);
     });
-
-    // 맨 밑에 "직접 입력" 옵션 추가
-    const directInputOption = document.createElement('option');
-    directInputOption.value = '__DIRECT_INPUT__';
-    directInputOption.textContent = '직접 입력';
-    nameSelect.appendChild(directInputOption);
+    // 자가 등록(직접 입력) 제거 — 선수 등록은 관리자 페이지에서만 가능
 }
 
 // 팀 선택 시 해당 팀원만 필터링하여 표시
