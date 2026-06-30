@@ -1122,9 +1122,30 @@ async function loadAdminData() {
  * 회원·출석·우승 통합 탭 데이터 로드
  */
 async function loadManageTab() {
-    await loadMembersTab();
-    loadManualTab();
-    await loadWinnerTab();
+    // 탭 진입 시 자동 조회하지 않고, 각 섹션의 조회 버튼으로 불러온다
+    renderMembersInitial();
+    setupManualSection();
+    setupWinnerSection();
+}
+
+/** 출석 승인 섹션 초기 세팅 (날짜 기본값, 요청목록은 새로고침 버튼으로 조회) */
+function setupManualSection() {
+    const dateEl = document.getElementById('manualAttendDate');
+    if (dateEl && !dateEl.value) {
+        dateEl.value = new Date().toISOString().split('T')[0];
+    }
+    const list = document.getElementById('attendanceRequestsList');
+    if (list) {
+        list.innerHTML = '<p class="text-secondary">🔄 새로고침을 눌러 출석 요청을 불러오세요.</p>';
+    }
+}
+
+/** 우승팀 섹션 초기 세팅 (불러오기 버튼으로 조회) */
+function setupWinnerSection() {
+    const list = document.getElementById('winnerList');
+    if (list) {
+        list.innerHTML = '<p class="text-secondary" style="text-align:center;padding:20px;">🔄 "우승팀 정보 불러오기"를 눌러주세요.</p>';
+    }
 }
 
 /**
@@ -1243,13 +1264,9 @@ function teamSelectHtml(id, selected, placeholder) {
     return `<select id="${id}" style="padding:8px;border:1px solid #ccc;border-radius:6px;"><option value="">${placeholder}</option>${opts}</select>`;
 }
 
-/** 선수 등록 폼 + 회원 테이블 렌더링 */
-function renderMembersSection() {
-    const container = document.getElementById('membersList');
-    const members = adminMembersList;
-
-    // 선수 등록 폼
-    let html = `
+/** 선수 등록 폼 HTML (데이터 불필요, 항상 표시) */
+function addMemberFormHtml() {
+    return `
         <div style="padding: 15px; margin-bottom: 20px; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 10px;">
             <h4 style="margin: 0 0 12px 0; color: #333;">➕ 선수 등록</h4>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
@@ -1261,6 +1278,25 @@ function renderMembersSection() {
             <p id="addMemberMsg" class="message-area" style="margin:8px 0 0 0;"></p>
         </div>
     `;
+}
+
+/** 탭 진입 시: 등록 폼 + 조회 버튼만 표시 (목록은 버튼 클릭 시 조회) */
+function renderMembersInitial() {
+    const container = document.getElementById('membersList');
+    if (!container) return;
+    container.innerHTML = addMemberFormHtml() + `
+        <button class="btn-primary" onclick="loadMembers(true)">🔄 회원 목록 조회</button>
+        <p class="text-secondary" style="margin-top:12px;">조회 버튼을 눌러 회원 목록을 불러오세요.</p>
+    `;
+}
+
+/** 선수 등록 폼 + 회원 테이블 렌더링 */
+function renderMembersSection() {
+    const container = document.getElementById('membersList');
+    const members = adminMembersList;
+
+    let html = addMemberFormHtml();
+    html += `<div style="text-align:right;margin-bottom:10px;"><button class="btn-secondary" style="padding:6px 12px;font-size:0.9em;" onclick="loadMembers(true)">🔄 새로고침</button></div>`;
 
     if (members.length === 0) {
         html += '<p class="text-secondary">등록된 선수가 없습니다. 위에서 선수를 등록해주세요.</p>';
@@ -1943,6 +1979,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 우승팀 관련 이벤트 리스너
+    const loadWinnerBtn = document.getElementById('loadWinnerBtn');
+    if (loadWinnerBtn) {
+        loadWinnerBtn.addEventListener('click', loadWinnerTab);
+    }
     const saveWinnerBtn = document.getElementById('saveWinnerBtn');
     if (saveWinnerBtn) {
         saveWinnerBtn.addEventListener('click', saveSeasonWinner);
