@@ -1112,10 +1112,19 @@ async function loadAdminData() {
     // 탭 초기화
     initializeTabs();
 
-    // 1. 위치 정보 로드 (첫 번째 탭이므로 바로 로드)
-    await loadLocationTab();
+    // 1. 첫 번째 탭(회원·출석·우승)이므로 바로 로드
+    await loadManageTab();
 
     console.log('✅ 초기 데이터 로딩 완료');
+}
+
+/**
+ * 회원·출석·우승 통합 탭 데이터 로드
+ */
+async function loadManageTab() {
+    await loadMembersTab();
+    loadManualTab();
+    await loadWinnerTab();
 }
 
 /**
@@ -1491,23 +1500,13 @@ function switchTab(tabName) {
 
     // 탭 별 데이터 지연 로딩
     switch(tabName) {
-        case 'location':
-            loadLocationTab();
-            break;
-        case 'qrcode':
-            loadQRCodeTab();
-            break;
-        case 'members':
-            loadMembersTab();
-            break;
-        case 'manual':
-            loadManualTab();
-            break;
-        case 'winner':
-            loadWinnerTab();
+        case 'manage':
+            // 회원·출석·우승 통합 탭
+            loadManageTab();
             break;
         case 'settings':
-            // 설정 탭: 출석 시간 설정 및 요일 설정 로드
+            // 설정 탭: 위치설정 + 출석 시간/요일/거리 설정 로드
+            loadLocationTab();
             loadSettingsTab();
             break;
     }

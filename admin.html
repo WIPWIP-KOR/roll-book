@@ -19,94 +19,21 @@
         <!-- 탭 네비게이션 -->
         <div class="tab-scroll-wrap">
             <div class="tab-container">
-                <button class="tab-btn active" data-tab="location">📍 위치설정</button>
-                <button class="tab-btn" data-tab="qrcode">📱 QR코드</button>
-                <button class="tab-btn" data-tab="members">👥 회원목록</button>
-                <button class="tab-btn" data-tab="manual">✅ 출석승인</button>
-                <button class="tab-btn" data-tab="winner">🏆 우승팀</button>
+                <button class="tab-btn active" data-tab="manage">👥 회원·출석·우승</button>
                 <button class="tab-btn" data-tab="settings">⚙️ 설정</button>
             </div>
         </div>
 
-        <!-- 위치설정 탭 -->
-        <div class="tab-content active" id="locationTab">
-            <div class="tab-content-wrapper">
-                <div class="info-box">
-                    <p><strong>현재 설정된 위치:</strong></p>
-                    <p id="currentLocation">위치 정보를 불러오는 중...</p>
-                </div>
-
-                <div class="form-group">
-                    <label for="latitude">위도 (Latitude)</label>
-                    <input type="number" id="latitude" step="0.000001" placeholder="예: 37.5665" readonly>
-                </div>
-                <div class="form-group">
-                    <label for="longitude">경도 (Longitude)</label>
-                    <input type="number" id="longitude" step="0.000001" placeholder="예: 126.9780" readonly>
-                </div>
-                <div class="form-group">
-                    <label for="locationName">장소 이름</label>
-                    <input type="text" id="locationName" placeholder="예: 서울 풋살장">
-                </div>
-
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                    <button id="openMapBtn" class="btn-secondary">🗺️ 주소 검색</button>
-                    <button id="getMyLocationBtn" class="btn-secondary">📍 내 현재 위치</button>
-                    <button id="saveLocationBtn" class="btn-primary">💾 위치 저장</button>
-                </div>
-
-                <div id="locationMessage" class="message"></div>
-
-                <!-- 지도 검색 섹션 (기본적으로 숨김) -->
-                <div id="mapSearchSection" class="map-search-section" style="display: none;">
-                    <h3>🗺️ 지도에서 위치 검색</h3>
-                    <div class="form-group">
-                        <label for="mapSearch">장소 검색</label>
-                        <div class="search-container">
-                            <input type="text" id="mapSearch" placeholder="예: 올림픽공원 풋살장" onkeypress="if(event.keyCode===13) searchPlaces();">
-                            <button id="searchBtn" class="btn-search" onclick="searchPlaces();">검색</button>
-                        </div>
-                    </div>
-
-                    <div id="map" class="kakao-map"></div>
-
-                    <div class="map-help">
-                        💡 지도를 클릭하거나 검색 결과를 클릭하면 위치가 자동으로 입력됩니다.
-                    </div>
-
-                    <div id="searchResults" class="search-results"></div>
-
-                    <button id="closeMapBtn" class="btn-secondary" style="margin-top: 15px;">지도 닫기</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- QR코드 탭 -->
-        <div class="tab-content" id="qrcodeTab">
-            <div class="tab-content-wrapper">
-                <div class="form-group">
-                    <label for="attendanceUrl">출석 URL</label>
-                    <input type="text" id="attendanceUrl" readonly>
-                </div>
-                <button id="generateQRBtn" class="btn-primary">QR 코드 생성</button>
-                <div id="qrcode" class="qr-container"></div>
-                <button id="downloadQRBtn" class="btn-secondary" style="display:none;">QR 코드 다운로드</button>
-            </div>
-        </div>
-
-        <!-- 회원목록 탭 -->
-        <div class="tab-content" id="membersTab">
+        <!-- 회원·출석·우승 통합 탭 -->
+        <div class="tab-content active" id="manageTab">
             <div class="tab-content-wrapper">
                 <h3 style="margin: 0 0 15px 0; color: #333;">👥 전체 회원 목록</h3>
                 <div id="membersList" class="members-list">
-                    <p class="text-secondary">회원목록 탭을 클릭하면 데이터를 불러옵니다.</p>
+                    <p class="text-secondary">데이터를 불러오는 중...</p>
                 </div>
-            </div>
-        </div>
 
-        <!-- 출석 승인 탭 -->
-        <div class="tab-content" id="manualTab">
-            <div class="tab-content-wrapper">
+                <hr style="margin: 36px 0; border: none; border-top: 2px solid #e0e0e0;">
+
                 <h3 style="margin: 0 0 15px 0; color: #333;">✅ 출석 승인 관리</h3>
 
                 <div class="info-box" style="margin-bottom: 20px;">
@@ -159,13 +86,9 @@
                 </div>
 
                 <div id="manualAttendMessage" class="message"></div>
-            </div>
-        </div>
 
-        <!-- 설정 탭 -->
-        <!-- 우승팀 탭 -->
-        <div class="tab-content" id="winnerTab">
-            <div class="tab-content-wrapper">
+                <hr style="margin: 36px 0; border: none; border-top: 2px solid #e0e0e0;">
+
                 <h3 style="margin-bottom: 8px; color: #333;">🏆 대회 우승팀 등록</h3>
                 <p style="color: #666; font-size: 0.9em; margin: 0 0 20px 0;">
                     상반기/하반기 대회 우승팀을 등록하면, 해당 시즌 우승팀 소속 선수들의 우승 횟수에 자동으로 반영됩니다.
@@ -209,6 +132,58 @@
 
         <div class="tab-content" id="settingsTab">
             <div class="tab-content-wrapper">
+                <!-- 위치 설정 -->
+                <h3 style="margin-bottom: 20px; color: #333;">📍 위치 설정</h3>
+                <div class="info-box">
+                    <p><strong>현재 설정된 위치:</strong></p>
+                    <p id="currentLocation">위치 정보를 불러오는 중...</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="latitude">위도 (Latitude)</label>
+                    <input type="number" id="latitude" step="0.000001" placeholder="예: 37.5665" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="longitude">경도 (Longitude)</label>
+                    <input type="number" id="longitude" step="0.000001" placeholder="예: 126.9780" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="locationName">장소 이름</label>
+                    <input type="text" id="locationName" placeholder="예: 서울 풋살장">
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="openMapBtn" class="btn-secondary">🗺️ 주소 검색</button>
+                    <button id="getMyLocationBtn" class="btn-secondary">📍 내 현재 위치</button>
+                    <button id="saveLocationBtn" class="btn-primary">💾 위치 저장</button>
+                </div>
+
+                <div id="locationMessage" class="message"></div>
+
+                <!-- 지도 검색 섹션 (기본적으로 숨김) -->
+                <div id="mapSearchSection" class="map-search-section" style="display: none;">
+                    <h3>🗺️ 지도에서 위치 검색</h3>
+                    <div class="form-group">
+                        <label for="mapSearch">장소 검색</label>
+                        <div class="search-container">
+                            <input type="text" id="mapSearch" placeholder="예: 올림픽공원 풋살장" onkeypress="if(event.keyCode===13) searchPlaces();">
+                            <button id="searchBtn" class="btn-search" onclick="searchPlaces();">검색</button>
+                        </div>
+                    </div>
+
+                    <div id="map" class="kakao-map"></div>
+
+                    <div class="map-help">
+                        💡 지도를 클릭하거나 검색 결과를 클릭하면 위치가 자동으로 입력됩니다.
+                    </div>
+
+                    <div id="searchResults" class="search-results"></div>
+
+                    <button id="closeMapBtn" class="btn-secondary" style="margin-top: 15px;">지도 닫기</button>
+                </div>
+
+                <hr style="margin: 40px 0; border: none; border-top: 2px solid #e0e0e0;">
+
                 <h3 style="margin-bottom: 20px; color: #333;">🔑 관리자 비밀번호 설정</h3>
                 <div class="form-group">
                     <label for="newPassword">새 4자리 비밀번호:</label>
@@ -943,7 +918,6 @@
     </style>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="js/unregister-sw.js"></script>
     <script src="js/cache.js"></script>
     <script src="js/config.js"></script>
