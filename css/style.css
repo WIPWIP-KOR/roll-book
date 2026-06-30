@@ -594,6 +594,43 @@ body {
     display: none; /* Chrome, Safari 스크롤바 숨김 */
 }
 
+/* 탭이 많아 가로 스크롤이 필요할 때 양 끝 그라데이션으로 스크롤 가능함을 표시 */
+.tab-scroll-wrap {
+    position: relative;
+}
+
+.tab-scroll-wrap::before,
+.tab-scroll-wrap::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    pointer-events: none; /* 그라데이션이 탭 클릭을 막지 않도록 */
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 1;
+}
+
+.tab-scroll-wrap::before {
+    left: 0;
+    background: linear-gradient(90deg, rgba(248, 249, 250, 0.95) 0%, rgba(248, 249, 250, 0) 100%);
+}
+
+.tab-scroll-wrap::after {
+    right: 0;
+    background: linear-gradient(270deg, rgba(248, 249, 250, 0.95) 0%, rgba(248, 249, 250, 0) 100%);
+}
+
+/* JS가 스크롤 위치에 따라 토글 (왼쪽/오른쪽에 더 보여줄 탭이 있을 때) */
+.tab-scroll-wrap.can-scroll-left::before {
+    opacity: 1;
+}
+
+.tab-scroll-wrap.can-scroll-right::after {
+    opacity: 1;
+}
+
 /* 탭 버튼 공통 스타일 */
 .tab-btn {
     background: none;
@@ -613,6 +650,14 @@ body {
 .tab-btn.month-tab {
     padding: 10px 12px;
     font-size: 0.9em;
+}
+
+/* 좁은 화면에서는 탭 간격을 줄여 더 많은 탭이 보이도록 */
+@media (max-width: 600px) {
+    .tab-btn {
+        padding: 14px 14px;
+        font-size: 0.92em;
+    }
 }
 
 .tab-btn:hover {

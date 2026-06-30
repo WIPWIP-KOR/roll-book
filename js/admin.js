@@ -1439,6 +1439,34 @@ function initializeTabs() {
             switchTab(tabName);
         });
     });
+
+    initTabScrollHint();
+}
+
+/**
+ * 탭이 많아 가로 스크롤이 필요한 경우, 스크롤 위치에 따라
+ * 양 끝 그라데이션 힌트를 표시/숨김 처리
+ */
+function initTabScrollHint() {
+    const wrap = document.querySelector('.tab-scroll-wrap');
+    const container = wrap ? wrap.querySelector('.tab-container') : null;
+    if (!wrap || !container) return;
+
+    const update = () => {
+        const maxScroll = container.scrollWidth - container.clientWidth;
+        // 약간의 여유(1px)로 부동소수점 오차 보정
+        wrap.classList.toggle('can-scroll-left', container.scrollLeft > 1);
+        wrap.classList.toggle('can-scroll-right', container.scrollLeft < maxScroll - 1);
+    };
+
+    container.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    // 활성 탭이 보이도록 스크롤한 뒤 힌트 갱신
+    const activeBtn = container.querySelector('.tab-btn.active');
+    if (activeBtn && activeBtn.scrollIntoView) {
+        activeBtn.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+    }
+    update();
 }
 
 /**
