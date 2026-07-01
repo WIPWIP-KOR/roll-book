@@ -498,8 +498,8 @@ function calculateStats(rawData, seasonFilter = 'all') {
     // 1. 개인별 통계 계산
     const personalStats = calculatePersonalStats(filteredAttendance, members, totalSaturdays, seasonFilter);
 
-    // 2. 팀별 통계 계산
-    const teamStats = calculateTeamStats(personalStats, totalSaturdays);
+    // 2. 팀별 통계 계산 (출석기록의 팀 기준, 보는 시즌 반영)
+    const teamStats = calculateTeamStats(filteredAttendance, members, totalSaturdays, seasonFilter);
 
     // 3. 주차별 통계 계산
     const weeklyStats = calculateWeeklyStats(filteredAttendance, filteredSaturdays);
@@ -543,10 +543,8 @@ function calculatePersonalStats(attendance, members, totalSaturdays, season) {
         const rate = totalSaturdays > 0 ? (attendanceCount / totalSaturdays) * 100 : 0;
         const lateRate = attendanceCount > 0 ? (lateCount / attendanceCount) * 100 : 0;
 
-        // 개인별 통계는 항상 현재 달 기준의 팀으로 표시
-        const currentMonth = new Date().getMonth() + 1;
-        const teamForSeason = (currentMonth >= 1 && currentMonth <= 6) ?
-            member.firstHalfTeam : member.secondHalfTeam;
+        // 보고 있는 시즌 기준의 팀으로 표시
+        const teamForSeason = teamForViewedSeason(member, season);
 
         return {
             name: member.name,
@@ -564,35 +562,60 @@ function calculatePersonalStats(attendance, members, totalSaturdays, season) {
 }
 
 /**
- * 팀별 통계 계산
+ * 보고 있는 시즌 기준으로 회원의 팀 반환
+ * - firstHalf/secondHalf: 해당 시즌 팀
+ * - all: 현재 시즌 팀, 없으면 다른 시즌 팀
  */
-function calculateTeamStats(personalStats, totalSaturdays) {
+function teamForViewedSeason(member, season) {
+    if (season === 'firstHalf') return (member.firstHalfTeam || '').trim();
+    if (season === 'secondHalf') return (member.secondHalfTeam || '').trim();
+    const cm = new Date().getMonth() + 1;
+    const primary = (cm >= 1 && cm <= 6) ? member.firstHalfTeam : member.secondHalfTeam;
+    return String(primary || member.firstHalfTeam || member.secondHalfTeam || '').trim();
+}
+
+/**
+ * 팀별 통계 계산
+ * - 출석 합계/지각은 실제 출석기록의 팀(record.team) 기준 (재배정·미배정과 무관하게 항상 집계)
+ * - 평균의 분모(인원)는 해당 시즌 배정 인원, 없으면 실제 출석 인원으로 fallback
+ */
+function calculateTeamStats(attendance, members, totalSaturdays, season) {
     const teamStats = {
-        A: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 },
-        B: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 },
-        C: { count: 0, total: 0, rate: 0, lateCount: 0, lateRate: 0 }
+        A: { count: 0, total: totalSaturdays, rate: 0, lateCount: 0, lateRate: 0 },
+        B: { count: 0, total: totalSaturdays, rate: 0, lateCount: 0, lateRate: 0 },
+        C: { count: 0, total: totalSaturdays, rate: 0, lateCount: 0, lateRate: 0 }
     };
 
-    ['A', 'B', 'C'].forEach(team => {
-        const teamMembers = personalStats.filter(s => s.team === team);
-        const teamMemberCount = teamMembers.length;
+    // 시즌 배정 기준 팀별 인원 수
+    const memberCount = { A: 0, B: 0, C: 0 };
+    members.forEach(m => {
+        const t = teamForViewedSeason(m, season);
+        if (memberCount[t] !== undefined) memberCount[t]++;
+    });
 
-        if (teamMemberCount > 0) {
-            const totalAttendanceForTeam = teamMembers.reduce((sum, m) => sum + m.attendanceCount, 0);
-            const totalLateForTeam = teamMembers.reduce((sum, m) => sum + m.lateCount, 0);
-
-            teamStats[team].count = totalAttendanceForTeam / teamMemberCount;
-            teamStats[team].total = totalSaturdays;
-            teamStats[team].rate = (teamStats[team].count / teamStats[team].total) * 100;
-            teamStats[team].lateCount = totalLateForTeam / teamMemberCount;
-            teamStats[team].lateRate = totalAttendanceForTeam > 0 ? (totalLateForTeam / totalAttendanceForTeam) * 100 : 0;
-        } else {
-            teamStats[team].count = 0;
-            teamStats[team].total = totalSaturdays;
-            teamStats[team].rate = 0;
-            teamStats[team].lateCount = 0;
-            teamStats[team].lateRate = 0;
+    // 출석기록의 팀 기준 집계
+    const totalAtt = { A: 0, B: 0, C: 0 };
+    const totalLate = { A: 0, B: 0, C: 0 };
+    const attendees = { A: new Set(), B: new Set(), C: new Set() };
+    attendance.forEach(r => {
+        const t = String(r.team || '').trim();
+        if (totalAtt[t] !== undefined) {
+            totalAtt[t]++;
+            if (r.isLate) totalLate[t]++;
+            attendees[t].add(r.name);
         }
+    });
+
+    ['A', 'B', 'C'].forEach(team => {
+        // 분모: 시즌 배정 인원, 없으면 실제 출석 인원
+        const denom = memberCount[team] || attendees[team].size;
+        const avgCount = denom > 0 ? totalAtt[team] / denom : 0;
+
+        teamStats[team].count = avgCount;
+        teamStats[team].total = totalSaturdays;
+        teamStats[team].rate = totalSaturdays > 0 ? (avgCount / totalSaturdays) * 100 : 0;
+        teamStats[team].lateCount = denom > 0 ? totalLate[team] / denom : 0;
+        teamStats[team].lateRate = totalAtt[team] > 0 ? (totalLate[team] / totalAtt[team]) * 100 : 0;
     });
 
     return teamStats;
