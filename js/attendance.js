@@ -5,15 +5,18 @@ const CONFIG = {
 };
 
 // DOM 요소
-const nameSelect = document.getElementById('nameSelect');
-const teamSelect = document.getElementById('teamSelect');
 const attendBtn = document.getElementById('attendBtn');
 const messageDiv = document.getElementById('message');
 const locationStatus = document.getElementById('locationStatus');
 const locationText = document.getElementById('locationText');
+const attendSection = document.getElementById('attendSection');
+const memberRadioList = document.getElementById('memberRadioList');
+const locationRetryBtn = document.getElementById('locationRetryBtn');
 
 let userPosition = null;
 let membersList = [];
+let selectedTeam = 'A';        // 현재 선택된 팀 탭
+let selectedMemberName = '';   // 현재 선택된 회원
 let statusLoaded = false; // 출석현황 로딩 여부
 let hallOfFameLoaded = false; // 명예의 전당 로딩 여부
 let currentSeason = null; // 현재 시즌 정보
@@ -122,17 +125,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         seasonTextEl.textContent = currentSeason.displayText;
     }
 
-    // 초기 상태: 위치 정보 없음
+    // 초기 상태: 위치 확인 전 → 출석 영역 숨김
     locationText.textContent = '위치 정보 확인 중...';
     locationStatus.classList.remove('success', 'error');
+    if (attendSection) attendSection.style.display = 'none';
+    if (locationRetryBtn) locationRetryBtn.style.display = 'none';
     attendBtn.disabled = true;
 
     // 기존 회원 목록 로드
     loadMembers();
 
     // 이벤트 리스너
-    attendBtn.addEventListener('click', processAttendance);
-    teamSelect.addEventListener('change', filterMembersByTeam);
+    attendBtn.addEventListener('click', onAttendClick);
+
+    // 팀 탭 (A/B/C) 전환
+    document.querySelectorAll('.team-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.team-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            selectedTeam = tab.getAttribute('data-team');
+            renderTeamMembers(selectedTeam);
+        });
+    });
+
+    // 위치 다시 조회 버튼
+    if (locationRetryBtn) locationRetryBtn.addEventListener('click', refreshLocation);
 
     // 탭 전환 이벤트 리스너
     initializeTabs();
@@ -236,52 +253,50 @@ function getLocationWithFallback(onSuccess, onError) {
 function refreshLocation() {
     if (!navigator.geolocation) {
         locationText.textContent = '위치 서비스를 지원하지 않습니다.';
-        attendBtn.disabled = true;
-        showMessage('위치 서비스를 지원하지 않습니다.', 'error');
+        locationStatus.classList.add('error');
+        if (attendSection) attendSection.style.display = 'none';
+        if (locationRetryBtn) locationRetryBtn.style.display = 'block';
         return;
     }
 
-    // 먼저 지도 모달 열기 (로딩 상태)
-    showLocationMapWithLoading();
-
     locationText.textContent = '위치 정보 확인 중...';
     locationStatus.classList.remove('success', 'error');
+    if (locationRetryBtn) locationRetryBtn.style.display = 'none';
 
     getLocationWithFallback(
         (position) => {
             userPosition = position.coords;
-            locationText.textContent = '위치 정보 확인 완료';
+            locationText.textContent = '✅ 위치 정보 확인 완료';
             locationStatus.classList.remove('error');
             locationStatus.classList.add('success');
-            attendBtn.disabled = false;
-            showMessage('✅ 위치 정보가 확인되었습니다!', 'success');
+            if (locationRetryBtn) locationRetryBtn.style.display = 'none';
 
-            // 지도에 위치 표시
-            showLocationMap(userPosition.latitude, userPosition.longitude);
+            // 위치 확인 후에만 출석 영역(팀 탭 + 회원 목록) 표시
+            if (attendSection) attendSection.style.display = 'block';
+            renderTeamMembers(selectedTeam);
         },
         (error) => {
             let errorMsg = '위치 정보를 가져올 수 없습니다.';
 
             switch(error.code) {
                 case error.PERMISSION_DENIED:
-                    errorMsg = '위치 정보 권한이 거부되었습니다. 설정에서 허용해주세요.';
+                    errorMsg = '위치 권한이 거부되었습니다. 설정에서 허용 후 다시 조회해주세요.';
                     break;
                 case error.POSITION_UNAVAILABLE:
-                    errorMsg = '위치 정보를 사용할 수 없습니다.';
+                    errorMsg = '위치 정보를 사용할 수 없습니다. 다시 조회해주세요.';
                     break;
                 case error.TIMEOUT:
-                    errorMsg = '위치 정보 요청 시간이 초과되었습니다. 페이지를 새로고침해주세요.';
+                    errorMsg = '위치 요청 시간이 초과되었습니다. 다시 조회해주세요.';
                     break;
             }
 
             locationText.textContent = errorMsg;
             locationStatus.classList.remove('success');
             locationStatus.classList.add('error');
-            attendBtn.disabled = true;
-            showMessage(errorMsg, 'error');
 
-            // 에러 발생 시 지도 모달 닫기
-            closeLocationMap();
+            // 실패 시: 출석 영역 숨기고 '위치 다시 조회' 버튼 표시
+            if (attendSection) attendSection.style.display = 'none';
+            if (locationRetryBtn) locationRetryBtn.style.display = 'block';
         }
     );
 }
@@ -294,7 +309,7 @@ function loadMembers() {
         console.log('✅ 회원 목록 캐시에서 로드');
         console.log('📋 회원 목록 데이터:', cached);
         membersList = cached;
-        renderNameSelect(membersList);
+        renderTeamMembers(selectedTeam);
         return;
     }
 
@@ -308,7 +323,7 @@ function loadMembers() {
             if (data.success && data.members) {
                 console.log('📋 회원 목록 데이터:', data.members);
                 membersList = data.members;
-                renderNameSelect(membersList);
+                renderTeamMembers(selectedTeam);
 
                 // 캐시에 저장 (10분 TTL)
                 CacheManager.set(CacheManager.KEYS.MEMBERS, data.members);
@@ -322,61 +337,71 @@ function loadMembers() {
     });
 }
 
-// Select에 회원 이름 렌더링
-function renderNameSelect(members) {
-    nameSelect.innerHTML = '<option value="">이름을 선택하세요</option>';
-    members.forEach(member => {
-        const option = document.createElement('option');
-        option.value = member.name;
-        option.textContent = member.name;
-        nameSelect.appendChild(option);
+// 선택한 팀의 회원을 가나다순 라디오 버튼으로 렌더링
+function renderTeamMembers(team) {
+    if (!memberRadioList) return;
+
+    // 선택 초기화
+    selectedMemberName = '';
+    attendBtn.disabled = true;
+
+    const teamKey = currentSeason ? currentSeason.teamKey : 'firstHalfTeam';
+    const otherKey = teamKey === 'firstHalfTeam' ? 'secondHalfTeam' : 'firstHalfTeam';
+
+    // 현재 시즌 팀으로 필터링 (미배정 시 다른 시즌 팀으로 fallback)
+    const filtered = membersList.filter(member => {
+        const t = member[teamKey];
+        if (t) return t === team;
+        return member[otherKey] === team;
     });
-    // 자가 등록(직접 입력) 제거 — 선수 등록은 관리자 페이지에서만 가능
-}
 
-// 팀 선택 시 해당 팀원만 필터링하여 표시
-function filterMembersByTeam() {
-    const selectedTeam = teamSelect.value;
-    console.log('🔍 팀 필터링 시작:', selectedTeam);
-    console.log('📊 현재 시즌:', currentSeason);
-    console.log('👥 전체 회원 목록:', membersList);
+    // 가나다순 정렬
+    filtered.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
 
-    // 팀이 선택되지 않았으면 전체 목록 표시
-    if (!selectedTeam) {
-        renderNameSelect(membersList);
+    if (filtered.length === 0) {
+        memberRadioList.innerHTML = '<p class="member-radio-empty">이 팀에 등록된 회원이 없습니다.</p>';
         return;
     }
 
-    // 현재 시즌의 팀으로 필터링 (현재 시즌 팀 정보가 없으면 다른 시즌 팀 정보로 fallback)
-    const filteredMembers = membersList.filter(member => {
-        const currentSeasonTeam = member[currentSeason.teamKey]; // firstHalfTeam 또는 secondHalfTeam
-        console.log(`👤 ${member.name}: 현재시즌팀=${currentSeasonTeam}, 상반기팀=${member.firstHalfTeam}, 하반기팀=${member.secondHalfTeam}`);
+    memberRadioList.innerHTML = filtered.map(member => {
+        const safe = String(member.name).replace(/"/g, '&quot;');
+        return `<label class="member-radio-item">
+            <input type="radio" name="attendMember" value="${safe}">
+            <span>${member.name}</span>
+        </label>`;
+    }).join('');
 
-        // 현재 시즌 팀 정보가 있으면 그것으로 비교
-        if (currentSeasonTeam) {
-            return currentSeasonTeam === selectedTeam;
-        }
-
-        // 현재 시즌 팀 정보가 없으면 다른 시즌 팀 정보로 fallback
-        const otherSeasonKey = currentSeason.teamKey === 'firstHalfTeam' ? 'secondHalfTeam' : 'firstHalfTeam';
-        const otherSeasonTeam = member[otherSeasonKey];
-        return otherSeasonTeam === selectedTeam;
+    // 회원 선택 시 출석 버튼 활성화
+    memberRadioList.querySelectorAll('input[name="attendMember"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            selectedMemberName = radio.value;
+            attendBtn.disabled = false;
+        });
     });
+}
 
-    console.log('✅ 필터링된 회원:', filteredMembers);
-    renderNameSelect(filteredMembers);
-
-    // 이름 선택 초기화
-    nameSelect.value = '';
+// 출석하기 버튼 → 확인 팝업 → 출석 처리
+function onAttendClick() {
+    if (!selectedMemberName) {
+        showMessage('출석할 회원을 선택해주세요.', 'error');
+        return;
+    }
+    if (!userPosition) {
+        showMessage('위치 정보가 없습니다. 위치를 다시 조회해주세요.', 'error');
+        return;
+    }
+    if (confirm(`${selectedMemberName}님으로 출석하시겠습니까?`)) {
+        processAttendance();
+    }
 }
 
 // 출석 처리
 function processAttendance() {
-    const name = nameSelect.value;
-    const team = teamSelect.value;
+    const name = selectedMemberName;
+    const team = selectedTeam;
 
     if (!name || !team) {
-        showMessage('이름과 팀을 모두 선택해주세요.', 'error');
+        showMessage('출석할 회원을 선택해주세요.', 'error');
         return;
     }
 
@@ -411,6 +436,8 @@ function processAttendance() {
                 // 성공 시 로컬 스토리지에 저장 (선택된 이름과 팀)
                 localStorage.setItem('last_name', name);
                 localStorage.setItem('last_team', team);
+                // 중복 제출 방지: 선택 초기화 (목록 새로고침 시 재렌더됨)
+                selectedMemberName = '';
             } else {
                 // 출석 실패 시 출석 요청 옵션 제공
                 const errorMessage = data.message || '출석 실패';
@@ -429,7 +456,8 @@ function processAttendance() {
             showMessage('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
         },
         complete: function() {
-            attendBtn.disabled = false;
+            // 성공 시 선택이 비워져 버튼 비활성, 실패 시 선택이 남아 재시도 가능
+            attendBtn.disabled = !selectedMemberName;
             attendBtn.textContent = '출석하기';
 
             // 출석 후 캐시 무효화
@@ -1174,11 +1202,11 @@ function hideAttendanceFailModal(clearData = false) {
 function showRequestModal() {
     // 저장된 정보가 없으면 현재 선택된 정보를 사용 (방어 로직)
     if (!pendingAttendanceRequest.name || !pendingAttendanceRequest.team) {
-        const name = nameSelect.value;
-        const team = teamSelect.value;
+        const name = selectedMemberName;
+        const team = selectedTeam;
 
         if (!name || !team) {
-            showMessage('이름과 팀을 먼저 선택해주세요.', 'error');
+            showMessage('출석할 회원을 먼저 선택해주세요.', 'error');
             return;
         }
 

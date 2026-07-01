@@ -33,29 +33,23 @@
         <div class="tab-content active" id="attendTab">
             <div class="tab-content-wrapper">
                 <div class="attendance-form" id="attendanceForm">
-                    <div class="form-group">
-                        <label for="teamSelect">팀</label>
-                        <select id="teamSelect">
-                            <option value="">팀을 선택하세요</option>
-                            <option value="A">A팀</option>
-                            <option value="B">B팀</option>
-                            <option value="C">C팀</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="nameSelect">이름</label>
-                        <select id="nameSelect">
-                            <option value="">이름을 선택하세요</option>
-                        </select>
-                    </div>
-
+                    <!-- 위치 상태 (자동 조회) -->
                     <div class="location-status" id="locationStatus">
                         <span class="status-icon">📍</span>
                         <span id="locationText">위치 정보 확인 중...</span>
                     </div>
+                    <button id="locationRetryBtn" class="btn-secondary" style="display:none; width:100%; margin-top:10px;">📍 위치 다시 조회</button>
 
-                    <button id="attendBtn" class="btn-primary" disabled>출석하기</button>
+                    <!-- 위치 확인 후에만 표시되는 출석 영역 -->
+                    <div id="attendSection" style="display:none; margin-top:16px;">
+                        <div class="team-tabs" id="teamTabs">
+                            <button type="button" class="team-tab active" data-team="A">A팀</button>
+                            <button type="button" class="team-tab" data-team="B">B팀</button>
+                            <button type="button" class="team-tab" data-team="C">C팀</button>
+                        </div>
+                        <div id="memberRadioList" class="member-radio-list"></div>
+                        <button id="attendBtn" class="btn-primary" disabled style="width:100%; margin-top:16px;">출석하기</button>
+                    </div>
                 </div>
             </div>
         </div>

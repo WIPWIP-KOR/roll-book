@@ -1663,3 +1663,76 @@ body {
     font-size: 0.85em;
     padding: 5px 10px;
 }
+
+/* ==================== 출석: 팀 탭 + 회원 라디오 ==================== */
+.team-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.team-tab {
+    flex: 1;
+    padding: 12px 0;
+    border: 2px solid #e0e0e0;
+    background: #f8f9fa;
+    border-radius: 10px;
+    font-size: 1em;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.team-tab.active {
+    border-color: #667eea;
+    background: #667eea;
+    color: #fff;
+}
+
+.member-radio-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+    gap: 8px;
+}
+
+.member-radio-item {
+    display: block;
+    position: relative;
+}
+
+.member-radio-item input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.member-radio-item span {
+    display: block;
+    text-align: center;
+    padding: 12px 6px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    background: #fff;
+    color: #333;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.member-radio-item input:checked + span {
+    border-color: #667eea;
+    background: #eef1ff;
+    color: #667eea;
+    font-weight: 700;
+}
+
+.member-radio-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #999;
+    padding: 24px 0;
+}
