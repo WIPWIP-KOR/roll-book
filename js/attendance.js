@@ -346,14 +346,9 @@ function renderTeamMembers(team) {
     attendBtn.disabled = true;
 
     const teamKey = currentSeason ? currentSeason.teamKey : 'firstHalfTeam';
-    const otherKey = teamKey === 'firstHalfTeam' ? 'secondHalfTeam' : 'firstHalfTeam';
 
-    // 현재 시즌 팀으로 필터링 (미배정 시 다른 시즌 팀으로 fallback)
-    const filtered = membersList.filter(member => {
-        const t = member[teamKey];
-        if (t) return t === team;
-        return member[otherKey] === team;
-    });
+    // 현재 시즌 팀만 표시 (다른 시즌 팀으로 대체하지 않음)
+    const filtered = membersList.filter(member => String(member[teamKey] || '').trim() === team);
 
     // 가나다순 정렬
     filtered.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
