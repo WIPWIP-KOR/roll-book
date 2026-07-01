@@ -1131,6 +1131,7 @@ async function loadManageTab() {
 
 // ==================== 팀 배정 ====================
 let teamAssignData = null;
+let pendingAssignments = {}; // 아직 적용 안 한 팀 배정 (이름 → 팀), '전체 적용' 시 일괄 반영
 
 function currentSeasonForAssign() {
     const sel = document.getElementById('teamAssignSeason');
@@ -1156,6 +1157,7 @@ async function loadTeamAssignment() {
     try {
         const r = await requestGas('getTeamAssignment', { season: season });
         teamAssignData = r;
+        pendingAssignments = {}; // 새로 불러오면 임시 배정 초기화
         renderTeamAssignment(r);
     } catch (e) {
         if (area) area.innerHTML = `<p class="text-danger">조회 실패: ${typeof e === 'string' ? e : '오류'}</p>`;
@@ -1193,35 +1195,66 @@ function renderTeamAssignment(d) {
     });
     html += `</div>`;
 
-    // 미배정 회원
+    // 미배정 회원 — 한 명씩 팀을 골라두고(임시) 마지막에 '전체 적용'
+    const pendingCount = Object.keys(pendingAssignments).length;
     html += `<h4 style="margin:0 0 10px 0;color:#333;">미배정 회원 <span style="color:#888;font-weight:400;font-size:0.85em;">(${unassigned.length}명)</span></h4>`;
     if (unassigned.length === 0) {
         html += `<p class="text-secondary">✅ 모든 회원이 팀에 배정되었습니다.</p>`;
     } else {
+        html += `<p style="color:#888;font-size:0.85em;margin:0 0 8px 0;">각 회원의 팀을 선택한 뒤 아래 <b>전체 적용</b>을 누르세요.</p>`;
         html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
         unassigned.forEach(n => {
             const e = escJs(n);
+            const picked = pendingAssignments[n] || '';
+            const btn = (t) => {
+                const on = picked === t;
+                const style = on
+                    ? 'padding:4px 14px;background:#667eea;color:#fff;border:2px solid #667eea;'
+                    : 'padding:4px 14px;';
+                return `<button class="btn-secondary" style="${style}" onclick="stageAssign('${e}','${t}')">${t}</button>`;
+            };
             html += `
-                <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff7e6;border:1px solid #ffe0a3;border-radius:8px;">
-                    <span style="flex:1;font-weight:600;">${n}</span>
-                    <button class="btn-secondary" style="padding:4px 14px;" onclick="assignMemberTeam('${e}','A')">A</button>
-                    <button class="btn-secondary" style="padding:4px 14px;" onclick="assignMemberTeam('${e}','B')">B</button>
-                    <button class="btn-secondary" style="padding:4px 14px;" onclick="assignMemberTeam('${e}','C')">C</button>
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${picked ? '#eef1ff' : '#fff7e6'};border:1px solid ${picked ? '#c7d2fe' : '#ffe0a3'};border-radius:8px;">
+                    <span style="flex:1;font-weight:600;">${n}${picked ? ` <span style="color:#667eea;font-size:0.85em;">→ ${picked}팀</span>` : ''}</span>
+                    ${btn('A')}${btn('B')}${btn('C')}
                 </div>`;
         });
         html += `</div>`;
+
+        html += `
+            <button id="applyAssignBtn" class="btn-primary" style="margin-top:14px;" ${pendingCount === 0 ? 'disabled' : ''} onclick="applyAssignments()">
+                ✅ 전체 적용 ${pendingCount > 0 ? `(${pendingCount}명)` : ''}
+            </button>`;
     }
 
     area.innerHTML = html;
 }
 
-async function assignMemberTeam(name, team) {
+/** 미배정 회원 팀을 임시 선택(토글) — 아직 서버 반영 안 함 */
+function stageAssign(name, team) {
+    if (pendingAssignments[name] === team) {
+        delete pendingAssignments[name]; // 같은 팀 다시 누르면 선택 해제
+    } else {
+        pendingAssignments[name] = team;
+    }
+    renderTeamAssignment(teamAssignData);
+}
+
+/** 임시 선택한 팀 배정을 한 번에 서버로 적용 */
+async function applyAssignments() {
     const season = currentSeasonForAssign();
+    const list = Object.keys(pendingAssignments).map(name => ({ name: name, team: pendingAssignments[name] }));
+    if (list.length === 0) return;
+
+    const btn = document.getElementById('applyAssignBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 적용 중...'; }
+
     try {
-        await requestGas('assignTeam', { name: name, season: season, team: team });
-        await loadTeamAssignment();
+        await requestGas('assignTeamsBulk', { season: season, assignments: JSON.stringify(list) });
+        await loadTeamAssignment(); // 성공 시 임시 선택 초기화 + 재조회
     } catch (e) {
-        alert('배정 실패: ' + (typeof e === 'string' ? e : '오류가 발생했습니다.'));
+        alert('일괄 적용 실패: ' + (typeof e === 'string' ? e : '오류가 발생했습니다.'));
+        if (btn) { btn.disabled = false; btn.textContent = '✅ 전체 적용'; }
     }
 }
 
@@ -1765,6 +1798,9 @@ function switchTab(tabName) {
         selectedBtn.classList.add('active');
         selectedContent.classList.add('active');
     }
+
+    // 탭 전환 시 모든 접이식 섹션 접기
+    document.querySelectorAll('details.admin-acc').forEach(d => { d.open = false; });
 
     // 탭 별 데이터 지연 로딩
     switch(tabName) {

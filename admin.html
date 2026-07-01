@@ -27,132 +27,140 @@
         <!-- 회원·출석·우승 통합 탭 -->
         <div class="tab-content active" id="manageTab">
             <div class="tab-content-wrapper">
-                <h3 style="margin: 0 0 15px 0; color: #333;">👥 전체 회원 목록</h3>
-                <div id="membersList" class="members-list">
-                    <p class="text-secondary">데이터를 불러오는 중...</p>
-                </div>
-
-                <hr style="margin: 36px 0; border: none; border-top: 2px solid #e0e0e0;">
+                <!-- 회원 목록 -->
+                <details class="admin-acc">
+                    <summary>👥 전체 회원 목록</summary>
+                    <div class="admin-acc-body">
+                        <div id="membersList" class="members-list">
+                            <p class="text-secondary">데이터를 불러오는 중...</p>
+                        </div>
+                    </div>
+                </details>
 
                 <!-- 팀 배정 -->
-                <div class="section-header">
-                    <h3 style="margin: 0; color: #333;">🧩 팀 배정</h3>
-                    <button id="loadTeamAssignBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.9em;">🔄 조회</button>
-                </div>
-                <div style="margin: 10px 0 12px 0; display:flex; align-items:center; gap:8px;">
-                    <label for="teamAssignSeason" style="color:#666;">시즌</label>
-                    <select id="teamAssignSeason" class="time-select" style="min-width:110px;">
-                        <option value="상반기">상반기</option>
-                        <option value="하반기">하반기</option>
-                    </select>
-                </div>
-                <div id="teamAssignArea">
-                    <p class="text-secondary">조회 버튼을 눌러 팀 배정 현황을 불러오세요.</p>
-                </div>
-
-                <hr style="margin: 36px 0; border: none; border-top: 2px solid #e0e0e0;">
-
-                <h3 style="margin: 0 0 15px 0; color: #333;">✅ 출석 승인 관리</h3>
-
-                <div class="info-box" style="margin-bottom: 20px;">
-                    <p style="margin: 0; color: #666;">
-                        💡 위치 오류나 기타 사유로 출석하지 못한 회원들의 요청을 승인/거부하거나<br>
-                        관리자가 직접 회원의 출석을 처리할 수 있습니다.
-                    </p>
-                </div>
-
-                <!-- 출석 요청 목록 섹션 -->
-                <div class="section-header">
-                    <h4 style="margin: 0; color: #333;">📋 출석 요청 목록</h4>
-                    <button id="refreshRequestsBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.9em;">🔄 새로고침</button>
-                </div>
-
-                <div id="attendanceRequestsSection" style="margin-bottom: 30px;">
-                    <div id="attendanceRequestsList"></div>
-                </div>
-
-                <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
-
-                <!-- 수동 출석 처리 섹션 -->
-                <h4 style="margin: 20px 0 15px 0; color: #333;">✍️ 직접 출석 처리</h4>
-
-                <div class="form-group">
-                    <label for="manualAttendDate">출석 날짜</label>
-                    <input type="date" id="manualAttendDate" required>
-                </div>
-
-                <button id="loadUncheckedBtn" class="btn-primary">미출석자 불러오기</button>
-
-                <div id="uncheckedMembersSection" style="display: none; margin-top: 20px;">
-                    <div class="stats-summary" style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
-                        <div class="stat-card">
-                            <span class="stat-label">전체 회원</span>
-                            <span class="stat-value" id="totalMembersCount">0</span>
+                <details class="admin-acc">
+                    <summary>🧩 팀 배정</summary>
+                    <div class="admin-acc-body">
+                        <div style="margin: 0 0 12px 0; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <label for="teamAssignSeason" style="color:#666;">시즌</label>
+                            <select id="teamAssignSeason" class="time-select" style="min-width:110px;">
+                                <option value="상반기">상반기</option>
+                                <option value="하반기">하반기</option>
+                            </select>
+                            <button id="loadTeamAssignBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.9em;">🔄 조회</button>
                         </div>
-                        <div class="stat-card">
-                            <span class="stat-label">출석 완료</span>
-                            <span class="stat-value" id="attendedCount" style="color: #4caf50;">0</span>
-                        </div>
-                        <div class="stat-card">
-                            <span class="stat-label">미출석</span>
-                            <span class="stat-value" id="uncheckedCount" style="color: #f44336;">0</span>
+                        <div id="teamAssignArea">
+                            <p class="text-secondary">조회 버튼을 눌러 팀 배정 현황을 불러오세요.</p>
                         </div>
                     </div>
+                </details>
 
-                    <h4 style="margin: 20px 0 10px 0; color: #333;">미출석자 목록</h4>
-                    <div id="uncheckedMembersList"></div>
-                </div>
+                <!-- 출석 승인 -->
+                <details class="admin-acc">
+                    <summary>✅ 출석 승인 관리</summary>
+                    <div class="admin-acc-body">
+                        <div class="info-box" style="margin-bottom: 20px;">
+                            <p style="margin: 0; color: #666;">
+                                💡 위치 오류나 기타 사유로 출석하지 못한 회원들의 요청을 승인/거부하거나<br>
+                                관리자가 직접 회원의 출석을 처리할 수 있습니다.
+                            </p>
+                        </div>
 
-                <div id="manualAttendMessage" class="message"></div>
+                        <div class="section-header">
+                            <h4 style="margin: 0; color: #333;">📋 출석 요청 목록</h4>
+                            <button id="refreshRequestsBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.9em;">🔄 새로고침</button>
+                        </div>
 
-                <hr style="margin: 36px 0; border: none; border-top: 2px solid #e0e0e0;">
+                        <div id="attendanceRequestsSection" style="margin-bottom: 30px;">
+                            <div id="attendanceRequestsList"></div>
+                        </div>
 
-                <h3 style="margin-bottom: 8px; color: #333;">🏆 대회 우승팀 등록</h3>
-                <p style="color: #666; font-size: 0.9em; margin: 0 0 12px 0;">
-                    상반기/하반기 대회 우승팀을 등록하면, 해당 시즌 우승팀 소속 선수들의 우승 횟수에 자동으로 반영됩니다.
-                </p>
-                <button id="loadWinnerBtn" class="btn-secondary" style="margin-bottom: 20px;">🔄 우승팀 정보 불러오기</button>
+                        <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
 
-                <div class="form-group">
-                    <label for="winnerYear">연도</label>
-                    <select id="winnerYear" class="time-select" style="min-width: 120px;"></select>
-                </div>
+                        <h4 style="margin: 20px 0 15px 0; color: #333;">✍️ 직접 출석 처리</h4>
 
-                <div class="form-group">
-                    <label for="winnerSeason">시즌</label>
-                    <select id="winnerSeason" class="time-select" style="min-width: 120px;">
-                        <option value="상반기">상반기</option>
-                        <option value="하반기">하반기</option>
-                    </select>
-                </div>
+                        <div class="form-group">
+                            <label for="manualAttendDate">출석 날짜</label>
+                            <input type="date" id="manualAttendDate" required>
+                        </div>
 
-                <div class="form-group">
-                    <label for="winnerTeam">우승팀</label>
-                    <select id="winnerTeam" class="time-select" style="min-width: 120px;">
-                        <option value="">팀 선택</option>
-                    </select>
-                </div>
+                        <button id="loadUncheckedBtn" class="btn-primary">미출석자 불러오기</button>
 
-                <!-- 선택한 팀 선수 미리보기 -->
-                <div id="winnerTeamPreview" style="margin: 5px 0 20px 0; padding: 12px 15px; background: #f8f9fa; border-radius: 8px; color: #555; font-size: 0.9em; display: none;"></div>
+                        <div id="uncheckedMembersSection" style="display: none; margin-top: 20px;">
+                            <div class="stats-summary" style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+                                <div class="stat-card">
+                                    <span class="stat-label">전체 회원</span>
+                                    <span class="stat-value" id="totalMembersCount">0</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">출석 완료</span>
+                                    <span class="stat-value" id="attendedCount" style="color: #4caf50;">0</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">미출석</span>
+                                    <span class="stat-value" id="uncheckedCount" style="color: #f44336;">0</span>
+                                </div>
+                            </div>
 
-                <button id="saveWinnerBtn" class="btn-primary">🏆 우승팀 등록</button>
-                <p id="winnerMessage" class="message-area"></p>
+                            <h4 style="margin: 20px 0 10px 0; color: #333;">미출석자 목록</h4>
+                            <div id="uncheckedMembersList"></div>
+                        </div>
 
-                <!-- 등록된 우승 기록 목록 -->
-                <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
-                    <h3 style="margin-bottom: 20px; color: #333;">📜 등록된 우승 기록</h3>
-                    <div id="winnerList">
-                        <p style="color: #999; text-align: center; padding: 20px;">불러오는 중...</p>
+                        <div id="manualAttendMessage" class="message"></div>
                     </div>
-                </div>
+                </details>
+
+                <!-- 우승팀 -->
+                <details class="admin-acc">
+                    <summary>🏆 대회 우승팀 등록</summary>
+                    <div class="admin-acc-body">
+                        <p style="color: #666; font-size: 0.9em; margin: 0 0 12px 0;">
+                            상반기/하반기 대회 우승팀을 등록하면, 해당 시즌 우승팀 소속 선수들의 우승 횟수에 자동으로 반영됩니다.
+                        </p>
+                        <button id="loadWinnerBtn" class="btn-secondary" style="margin-bottom: 20px;">🔄 우승팀 정보 불러오기</button>
+
+                        <div class="form-group">
+                            <label for="winnerYear">연도</label>
+                            <select id="winnerYear" class="time-select" style="min-width: 120px;"></select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="winnerSeason">시즌</label>
+                            <select id="winnerSeason" class="time-select" style="min-width: 120px;">
+                                <option value="상반기">상반기</option>
+                                <option value="하반기">하반기</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="winnerTeam">우승팀</label>
+                            <select id="winnerTeam" class="time-select" style="min-width: 120px;">
+                                <option value="">팀 선택</option>
+                            </select>
+                        </div>
+
+                        <div id="winnerTeamPreview" style="margin: 5px 0 20px 0; padding: 12px 15px; background: #f8f9fa; border-radius: 8px; color: #555; font-size: 0.9em; display: none;"></div>
+
+                        <button id="saveWinnerBtn" class="btn-primary">🏆 우승팀 등록</button>
+                        <p id="winnerMessage" class="message-area"></p>
+
+                        <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
+                            <h4 style="margin-bottom: 20px; color: #333;">📜 등록된 우승 기록</h4>
+                            <div id="winnerList">
+                                <p style="color: #999; text-align: center; padding: 20px;">불러오는 중...</p>
+                            </div>
+                        </div>
+                    </div>
+                </details>
             </div>
         </div>
 
         <div class="tab-content" id="settingsTab">
             <div class="tab-content-wrapper">
                 <!-- 위치 설정 -->
-                <h3 style="margin-bottom: 20px; color: #333;">📍 위치 설정</h3>
+                <details class="admin-acc">
+                    <summary>📍 위치 설정</summary>
+                    <div class="admin-acc-body">
                 <div class="info-box">
                     <p><strong>현재 설정된 위치:</strong></p>
                     <p id="currentLocation">위치 정보를 불러오는 중...</p>
@@ -200,10 +208,13 @@
 
                     <button id="closeMapBtn" class="btn-secondary" style="margin-top: 15px;">지도 닫기</button>
                 </div>
+                    </div>
+                </details>
 
-                <hr style="margin: 40px 0; border: none; border-top: 2px solid #e0e0e0;">
-
-                <h3 style="margin-bottom: 20px; color: #333;">🔑 관리자 비밀번호 설정</h3>
+                <!-- 비밀번호 설정 -->
+                <details class="admin-acc">
+                    <summary>🔑 관리자 비밀번호 설정</summary>
+                    <div class="admin-acc-body">
                 <div class="form-group">
                     <label for="newPassword">새 4자리 비밀번호:</label>
                     <input type="password" id="newPassword" maxlength="4" placeholder="4자리 숫자" pattern="[0-9]{4}">
@@ -216,10 +227,13 @@
                         💡 비밀번호를 비워두고 저장하면 비밀번호 인증이 해제됩니다.
                     </p>
                 </div>
+                    </div>
+                </details>
 
                 <!-- 출석 시간 설정 -->
-                <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
-                    <h3 style="margin-bottom: 20px; color: #333;">⏰ 출석 시간 설정</h3>
+                <details class="admin-acc">
+                    <summary>⏰ 출석 시간 설정</summary>
+                    <div class="admin-acc-body">
 
                     <!-- 현재 설정 표시 -->
                     <div class="current-time-settings" id="currentTimeSettings">
@@ -295,11 +309,13 @@
                         <button id="recalculateLateBtn" class="btn-warning">🔄 지각 여부 재계산</button>
                         <p id="recalculateMessage" class="message-area"></p>
                     </div>
-                </div>
+                    </div>
+                </details>
 
                 <!-- 출석 인정 거리 설정 -->
-                <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
-                    <h3 style="margin-bottom: 20px; color: #333;">📍 출석 인정 거리 설정</h3>
+                <details class="admin-acc">
+                    <summary>📍 출석 인정 거리 설정</summary>
+                    <div class="admin-acc-body">
 
                     <!-- 현재 설정 표시 -->
                     <div class="current-radius-settings" id="currentRadiusSettings">
@@ -332,11 +348,13 @@
                             💡 설정한 거리 내에서만 출석이 가능합니다. 권장 범위: 30~100m (기본값: 50m)
                         </p>
                     </div>
-                </div>
+                    </div>
+                </details>
 
                 <!-- 출석 가능 요일 설정 -->
-                <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
-                    <h3 style="margin-bottom: 20px; color: #333;">📅 출석 가능 요일 설정</h3>
+                <details class="admin-acc">
+                    <summary>📅 출석 가능 요일 설정</summary>
+                    <div class="admin-acc-body">
                     <div class="attendance-days-container">
                         <label class="day-checkbox-label">
                             <input type="checkbox" class="attendance-day-checkbox" value="0">
@@ -375,7 +393,8 @@
                             💡 체크된 요일에만 출석이 가능합니다. 아무것도 체크하지 않으면 모든 요일에 출석 가능합니다.
                         </p>
                     </div>
-                </div>
+                    </div>
+                </details>
             </div>
         </div>
     </div>
