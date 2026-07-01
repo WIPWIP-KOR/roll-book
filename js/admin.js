@@ -1177,17 +1177,14 @@ function memberAssignRow(name) {
 
     const btn = (t, label) => {
         const on = effective === t;
-        const style = on
-            ? 'padding:4px 12px;font-size:0.9em;background:#667eea;color:#fff;border:2px solid #667eea;'
-            : 'padding:4px 12px;font-size:0.9em;';
-        return `<button class="btn-secondary" style="${style}" onclick="stageAssign('${e}','${t}')">${label}</button>`;
+        return `<button class="tbtn${on ? ' on' : ''}" onclick="stageAssign('${e}','${t}')">${label}</button>`;
     };
 
     const targetLabel = changed ? (pendingAssignments[name] === '' ? '→ 미배정' : `→ ${pendingAssignments[name]}팀`) : '';
     return `
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 8px;border-radius:8px;${changed ? 'background:#eef1ff;border:1px solid #c7d2fe;' : ''}">
-            <span style="flex:1;min-width:60px;font-weight:600;font-size:0.9em;">${name}${targetLabel ? ` <span style="color:#667eea;font-size:0.85em;font-weight:400;">${targetLabel}</span>` : ''}</span>
-            ${btn('A', 'A')}${btn('B', 'B')}${btn('C', 'C')}${btn('', '해제')}
+        <div class="tassign-row${changed ? ' changed' : ''}">
+            <span class="tassign-name">${name}${targetLabel ? ` <span style="color:#667eea;font-size:0.85em;font-weight:400;">${targetLabel}</span>` : ''}</span>
+            <span class="tassign-btns">${btn('A', 'A')}${btn('B', 'B')}${btn('C', 'C')}${btn('', '해제')}</span>
         </div>`;
 }
 
@@ -1197,6 +1194,11 @@ function renderTeamAssignment(d) {
     const teams = d.teams || { A: [], B: [], C: [] };
     const coaches = d.coaches || {};
     const unassigned = d.unassigned || [];
+
+    // 기본 정렬: 가나다순
+    const byKo = (a, b) => String(a).localeCompare(String(b), 'ko');
+    ['A', 'B', 'C'].forEach(t => { if (teams[t]) teams[t].sort(byKo); });
+    unassigned.sort(byKo);
 
     // 현재 팀 맵 구성 (stageAssign에서 현재 팀 기준 토글에 사용)
     memberCurrentTeam = {};
@@ -1215,7 +1217,7 @@ function renderTeamAssignment(d) {
 
         const rows = mem.length ? mem.map(memberAssignRow).join('') : '<p style="font-size:0.85em;color:#999;margin:4px 0;">소속 없음</p>';
         html += `
-            <div style="flex:1;min-width:230px;border:1px solid #e0e0e0;border-radius:10px;padding:12px;">
+            <div style="flex:1;min-width:200px;border:1px solid #e0e0e0;border-radius:10px;padding:12px;">
                 <div style="font-weight:700;color:#667eea;margin-bottom:6px;">${t}팀 <span style="color:#888;font-weight:400;font-size:0.85em;">(${mem.length}명)</span></div>
                 <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
                     <span style="font-size:0.85em;color:#666;">감독</span>
