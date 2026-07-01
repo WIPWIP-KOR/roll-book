@@ -1219,9 +1219,9 @@ function renderTeamAssignment(d) {
         html += `
             <div style="flex:1 0 200px;min-width:200px;border:1px solid #e0e0e0;border-radius:8px;padding:8px;">
                 <div style="font-weight:700;color:#667eea;margin-bottom:4px;font-size:0.95em;">${t}팀 <span style="color:#888;font-weight:400;font-size:0.85em;">(${mem.length}명)</span></div>
-                <div style="display:flex;gap:5px;align-items:center;margin-bottom:6px;">
-                    <span style="font-size:0.78em;color:#666;">감독</span>
-                    <select id="coach-${t}" style="flex:1;padding:3px 5px;font-size:0.85em;border:1px solid #ccc;border-radius:5px;">${opts}</select>
+                <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;">
+                    <span style="font-size:0.72em;color:#666;">감독</span>
+                    <select id="coach-${t}" style="flex:1;min-width:0;padding:1px 4px;font-size:0.72em;line-height:1.6;border:1px solid #ccc;border-radius:5px;">${opts}</select>
                     <button class="tbtn" onclick="saveTeamCoach('${t}')">지정</button>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:1px;">${rows}</div>

@@ -1786,7 +1786,7 @@ body {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     padding: 1px 3px;
     border-radius: 5px;
     font-size: 0.85em;
@@ -1795,8 +1795,8 @@ body {
     background: #eef1ff;
 }
 .tassign-name {
-    flex: 1;
-    min-width: 36px;
+    flex: 0 1 auto;   /* 이름은 내용 너비만, 길면 말줄임 → 버튼이 이름 바로 옆에 붙음 */
+    min-width: 24px;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
