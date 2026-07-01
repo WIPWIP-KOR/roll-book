@@ -1787,8 +1787,8 @@ body {
     flex-wrap: nowrap;
     align-items: center;
     gap: 4px;
-    padding: 2px 4px;
-    border-radius: 6px;
+    padding: 1px 3px;
+    border-radius: 5px;
     font-size: 0.85em;
 }
 .tassign-row.changed {

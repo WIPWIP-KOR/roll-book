@@ -1205,8 +1205,8 @@ function renderTeamAssignment(d) {
     ['A', 'B', 'C'].forEach(t => (teams[t] || []).forEach(n => { memberCurrentTeam[n] = t; }));
     unassigned.forEach(n => { memberCurrentTeam[n] = ''; });
 
-    // 팀별 카드 (감독 지정 + 소속 회원 이동/해제)
-    let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">`;
+    // 팀별 카드 (감독 지정 + 소속 회원 이동/해제) — A/B/C 한 줄, 좁으면 가로 스크롤
+    let html = `<div style="display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;padding-bottom:4px;">`;
     ['A', 'B', 'C'].forEach(t => {
         const mem = teams[t] || [];
         const coach = coaches[t] || '';
@@ -1215,16 +1215,16 @@ function renderTeamAssignment(d) {
         let opts = '<option value="">(감독 없음)</option>';
         list.forEach(n => { opts += `<option value="${n}" ${n === coach ? 'selected' : ''}>${n}</option>`; });
 
-        const rows = mem.length ? mem.map(memberAssignRow).join('') : '<p style="font-size:0.85em;color:#999;margin:4px 0;">소속 없음</p>';
+        const rows = mem.length ? mem.map(memberAssignRow).join('') : '<p style="font-size:0.8em;color:#999;margin:2px 0;">소속 없음</p>';
         html += `
-            <div style="flex:1;min-width:200px;border:1px solid #e0e0e0;border-radius:10px;padding:12px;">
-                <div style="font-weight:700;color:#667eea;margin-bottom:6px;">${t}팀 <span style="color:#888;font-weight:400;font-size:0.85em;">(${mem.length}명)</span></div>
-                <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
-                    <span style="font-size:0.85em;color:#666;">감독</span>
-                    <select id="coach-${t}" style="flex:1;padding:6px;border:1px solid #ccc;border-radius:6px;">${opts}</select>
-                    <button class="btn-secondary" style="padding:4px 10px;font-size:0.85em;" onclick="saveTeamCoach('${t}')">지정</button>
+            <div style="flex:1 0 200px;min-width:200px;border:1px solid #e0e0e0;border-radius:8px;padding:8px;">
+                <div style="font-weight:700;color:#667eea;margin-bottom:4px;font-size:0.95em;">${t}팀 <span style="color:#888;font-weight:400;font-size:0.85em;">(${mem.length}명)</span></div>
+                <div style="display:flex;gap:5px;align-items:center;margin-bottom:6px;">
+                    <span style="font-size:0.78em;color:#666;">감독</span>
+                    <select id="coach-${t}" style="flex:1;padding:3px 5px;font-size:0.85em;border:1px solid #ccc;border-radius:5px;">${opts}</select>
+                    <button class="tbtn" onclick="saveTeamCoach('${t}')">지정</button>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:4px;">${rows}</div>
+                <div style="display:flex;flex-direction:column;gap:1px;">${rows}</div>
             </div>`;
     });
     html += `</div>`;
