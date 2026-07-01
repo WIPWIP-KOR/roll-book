@@ -1780,3 +1780,47 @@ body {
 .admin-acc-body {
     padding: 18px;
 }
+
+/* ==================== 팀 배정: 컴팩트 회원 행/버튼 ==================== */
+.tassign-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    border-radius: 6px;
+    font-size: 0.88em;
+}
+.tassign-row.changed {
+    background: #eef1ff;
+}
+.tassign-name {
+    flex: 1;
+    min-width: 50px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.tassign-btns {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.tbtn {
+    width: auto;
+    min-height: 0;
+    padding: 2px 8px;
+    font-size: 0.8em;
+    line-height: 1.5;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+}
+.tbtn.on {
+    background: #667eea;
+    color: #fff;
+    border-color: #667eea;
+    font-weight: 700;
+}
