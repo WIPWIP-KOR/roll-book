@@ -92,6 +92,8 @@ function doGet(e) {
         return getTeamAssignment(e.parameter.season, callback);
       case 'assignTeam':
         return assignTeam(e.parameter.name, e.parameter.season, e.parameter.team, callback);
+      case 'assignTeamsBulk':
+        return assignTeamsBulk(e.parameter.season, e.parameter.assignments, callback);
       case 'setTeamCoach':
         return setTeamCoach(e.parameter.season, e.parameter.team, e.parameter.coach, callback);
       case 'getLocation':
@@ -974,6 +976,67 @@ function assignTeam(name, season, team, callback) {
     return createResponse(false, `⚠️ '${name}' 선수를 찾을 수 없습니다.`, null, callback);
   } catch (e) {
     Logger.log('팀 배정 오류: ' + e.toString());
+    return createResponse(false, e.toString(), null, callback);
+  }
+}
+
+/**
+ * 여러 회원의 팀을 한 번에 배정
+ * @param {string} assignmentsJson - [{"name":"홍길동","team":"A"}, ...] JSON 문자열
+ */
+function assignTeamsBulk(season, assignmentsJson, callback) {
+  try {
+    season = String(season || '').trim();
+    if (!['상반기', '하반기'].includes(season)) {
+      return createResponse(false, '⚠️ 시즌이 올바르지 않습니다.', null, callback);
+    }
+
+    let list;
+    try {
+      list = JSON.parse(assignmentsJson || '[]');
+    } catch (parseErr) {
+      return createResponse(false, '⚠️ 배정 데이터 형식 오류.', null, callback);
+    }
+    if (!Array.isArray(list) || list.length === 0) {
+      return createResponse(false, '⚠️ 적용할 배정이 없습니다.', null, callback);
+    }
+
+    const currentYear = new Date().getFullYear();
+    const sheet = getMemberSheet(currentYear);
+    if (!sheet) return createResponse(false, '⚠️ 회원 목록 시트가 없습니다.', null, callback);
+
+    const data = sheet.getDataRange().getValues();
+    const col = (season === '상반기') ? 2 : 3; // B=상반기팀, C=하반기팀
+
+    // 이름 → 행 인덱스 매핑
+    const rowByName = {};
+    for (let i = 1; i < data.length; i++) {
+      const nm = String(data[i][0]).trim();
+      if (nm) rowByName[nm] = i;
+    }
+
+    let applied = 0;
+    const notFound = [];
+    list.forEach(item => {
+      const nm = String(item.name || '').trim();
+      const tm = String(item.team || '').trim();
+      if (!nm) return;
+      if (tm !== '' && !['A', 'B', 'C'].includes(tm)) return;
+      if (rowByName[nm] !== undefined) {
+        sheet.getRange(rowByName[nm] + 1, col).setValue(tm);
+        applied++;
+      } else {
+        notFound.push(nm);
+      }
+    });
+
+    CacheService.getScriptCache().remove(`ALL_MEMBERS_DATA_${currentYear}`);
+    Logger.log(`팀 일괄 배정(${season}): ${applied}명 적용, 미발견 ${notFound.length}`);
+
+    const extra = notFound.length ? ` (미발견: ${notFound.join(', ')})` : '';
+    return createResponse(true, `✅ ${applied}명 팀 배정 완료!${extra}`, { applied: applied }, callback);
+  } catch (e) {
+    Logger.log('팀 일괄 배정 오류: ' + e.toString());
     return createResponse(false, e.toString(), null, callback);
   }
 }

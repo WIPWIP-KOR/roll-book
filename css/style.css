@@ -1736,3 +1736,47 @@ body {
     color: #999;
     padding: 24px 0;
 }
+
+/* ==================== 관리자 아코디언 (접이식 섹션) ==================== */
+.admin-acc {
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.admin-acc > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 16px 18px;
+    font-size: 1.05em;
+    font-weight: 600;
+    color: #333;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+}
+
+.admin-acc > summary::-webkit-details-marker { display: none; }
+
+.admin-acc > summary::after {
+    content: '▾';
+    color: #999;
+    font-size: 0.9em;
+    transition: transform 0.2s ease;
+}
+
+.admin-acc[open] > summary::after { transform: rotate(180deg); }
+
+.admin-acc[open] > summary {
+    border-bottom: 1px solid #e0e0e0;
+    background: #eef1ff;
+    color: #667eea;
+}
+
+.admin-acc-body {
+    padding: 18px;
+}
