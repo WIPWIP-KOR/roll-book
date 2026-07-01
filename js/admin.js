@@ -1166,6 +1166,31 @@ async function loadTeamAssignment() {
 
 function escJs(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
+let memberCurrentTeam = {}; // 이름 → 현재 팀('A'/'B'/'C' 또는 '' 미배정)
+
+/** 회원 한 명의 이동 버튼(A/B/C/해제) 행 HTML */
+function memberAssignRow(name) {
+    const e = escJs(name);
+    const current = memberCurrentTeam[name] || '';
+    const effective = (name in pendingAssignments) ? pendingAssignments[name] : current;
+    const changed = (name in pendingAssignments) && pendingAssignments[name] !== current;
+
+    const btn = (t, label) => {
+        const on = effective === t;
+        const style = on
+            ? 'padding:4px 12px;font-size:0.9em;background:#667eea;color:#fff;border:2px solid #667eea;'
+            : 'padding:4px 12px;font-size:0.9em;';
+        return `<button class="btn-secondary" style="${style}" onclick="stageAssign('${e}','${t}')">${label}</button>`;
+    };
+
+    const targetLabel = changed ? (pendingAssignments[name] === '' ? '→ 미배정' : `→ ${pendingAssignments[name]}팀`) : '';
+    return `
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 8px;border-radius:8px;${changed ? 'background:#eef1ff;border:1px solid #c7d2fe;' : ''}">
+            <span style="flex:1;min-width:60px;font-weight:600;font-size:0.9em;">${name}${targetLabel ? ` <span style="color:#667eea;font-size:0.85em;font-weight:400;">${targetLabel}</span>` : ''}</span>
+            ${btn('A', 'A')}${btn('B', 'B')}${btn('C', 'C')}${btn('', '해제')}
+        </div>`;
+}
+
 function renderTeamAssignment(d) {
     const area = document.getElementById('teamAssignArea');
     if (!area) return;
@@ -1173,7 +1198,12 @@ function renderTeamAssignment(d) {
     const coaches = d.coaches || {};
     const unassigned = d.unassigned || [];
 
-    // 팀별 카드 + 감독 지정
+    // 현재 팀 맵 구성 (stageAssign에서 현재 팀 기준 토글에 사용)
+    memberCurrentTeam = {};
+    ['A', 'B', 'C'].forEach(t => (teams[t] || []).forEach(n => { memberCurrentTeam[n] = t; }));
+    unassigned.forEach(n => { memberCurrentTeam[n] = ''; });
+
+    // 팀별 카드 (감독 지정 + 소속 회원 이동/해제)
     let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">`;
     ['A', 'B', 'C'].forEach(t => {
         const mem = teams[t] || [];
@@ -1182,60 +1212,49 @@ function renderTeamAssignment(d) {
         if (coach && list.indexOf(coach) === -1) list.push(coach); // 팀 밖 감독도 옵션에 포함
         let opts = '<option value="">(감독 없음)</option>';
         list.forEach(n => { opts += `<option value="${n}" ${n === coach ? 'selected' : ''}>${n}</option>`; });
+
+        const rows = mem.length ? mem.map(memberAssignRow).join('') : '<p style="font-size:0.85em;color:#999;margin:4px 0;">소속 없음</p>';
         html += `
-            <div style="flex:1;min-width:170px;border:1px solid #e0e0e0;border-radius:10px;padding:12px;">
+            <div style="flex:1;min-width:230px;border:1px solid #e0e0e0;border-radius:10px;padding:12px;">
                 <div style="font-weight:700;color:#667eea;margin-bottom:6px;">${t}팀 <span style="color:#888;font-weight:400;font-size:0.85em;">(${mem.length}명)</span></div>
-                <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
                     <span style="font-size:0.85em;color:#666;">감독</span>
                     <select id="coach-${t}" style="flex:1;padding:6px;border:1px solid #ccc;border-radius:6px;">${opts}</select>
                     <button class="btn-secondary" style="padding:4px 10px;font-size:0.85em;" onclick="saveTeamCoach('${t}')">지정</button>
                 </div>
-                <div style="font-size:0.85em;color:#555;">${mem.length ? mem.join(', ') : '소속 없음'}</div>
+                <div style="display:flex;flex-direction:column;gap:4px;">${rows}</div>
             </div>`;
     });
     html += `</div>`;
 
-    // 미배정 회원 — 한 명씩 팀을 골라두고(임시) 마지막에 '전체 적용'
-    const pendingCount = Object.keys(pendingAssignments).length;
+    // 미배정 회원 (A/B/C로 배정)
     html += `<h4 style="margin:0 0 10px 0;color:#333;">미배정 회원 <span style="color:#888;font-weight:400;font-size:0.85em;">(${unassigned.length}명)</span></h4>`;
     if (unassigned.length === 0) {
         html += `<p class="text-secondary">✅ 모든 회원이 팀에 배정되었습니다.</p>`;
     } else {
-        html += `<p style="color:#888;font-size:0.85em;margin:0 0 8px 0;">각 회원의 팀을 선택한 뒤 아래 <b>전체 적용</b>을 누르세요.</p>`;
-        html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
-        unassigned.forEach(n => {
-            const e = escJs(n);
-            const picked = pendingAssignments[n] || '';
-            const btn = (t) => {
-                const on = picked === t;
-                const style = on
-                    ? 'padding:4px 14px;background:#667eea;color:#fff;border:2px solid #667eea;'
-                    : 'padding:4px 14px;';
-                return `<button class="btn-secondary" style="${style}" onclick="stageAssign('${e}','${t}')">${t}</button>`;
-            };
-            html += `
-                <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${picked ? '#eef1ff' : '#fff7e6'};border:1px solid ${picked ? '#c7d2fe' : '#ffe0a3'};border-radius:8px;">
-                    <span style="flex:1;font-weight:600;">${n}${picked ? ` <span style="color:#667eea;font-size:0.85em;">→ ${picked}팀</span>` : ''}</span>
-                    ${btn('A')}${btn('B')}${btn('C')}
-                </div>`;
-        });
+        html += `<div style="display:flex;flex-direction:column;gap:6px;">`;
+        html += unassigned.map(memberAssignRow).join('');
         html += `</div>`;
-
-        html += `
-            <button id="applyAssignBtn" class="btn-primary" style="margin-top:14px;" ${pendingCount === 0 ? 'disabled' : ''} onclick="applyAssignments()">
-                ✅ 전체 적용 ${pendingCount > 0 ? `(${pendingCount}명)` : ''}
-            </button>`;
     }
+
+    // 전체 적용 (팀 카드/미배정 어디서 생긴 변경이든 일괄 반영)
+    const pendingCount = Object.keys(pendingAssignments).length;
+    html += `
+        <button id="applyAssignBtn" class="btn-primary" style="margin-top:16px;" ${pendingCount === 0 ? 'disabled' : ''} onclick="applyAssignments()">
+            ✅ 전체 적용 ${pendingCount > 0 ? `(${pendingCount}명)` : ''}
+        </button>
+        <p style="color:#888;font-size:0.8em;margin:8px 0 0 0;">각 회원의 팀(또는 해제)을 선택한 뒤 <b>전체 적용</b>을 누르면 한 번에 반영됩니다.</p>`;
 
     area.innerHTML = html;
 }
 
-/** 미배정 회원 팀을 임시 선택(토글) — 아직 서버 반영 안 함 */
+/** 회원 팀을 임시 선택 — 현재 팀과 같으면 변경 취소, 아직 서버 반영 안 함 */
 function stageAssign(name, team) {
-    if (pendingAssignments[name] === team) {
-        delete pendingAssignments[name]; // 같은 팀 다시 누르면 선택 해제
+    const current = memberCurrentTeam[name] || '';
+    if (team === current) {
+        delete pendingAssignments[name]; // 현재 팀으로 되돌리면 변경 취소
     } else {
-        pendingAssignments[name] = team;
+        pendingAssignments[name] = team; // team '' = 배정 해제
     }
     renderTeamAssignment(teamAssignData);
 }
