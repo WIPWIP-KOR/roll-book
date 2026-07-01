@@ -501,12 +501,34 @@ function calculateStats(rawData, seasonFilter = 'all') {
     // 2. 팀별 통계 계산 (출석기록의 팀 기준, 보는 시즌 반영)
     const teamStats = calculateTeamStats(filteredAttendance, members, totalSaturdays, seasonFilter);
 
+    // 2-1. 전체 보기일 때는 상·하반기 팀 순위를 각각 별도로 계산 (팀 구성이 다르므로)
+    let teamStatsFirst = null, teamStatsSecond = null;
+    let totalSaturdaysFirst = 0, totalSaturdaysSecond = 0;
+    if (seasonFilter === 'all') {
+        const inFirst = v => { const m = parseInt(String(v).substring(5, 7)); return m >= 1 && m <= 6; };
+        const inSecond = v => { const m = parseInt(String(v).substring(5, 7)); return m >= 7 && m <= 12; };
+
+        const firstSats = saturdays.filter(inFirst);
+        const secondSats = saturdays.filter(inSecond);
+        const firstAtt = attendance.filter(r => inFirst(r.date));
+        const secondAtt = attendance.filter(r => inSecond(r.date));
+
+        totalSaturdaysFirst = firstSats.length;
+        totalSaturdaysSecond = secondSats.length;
+        teamStatsFirst = calculateTeamStats(firstAtt, members, totalSaturdaysFirst, 'firstHalf');
+        teamStatsSecond = calculateTeamStats(secondAtt, members, totalSaturdaysSecond, 'secondHalf');
+    }
+
     // 3. 주차별 통계 계산
     const weeklyStats = calculateWeeklyStats(filteredAttendance, filteredSaturdays);
 
     return {
         personalStats,
         teamStats,
+        teamStatsFirst,
+        teamStatsSecond,
+        totalSaturdaysFirst,
+        totalSaturdaysSecond,
         weeklyStats,
         targetYear,
         totalSaturdays
@@ -769,7 +791,7 @@ function displayStats(stats) {
     const sortOption = document.getElementById('sortOption')?.value || 'rate-desc';
 
     // 팀별 통계 표시
-    displayTeamStats(stats.teamStats);
+    displayTeamStats(stats);
     displayPersonalStats(stats.personalStats, teamFilter, sortOption);
 
     // 기간 정보 업데이트
@@ -869,15 +891,29 @@ function displayPersonalStats(personalStats, teamFilter, sortOption) {
 }
 
 
-function displayTeamStats(teamStats) {
+function displayTeamStats(stats) {
     const container = document.getElementById('teamStatsContent');
     if (!container) return;
 
-    // 현재 연도+시즌 조합으로 캐시 키 생성
     const cacheKeyStr = `${currentYear}_${currentSeason}`;
     const targetYear = allStats[cacheKeyStr] ? allStats[cacheKeyStr].targetYear : currentYear;
 
-    // 팀별 통계를 배열로 변환하고 출석률 기준 정렬
+    let html = '';
+    // 전체 보기: 상반기/하반기 순위를 각각 표시 (팀 구성이 다르므로)
+    if (currentSeason === 'all' && stats.teamStatsFirst && stats.teamStatsSecond) {
+        html += teamRankingTableHtml(`${targetYear}년 상반기 팀 출석 순위`, stats.teamStatsFirst);
+        html += teamRankingTableHtml(`${targetYear}년 하반기 팀 출석 순위`, stats.teamStatsSecond);
+    } else {
+        html += teamRankingTableHtml(`${targetYear}년 팀 출석 순위`, stats.teamStats);
+    }
+
+    container.innerHTML = html;
+}
+
+/** 팀 출석 순위 표 HTML 생성 */
+function teamRankingTableHtml(title, teamStats) {
+    if (!teamStats) return '';
+
     const teamArray = Object.keys(teamStats).map(team => ({
         team: team,
         rate: teamStats[team].rate,
@@ -887,7 +923,7 @@ function displayTeamStats(teamStats) {
         lateCount: teamStats[team].lateCount || 0
     })).sort((a, b) => b.rate - a.rate); // 출석률 높은 순
 
-    let html = `<h4 style="margin: 20px 0 15px 0; color: #333;">🏆 ${targetYear}년 팀 출석 순위</h4>`;
+    let html = `<h4 style="margin: 20px 0 15px 0; color: #333;">🏆 ${title}</h4>`;
     html += '<div style="padding: 0 20px 20px 20px;">';
     html += `
         <table class="table table-striped table-hover">
@@ -922,7 +958,7 @@ function displayTeamStats(teamStats) {
     });
 
     html += '</tbody></table></div>';
-    container.innerHTML = html;
+    return html;
 }
 
 /**
