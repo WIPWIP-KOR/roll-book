@@ -17,6 +17,7 @@ let userPosition = null;
 let membersList = [];
 let selectedTeam = 'A';        // 현재 선택된 팀 탭
 let selectedMemberName = '';   // 현재 선택된 회원
+let todayAttendedNames = new Set(); // 오늘 이미 출석한 회원 (목록에서 숨김)
 let statusLoaded = false; // 출석현황 로딩 여부
 let hallOfFameLoaded = false; // 명예의 전당 로딩 여부
 let currentSeason = null; // 현재 시즌 정보
@@ -132,8 +133,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (locationRetryBtn) locationRetryBtn.style.display = 'none';
     attendBtn.disabled = true;
 
-    // 기존 회원 목록 로드
+    // 기존 회원 목록 로드 + 오늘 출석자 조회(출석한 사람은 목록에서 숨김)
     loadMembers();
+    loadTodayAttendedNames();
 
     // 이벤트 리스너
     attendBtn.addEventListener('click', onAttendClick);
@@ -337,7 +339,33 @@ function loadMembers() {
     });
 }
 
-// 선택한 팀의 회원을 가나다순 라디오 버튼으로 렌더링
+// 오늘 이미 출석한 회원 이름 조회 → 출석 명단에서 숨기기 위해 사용
+function loadTodayAttendedNames() {
+    // 출석현황 캐시가 있으면 재사용
+    const cached = CacheManager.get(CacheManager.KEYS.TODAY_ATTENDANCE);
+    if (cached) {
+        todayAttendedNames = new Set(cached.map(r => String(r.name).trim()));
+        renderTeamMembers(selectedTeam);
+        return;
+    }
+
+    $.ajax({
+        url: `${CONFIG.GAS_URL}?action=getTodayAttendance`,
+        dataType: 'jsonp',
+        success: function(data) {
+            if (data && data.success && Array.isArray(data.attendance)) {
+                todayAttendedNames = new Set(data.attendance.map(r => String(r.name).trim()));
+                CacheManager.set(CacheManager.KEYS.TODAY_ATTENDANCE, data.attendance);
+                renderTeamMembers(selectedTeam);
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('오늘 출석자 조회 에러:', textStatus, errorThrown);
+        }
+    });
+}
+
+// 선택한 팀의 회원을 가나다순 라디오 버튼으로 렌더링 (오늘 출석한 회원은 숨김)
 function renderTeamMembers(team) {
     if (!memberRadioList) return;
 
@@ -348,13 +376,16 @@ function renderTeamMembers(team) {
     const teamKey = currentSeason ? currentSeason.teamKey : 'firstHalfTeam';
 
     // 현재 시즌 팀만 표시 (다른 시즌 팀으로 대체하지 않음)
-    const filtered = membersList.filter(member => String(member[teamKey] || '').trim() === team);
+    const teamMembers = membersList.filter(member => String(member[teamKey] || '').trim() === team);
+    const filtered = teamMembers.filter(member => !todayAttendedNames.has(String(member.name).trim()));
 
     // 가나다순 정렬
     filtered.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
 
     if (filtered.length === 0) {
-        memberRadioList.innerHTML = '<p class="member-radio-empty">이 팀에 등록된 회원이 없습니다.</p>';
+        memberRadioList.innerHTML = teamMembers.length > 0
+            ? '<p class="member-radio-empty">🎉 이 팀은 모두 출석했습니다.</p>'
+            : '<p class="member-radio-empty">이 팀에 등록된 회원이 없습니다.</p>';
         return;
     }
 
@@ -431,8 +462,10 @@ function processAttendance() {
                 // 성공 시 로컬 스토리지에 저장 (선택된 이름과 팀)
                 localStorage.setItem('last_name', name);
                 localStorage.setItem('last_team', team);
-                // 중복 제출 방지: 선택 초기화 (목록 새로고침 시 재렌더됨)
+                // 중복 제출 방지: 선택 초기화 + 방금 출석한 회원은 명단에서 숨김
                 selectedMemberName = '';
+                todayAttendedNames.add(String(name).trim());
+                renderTeamMembers(selectedTeam);
             } else {
                 // 출석 실패 시 출석 요청 옵션 제공
                 const errorMessage = data.message || '출석 실패';

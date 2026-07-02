@@ -1786,17 +1786,17 @@ body {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 3px;
-    padding: 1px 3px;
+    gap: 2px;
+    padding: 1px 2px;
     border-radius: 5px;
-    font-size: 0.85em;
+    font-size: 0.82em;
 }
 .tassign-row.changed {
     background: #eef1ff;
 }
 .tassign-name {
     flex: 0 1 auto;   /* 이름은 내용 너비만, 길면 말줄임 → 버튼이 이름 바로 옆에 붙음 */
-    min-width: 24px;
+    min-width: 3em;   /* 최소 세 글자는 항상 보이게 */
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -1804,14 +1804,14 @@ body {
 }
 .tassign-btns {
     display: flex;
-    gap: 3px;
+    gap: 2px;
     flex-shrink: 0;
 }
 .tbtn {
     width: auto;
     min-height: 0;
-    padding: 1px 6px;
-    font-size: 0.72em;
+    padding: 1px 4px;
+    font-size: 0.7em;
     line-height: 1.6;
     border: 1px solid #ccc;
     border-radius: 5px;

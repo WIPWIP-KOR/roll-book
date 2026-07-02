@@ -1180,10 +1180,10 @@ function memberAssignRow(name) {
         return `<button class="tbtn${on ? ' on' : ''}" onclick="stageAssign('${e}','${t}')">${label}</button>`;
     };
 
-    const targetLabel = changed ? (pendingAssignments[name] === '' ? '→ 미배정' : `→ ${pendingAssignments[name]}팀`) : '';
+    // 행이 임시 배정된 팀 카드로 직접 이동하므로 별도 라벨 없이 배경색으로만 미저장 상태 표시
     return `
-        <div class="tassign-row${changed ? ' changed' : ''}">
-            <span class="tassign-name">${name}${targetLabel ? ` <span style="color:#667eea;font-size:0.85em;font-weight:400;">${targetLabel}</span>` : ''}</span>
+        <div class="tassign-row${changed ? ' changed' : ''}" title="${name}">
+            <span class="tassign-name">${name}</span>
             <span class="tassign-btns">${btn('A', 'A')}${btn('B', 'B')}${btn('C', 'C')}${btn('', '해제')}</span>
         </div>`;
 }
@@ -1195,33 +1195,41 @@ function renderTeamAssignment(d) {
     const coaches = d.coaches || {};
     const unassigned = d.unassigned || [];
 
-    // 기본 정렬: 가나다순
-    const byKo = (a, b) => String(a).localeCompare(String(b), 'ko');
-    ['A', 'B', 'C'].forEach(t => { if (teams[t]) teams[t].sort(byKo); });
-    unassigned.sort(byKo);
-
     // 현재 팀 맵 구성 (stageAssign에서 현재 팀 기준 토글에 사용)
     memberCurrentTeam = {};
     ['A', 'B', 'C'].forEach(t => (teams[t] || []).forEach(n => { memberCurrentTeam[n] = t; }));
     unassigned.forEach(n => { memberCurrentTeam[n] = ''; });
 
-    // 팀별 카드 (감독 지정 + 소속 회원 이동/해제) — A/B/C 한 줄, 좁으면 가로 스크롤
-    let html = `<div style="display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;padding-bottom:4px;">`;
+    // 표시용 그룹: 임시 배정(pendingAssignments)을 반영한 실제 소속 기준으로 재구성
+    // → A팀 선수를 B로 지정하면 행이 즉시 B팀 카드로 이동 (저장 전 UI만, 새로고침 시 서버 상태로 복귀)
+    const byKo = (a, b) => String(a).localeCompare(String(b), 'ko');
+    const eff = n => (n in pendingAssignments) ? pendingAssignments[n] : (memberCurrentTeam[n] || '');
+    const dispTeams = { A: [], B: [], C: [] };
+    const dispUnassigned = [];
+    Object.keys(memberCurrentTeam).forEach(n => {
+        const t = eff(n);
+        if (t === 'A' || t === 'B' || t === 'C') dispTeams[t].push(n);
+        else dispUnassigned.push(n);
+    });
+    ['A', 'B', 'C'].forEach(t => dispTeams[t].sort(byKo));
+    dispUnassigned.sort(byKo);
+
+    // 팀별 카드 (감독 지정 + 소속 회원 이동/해제) — A/B/C 세 팀이 한눈에 보이게 최대한 컴팩트
+    let html = `<div style="display:flex;gap:4px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;padding-bottom:4px;">`;
     ['A', 'B', 'C'].forEach(t => {
-        const mem = teams[t] || [];
+        const mem = dispTeams[t];
         const coach = coaches[t] || '';
-        const list = mem.slice();
+        const list = (teams[t] || []).slice();
         if (coach && list.indexOf(coach) === -1) list.push(coach); // 팀 밖 감독도 옵션에 포함
         let opts = '<option value="">(감독 없음)</option>';
         list.forEach(n => { opts += `<option value="${n}" ${n === coach ? 'selected' : ''}>${n}</option>`; });
 
         const rows = mem.length ? mem.map(memberAssignRow).join('') : '<p style="font-size:0.8em;color:#999;margin:2px 0;">소속 없음</p>';
         html += `
-            <div style="flex:1 0 200px;min-width:200px;border:1px solid #e0e0e0;border-radius:8px;padding:8px;">
-                <div style="font-weight:700;color:#667eea;margin-bottom:4px;font-size:0.95em;">${t}팀 <span style="color:#888;font-weight:400;font-size:0.85em;">(${mem.length}명)</span></div>
-                <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;">
-                    <span style="font-size:0.72em;color:#666;">감독</span>
-                    <select id="coach-${t}" style="flex:1;min-width:0;padding:1px 4px;font-size:0.72em;line-height:1.6;border:1px solid #ccc;border-radius:5px;">${opts}</select>
+            <div style="flex:1 1 0;min-width:118px;border:1px solid #e0e0e0;border-radius:8px;padding:4px;">
+                <div style="font-weight:700;color:#667eea;margin-bottom:2px;font-size:0.9em;">${t}팀 <span style="color:#888;font-weight:400;font-size:0.85em;">(${mem.length})</span></div>
+                <div style="display:flex;gap:2px;align-items:center;margin-bottom:4px;">
+                    <select id="coach-${t}" title="감독" style="flex:1;min-width:0;padding:1px 2px;font-size:0.72em;line-height:1.6;border:1px solid #ccc;border-radius:5px;">${opts}</select>
                     <button class="tbtn" onclick="saveTeamCoach('${t}')">지정</button>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:1px;">${rows}</div>
@@ -1229,13 +1237,13 @@ function renderTeamAssignment(d) {
     });
     html += `</div>`;
 
-    // 미배정 회원 (A/B/C로 배정)
-    html += `<h4 style="margin:0 0 10px 0;color:#333;">미배정 회원 <span style="color:#888;font-weight:400;font-size:0.85em;">(${unassigned.length}명)</span></h4>`;
-    if (unassigned.length === 0) {
+    // 미배정 회원 (A/B/C로 배정) — 임시 배정 반영된 목록
+    html += `<h4 style="margin:0 0 10px 0;color:#333;">미배정 회원 <span style="color:#888;font-weight:400;font-size:0.85em;">(${dispUnassigned.length}명)</span></h4>`;
+    if (dispUnassigned.length === 0) {
         html += `<p class="text-secondary">✅ 모든 회원이 팀에 배정되었습니다.</p>`;
     } else {
-        html += `<div style="display:flex;flex-direction:column;gap:6px;">`;
-        html += unassigned.map(memberAssignRow).join('');
+        html += `<div style="display:flex;flex-direction:column;gap:2px;">`;
+        html += dispUnassigned.map(memberAssignRow).join('');
         html += `</div>`;
     }
 
